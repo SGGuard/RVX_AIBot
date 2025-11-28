@@ -3,8 +3,10 @@ import logging
 import json
 import httpx
 import hashlib
-from typing import Optional
+import sqlite3
+from typing import Optional, List, Tuple
 from datetime import datetime
+from contextlib import contextmanager
 
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -16,11 +18,13 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 API_URL_NEWS = os.getenv("API_URL_NEWS")
 MAX_INPUT_LENGTH = int(os.getenv("MAX_INPUT_LENGTH", "4096"))
-API_TIMEOUT = float(os.getenv("API_TIMEOUT", "15.0"))
+API_TIMEOUT = float(os.getenv("API_TIMEOUT", "30.0")) # Увеличил таймаут
 ALLOWED_USERS = set(map(int, filter(None, os.getenv("ALLOWED_USERS", "").split(","))))
 FLOOD_COOLDOWN_SECONDS = int(os.getenv("FLOOD_COOLDOWN_SECONDS", "3"))
 MANDATORY_CHANNEL_ID = os.getenv("MANDATORY_CHANNEL_ID", "")
 MANDATORY_CHANNEL_LINK = os.getenv("MANDATORY_CHANNEL_LINK", "")
+
+DB_PATH = "rvx_bot.db"
 
 # --- 2. Логирование ---
 logging.basicConfig(
@@ -29,16 +33,204 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# --- 3. Глобальные хранилища ---
-user_last_request = {}  # Антифлуд
-request_stats = {}  # Статистика
-response_cache = {}  # Кэш ответов {hash: response}
-feedback_stats = {"helpful": 0, "not_helpful": 0}  # Статистика обратной связи
+# --- 3. База данных ---
+
+@contextmanager
+def get_db():
+    """Context manager для работы с БД."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        yield conn
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"DB ошибка: {e}")
+        raise
+    finally:
+        conn.close()
+
+def init_database():
+    """Инициализация базы данных."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY,
+                username TEXT,
+                first_name TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                total_requests INTEGER DEFAULT 0,
+                last_request_at TIMESTAMP
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS requests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                news_text TEXT,
+                response_text TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                from_cache BOOLEAN DEFAULT 0,
+                FOREIGN KEY (user_id) REFERENCES users(user_id)
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS feedback (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                request_id INTEGER,
+                is_helpful BOOLEAN,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(user_id),
+                FOREIGN KEY (request_id) REFERENCES requests(id)
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS cache (
+                cache_key TEXT PRIMARY KEY,
+                response_text TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                hit_count INTEGER DEFAULT 0
+            )
+        """)
+        
+        logger.info("✅ База данных инициализирована")
+
+def save_user(user_id: int, username: str, first_name: str):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO users (user_id, username, first_name)
+            VALUES (?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                username = excluded.username,
+                first_name = excluded.first_name
+        """, (user_id, username, first_name))
+
+def increment_user_requests(user_id: int):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE users 
+            SET total_requests = total_requests + 1,
+                last_request_at = CURRENT_TIMESTAMP
+            WHERE user_id = ?
+        """, (user_id,))
+
+def save_request(user_id: int, news_text: str, response_text: str, from_cache: bool) -> int:
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO requests (user_id, news_text, response_text, from_cache)
+            VALUES (?, ?, ?, ?)
+        """, (user_id, news_text, response_text, from_cache))
+        return cursor.lastrowid
+
+def save_feedback(user_id: int, request_id: int, is_helpful: bool):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO feedback (user_id, request_id, is_helpful)
+            VALUES (?, ?, ?)
+        """, (user_id, request_id, is_helpful))
+
+def get_cache(cache_key: str) -> Optional[str]:
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT response_text FROM cache WHERE cache_key = ?
+        """, (cache_key,))
+        row = cursor.fetchone()
+        
+        if row:
+            cursor.execute("""
+                UPDATE cache SET hit_count = hit_count + 1 WHERE cache_key = ?
+            """, (cache_key,))
+            return row[0]
+        return None
+
+def set_cache(cache_key: str, response_text: str):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO cache (cache_key, response_text)
+            VALUES (?, ?)
+            ON CONFLICT(cache_key) DO UPDATE SET
+                response_text = excluded.response_text,
+                hit_count = hit_count + 1
+        """, (cache_key, response_text))
+
+def get_user_history(user_id: int, limit: int = 5) -> List[Tuple]:
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT news_text, response_text, created_at, from_cache
+            FROM requests
+            WHERE user_id = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+        """, (user_id, limit))
+        return cursor.fetchall()
+
+def search_user_requests(user_id: int, search_text: str) -> List[Tuple]:
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT news_text, response_text, created_at
+            FROM requests
+            WHERE user_id = ? AND news_text LIKE ?
+            ORDER BY created_at DESC
+            LIMIT 10
+        """, (user_id, f"%{search_text}%"))
+        return cursor.fetchall()
+
+def get_global_stats() -> dict:
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT COUNT(*) FROM users")
+        total_users = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM requests")
+        total_requests = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM cache")
+        cache_size = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM feedback WHERE is_helpful = 1")
+        helpful_count = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM feedback WHERE is_helpful = 0")
+        not_helpful_count = cursor.fetchone()[0]
+        
+        cursor.execute("""
+            SELECT username, first_name, total_requests
+            FROM users
+            ORDER BY total_requests DESC
+            LIMIT 5
+        """)
+        top_users = cursor.fetchall()
+        
+        return {
+            "total_users": total_users,
+            "total_requests": total_requests,
+            "cache_size": cache_size,
+            "helpful": helpful_count,
+            "not_helpful": not_helpful_count,
+            "top_users": top_users
+        }
 
 # --- 4. Утилиты ---
 
+user_last_request = {}
+user_last_news = {}
+
 def check_flood(user_id: int) -> bool:
-    """Антифлуд проверка."""
     now = datetime.now()
     if user_id in user_last_request:
         time_diff = (now - user_last_request[user_id]).total_seconds()
@@ -48,362 +240,296 @@ def check_flood(user_id: int) -> bool:
     return True
 
 def get_cache_key(text: str) -> str:
-    """Генерирует уникальный ключ для кэша."""
     return hashlib.md5(text.lower().strip().encode()).hexdigest()
 
 async def check_subscription(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    """Проверяет подписку на обязательный канал."""
     if not MANDATORY_CHANNEL_ID:
-        return True  # Если канал не настроен - пропускаем всех
-    
+        return True
     try:
         member = await context.bot.get_chat_member(MANDATORY_CHANNEL_ID, user_id)
         return member.status in ['member', 'administrator', 'creator']
     except TelegramError as e:
         logger.error(f"Ошибка проверки подписки: {e}")
-        return True  # В случае ошибки пропускаем
+        return True
 
 def validate_api_response(api_response: dict) -> Optional[str]:
-    """Валидирует ответ API."""
     if not isinstance(api_response, dict):
         return None
-    
     simplified_text = api_response.get("simplified_text")
-    
     if not simplified_text or not isinstance(simplified_text, str):
         return None
-    
     if len(simplified_text) > 4096:
         return simplified_text[:4090] + "..."
-    
     return simplified_text
 
 # --- 5. Команды ---
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Приветствие."""
     user = update.effective_user
+    save_user(user.id, user.username or "", user.first_name)
     logger.info(f"Пользователь {user.id} запустил бота")
     
     welcome_text = (
         f"Привет, {user.first_name}! 👋\n\n"
-        "Я RVX AI-аналитик криптоновостей.\n\n"
-        "📌 Отправь мне новость - получишь простое объяснение\n"
-        "⚡ Быстрые ответы благодаря кэшированию\n"
-        "💬 Оцени полезность через кнопки под ответом\n\n"
-        "Используй /help для инструкций."
+        "Я RVX AI-аналитик v0.3.0 с базой данных!\n\n"
+        "🆕 Новое в этой версии:\n"
+        "💾 История анализов (/history)\n"
+        "🔍 Поиск (/search)\n"
+        "📊 Статистика (/stats)\n"
+        "📥 Экспорт данных (/export)\n"
     )
-    
     await update.message.reply_text(welcome_text)
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Справка."""
     help_text = (
-        "📖 Как пользоваться:\n\n"
-        "1. Отправь текст криптоновости\n"
-        "2. Получи простое объяснение\n"
-        "3. Оцени полезность кнопками 👍/👎\n\n"
-        "⚙️ Ограничения:\n"
-        f"• Макс {MAX_INPUT_LENGTH} символов\n"
-        f"• Не чаще 1 запроса в {FLOOD_COOLDOWN_SECONDS} сек\n\n"
-        "💡 Команды:\n"
-        "/start - Начать\n"
-        "/help - Справка\n"
-        "/stats - Статистика\n"
-        "/clear_cache - Очистить кэш (только для вас)"
+        "📖 Инструкция:\n"
+        "Отправь текст новости — получи перевод на понятный язык.\n\n"
+        "Команды:\n"
+        "/start, /help, /stats, /history, /search <текст>, /export"
     )
-    
     if MANDATORY_CHANNEL_ID:
-        help_text += f"\n\n📢 Обязательная подписка:\n{MANDATORY_CHANNEL_LINK}"
-    
+        help_text += f"\n\n📢 Канал:\n{MANDATORY_CHANNEL_LINK}"
     await update.message.reply_text(help_text)
 
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Статистика."""
     user_id = update.effective_user.id
-    user_requests = request_stats.get(user_id, 0)
-    total_requests = sum(request_stats.values())
-    total_users = len(request_stats)
-    cache_size = len(response_cache)
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT total_requests FROM users WHERE user_id = ?", (user_id,))
+        row = cursor.fetchone()
+        user_requests = row[0] if row else 0
+    
+    stats = get_global_stats()
     
     stats_text = (
-        "📊 Статистика:\n\n"
-        f"Ваши запросы: {user_requests}\n"
-        f"Всего запросов: {total_requests}\n"
-        f"Пользователей: {total_users}\n"
-        f"Кэшировано ответов: {cache_size}\n\n"
-        f"📈 Обратная связь:\n"
-        f"👍 Полезно: {feedback_stats['helpful']}\n"
-        f"👎 Не помогло: {feedback_stats['not_helpful']}"
+        "📊 Статистика v0.3.0:\n\n"
+        f"👤 Ваши запросы: {user_requests}\n"
+        f"👥 Пользователей: {stats['total_users']}\n"
+        f"📝 Всего запросов: {stats['total_requests']}\n"
+        f"💾 В кэше: {stats['cache_size']}\n"
+        f"👍 Полезно: {stats['helpful']} | 👎 Не помогло: {stats['not_helpful']}\n\n"
+        f"🏆 ТОП юзеров:\n"
     )
+    for i, (username, first_name, requests) in enumerate(stats['top_users'], 1):
+        name = username or first_name or "Анонимный"
+        stats_text += f"{i}. {name}: {requests}\n"
     
     await update.message.reply_text(stats_text)
 
-async def clear_cache_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Очистка кэша (глобально для админа)."""
+async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    history = get_user_history(user_id, limit=5)
     
-    # Простая версия - каждый может очистить весь кэш
-    # В продакшене лучше ограничить админами
-    cache_size = len(response_cache)
-    response_cache.clear()
+    if not history:
+        await update.message.reply_text("📜 История пуста.")
+        return
     
-    await update.message.reply_text(
-        f"🗑️ Кэш очищен!\n"
-        f"Удалено {cache_size} записей."
-    )
-    logger.info(f"Пользователь {user_id} очистил кэш ({cache_size} записей)")
+    response = "📜 Последние 5 анализов:\n\n"
+    for i, (news, _, created_at, from_cache) in enumerate(history, 1):
+        news_preview = news[:50] + "..." if len(news) > 50 else news
+        icon = "⚡" if from_cache else "🆕"
+        response += f"{i}. {icon} {news_preview}\n   🕐 {created_at}\n\n"
+    
+    await update.message.reply_text(response)
 
-# --- 6. Хранилище исходных текстов для regenerate ---
-user_last_news = {}  # {user_id: original_text}
+async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not context.args:
+        await update.message.reply_text("❌ Пример: /search биткоин")
+        return
+    search_text = " ".join(context.args)
+    results = search_user_requests(user_id, search_text)
+    
+    if not results:
+        await update.message.reply_text("🔍 Ничего не найдено.")
+        return
+    
+    response = f"🔍 Найдено {len(results)}:\n\n"
+    for i, (news, _, created_at) in enumerate(results[:5], 1):
+        news_preview = news[:60] + "..."
+        response += f"{i}. {news_preview}\n   🕐 {created_at}\n\n"
+    await update.message.reply_text(response)
 
-# --- 7. Обработчик кнопок ---
+async def export_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    history = get_user_history(user_id, limit=100)
+    
+    if not history:
+        await update.message.reply_text("📜 История пуста.")
+        return
+    
+    export_text = f"RVX Export | User: {user_id} | Date: {datetime.now()}\n\n"
+    for i, (news, response, created_at, _) in enumerate(history, 1):
+        export_text += f"=== Запись #{i} ({created_at}) ===\nВход: {news}\nВыход: {response}\n\n"
+    
+    from io import BytesIO
+    file = BytesIO(export_text.encode('utf-8'))
+    file.name = f"rvx_history_{user_id}.txt"
+    
+    await update.message.reply_document(document=file, caption="📥 Ваш архив")
+
+async def clear_cache_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM cache")
+    await update.message.reply_text("🗑️ Кэш очищен!")
+
+# --- 6. Обработчик кнопок (ИСПРАВЛЕННЫЙ) ---
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка нажатий на inline кнопки."""
+    """Обработка inline кнопок с защитой от ошибок парсинга."""
     query = update.callback_query
     await query.answer()
     
     data = query.data
     user = query.from_user
     
-    if data == "feedback_helpful":
-        feedback_stats["helpful"] += 1
+    # Логика парсинга: ID всегда в конце
+    parts = data.split("_")
+    try:
+        # Берем последний элемент как ID
+        request_id = int(parts[-1])
+        # Всё, что до последнего элемента - это действие
+        action = "_".join(parts[:-1])
+    except (ValueError, IndexError):
+        logger.error(f"Ошибка парсинга кнопки: {data}")
+        return
+
+    if action == "feedback_helpful":
+        save_feedback(user.id, request_id, is_helpful=True)
         await query.edit_message_reply_markup(reply_markup=None)
-        await query.message.reply_text("✅ Спасибо! Рады, что помогли 🙂")
-        logger.info(f"Пользователь {user.id} оценил как полезный")
-        
-        # Удаляем сохраненную новость
+        await query.message.reply_text("✅ Спасибо! Рады помочь 🙂")
         if user.id in user_last_news:
             del user_last_news[user.id]
     
-    elif data == "feedback_not_helpful":
-        feedback_stats["not_helpful"] += 1
+    elif action == "feedback_not_helpful":
+        save_feedback(user.id, request_id, is_helpful=False)
         
-        # Проверяем, есть ли сохраненная новость
         if user.id not in user_last_news:
             await query.edit_message_reply_markup(reply_markup=None)
-            await query.message.reply_text(
-                "😔 Жаль, что не помогло.\n"
-                "Отправьте новость заново для нового анализа."
-            )
+            await query.message.reply_text("😔 Попробуйте отправить новость заново.")
             return
         
-        # Генерируем НОВЫЙ анализ (игнорируем кэш)
         original_text = user_last_news[user.id]
-        
-        await query.edit_message_text("🔄 Создаю новый вариант объяснения...")
-        logger.info(f"Пользователь {user.id} запросил альтернативный анализ")
+        await query.edit_message_text("🔄 Пробую объяснить иначе...")
         
         try:
-            # Запрос к API (БЕЗ кэша)
+            # Для регенерации отправляем тот же текст
             payload = {"text_content": original_text}
             
             async with httpx.AsyncClient(timeout=API_TIMEOUT) as client:
                 response = await client.post(API_URL_NEWS, json=payload)
                 response.raise_for_status()
-                
                 api_response = response.json()
                 simplified_text = validate_api_response(api_response)
                 
                 if not simplified_text:
-                    raise ValueError("Некорректный ответ")
+                    raise ValueError("Пустой ответ при регенерации")
             
-            # Формируем новый ответ
-            new_response = f"🤖 СКАУТ RVX (новый вариант):\n\n{simplified_text}"
+            new_request_id = save_request(user.id, original_text, simplified_text, from_cache=False)
             
-            # Снова добавляем кнопки
+            new_response = f"🤖 СКАУТ RVX (Попытка 2):\n\n{simplified_text}"
             keyboard = [
                 [
-                    InlineKeyboardButton("👍 Полезно", callback_data="feedback_helpful"),
-                    InlineKeyboardButton("👎 Не помогло", callback_data="feedback_not_helpful")
+                    InlineKeyboardButton("👍 Полезно", callback_data=f"feedback_helpful_{new_request_id}"),
+                    InlineKeyboardButton("👎 Не помогло", callback_data=f"feedback_not_helpful_{new_request_id}")
                 ]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await query.edit_message_text(new_response, reply_markup=reply_markup)
-            logger.info(f"✅ Новый вариант создан для пользователя {user.id}")
         
         except Exception as e:
-            logger.error(f"Ошибка при создании нового варианта: {e}")
-            await query.edit_message_text(
-                "❌ Ошибка при создании нового варианта.\n"
-                "Попробуйте отправить новость заново."
-            )
-            await query.edit_message_reply_markup(reply_markup=None)
+            logger.error(f"Ошибка regenerate: {e}")
+            await query.edit_message_text("❌ Ошибка при пересоздании.")
 
 # --- 7. Основной обработчик ---
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка текстовых сообщений."""
     user = update.effective_user
     user_text = update.message.text
+    save_user(user.id, user.username or "", user.first_name)
     
-    # Проверка whitelist
     if ALLOWED_USERS and user.id not in ALLOWED_USERS:
-        await update.message.reply_text("⛔ У вас нет доступа.")
+        await update.message.reply_text("⛔ Доступ запрещен.")
         return
     
-    # Проверка подписки на канал
     if not await check_subscription(user.id, context):
         keyboard = [[InlineKeyboardButton("📢 Подписаться", url=MANDATORY_CHANNEL_LINK)]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text(
-            "⛔ Для использования бота необходимо подписаться на наш канал!\n\n"
-            "После подписки отправьте новость снова.",
-            reply_markup=reply_markup
-        )
-        logger.info(f"Пользователь {user.id} не подписан на канал")
+        await update.message.reply_text("⛔ Подпишись на канал!", reply_markup=InlineKeyboardMarkup(keyboard))
         return
     
-    # Антифлуд
     if not check_flood(user.id):
-        await update.message.reply_text(
-            f"⏱️ Подождите {FLOOD_COOLDOWN_SECONDS} сек между запросами."
-        )
+        await update.message.reply_text(f"⏱️ Жди {FLOOD_COOLDOWN_SECONDS} сек.")
         return
     
-    # Валидация
-    if not user_text or not user_text.strip():
-        await update.message.reply_text("❌ Текст пустой.")
-        return
-    
-    if len(user_text) > MAX_INPUT_LENGTH:
-        await update.message.reply_text(
-            f"❌ Макс {MAX_INPUT_LENGTH} символов."
-        )
-        return
-    
-    if not API_URL_NEWS:
-        await update.message.reply_text("❌ Ошибка конфигурации.")
-        return
-    
-    # Проверка кэша
+    # Кэш
     cache_key = get_cache_key(user_text)
+    cached_response = get_cache(cache_key)
     
-    if cache_key in response_cache:
-        logger.info(f"✨ Кэш HIT для пользователя {user.id}")
-        cached_response = response_cache[cache_key]
-        
-        # ВАЖНО: Сохраняем исходный текст даже для кэшированных ответов
+    if cached_response:
+        logger.info(f"✨ Кэш HIT для {user.id}")
         user_last_news[user.id] = user_text
+        request_id = save_request(user.id, user_text, cached_response, from_cache=True)
+        increment_user_requests(user.id)
         
-        # Создаем кнопки обратной связи
-        keyboard = [
-            [
-                InlineKeyboardButton("👍 Полезно", callback_data="feedback_helpful"),
-                InlineKeyboardButton("👎 Не помогло", callback_data="feedback_not_helpful")
-            ]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await update.message.reply_text(
-            f"⚡ Из кэша\n\n{cached_response}",
-            reply_markup=reply_markup
-        )
-        
-        request_stats[user.id] = request_stats.get(user.id, 0) + 1
+        keyboard = [[
+            InlineKeyboardButton("👍 Полезно", callback_data=f"feedback_helpful_{request_id}"),
+            InlineKeyboardButton("👎 Не помогло", callback_data=f"feedback_not_helpful_{request_id}")
+        ]]
+        await update.message.reply_text(f"⚡ Кэш:\n\n{cached_response}", reply_markup=InlineKeyboardMarkup(keyboard))
         return
     
-    logger.info(f"📥 Запрос от {user.id} ({len(user_text)} символов)")
-    
-    payload = {"text_content": user_text}
-    status_msg = await update.message.reply_text("⏳ Анализирую...")
-
+    # Запрос
+    status_msg = await update.message.reply_text("⏳ Читаю...")
     try:
-        # Запрос к API
         async with httpx.AsyncClient(timeout=API_TIMEOUT) as client:
-            response = await client.post(API_URL_NEWS, json=payload)
+            response = await client.post(API_URL_NEWS, json={"text_content": user_text})
             response.raise_for_status()
-            
-            api_response = response.json()
-            simplified_text = validate_api_response(api_response)
+            simplified_text = validate_api_response(response.json())
             
             if not simplified_text:
-                raise ValueError("Некорректный ответ API")
+                raise ValueError("Ошибка API")
         
-        # Сохраняем в кэш
-        response_cache[cache_key] = simplified_text
-        logger.info(f"💾 Ответ сохранен в кэш (всего: {len(response_cache)})")
-        
-        # 💾 ВАЖНО: Сохраняем исходный текст для возможности regenerate
+        set_cache(cache_key, simplified_text)
+        request_id = save_request(user.id, user_text, simplified_text, from_cache=False)
+        increment_user_requests(user.id)
         user_last_news[user.id] = user_text
         
-        # Формируем ответ с кнопками
-        final_response = f"🤖 СКАУТ RVX:\n\n{simplified_text}"
-        
-        keyboard = [
-            [
-                InlineKeyboardButton("👍 Полезно", callback_data="feedback_helpful"),
-                InlineKeyboardButton("👎 Не помогло", callback_data="feedback_not_helpful")
-            ]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await status_msg.edit_text(final_response, reply_markup=reply_markup)
-        
-        request_stats[user.id] = request_stats.get(user.id, 0) + 1
-        logger.info(f"✅ Успешно обработан запрос {user.id}")
+        keyboard = [[
+            InlineKeyboardButton("👍 Полезно", callback_data=f"feedback_helpful_{request_id}"),
+            InlineKeyboardButton("👎 Не помогло", callback_data=f"feedback_not_helpful_{request_id}")
+        ]]
+        await status_msg.edit_text(f"🤖 СКАУТ RVX:\n\n{simplified_text}", reply_markup=InlineKeyboardMarkup(keyboard))
+        logger.info(f"✅ Успех для {user.id}")
 
-    except httpx.TimeoutException:
-        await status_msg.edit_text("❌ Timeout. Попробуйте позже.")
-    
-    except httpx.RequestError as e:
-        logger.error(f"API ошибка: {e}")
-        await status_msg.edit_text("❌ Сервер недоступен.")
-    
-    except httpx.HTTPStatusError as e:
-        await status_msg.edit_text(f"❌ Ошибка {e.response.status_code}.")
-    
-    except json.JSONDecodeError:
-        await status_msg.edit_text("❌ Некорректный JSON.")
-    
     except Exception as e:
-        logger.error(f"Ошибка: {e}", exc_info=True)
-        await status_msg.edit_text("❌ Неизвестная ошибка.")
+        logger.error(f"Fail: {e}")
+        await status_msg.edit_text("❌ Ошибка связи с мозгом.")
 
 # --- 8. Запуск ---
 
 def main():
-    """Запуск бота."""
-    if not TELEGRAM_BOT_TOKEN:
-        logger.critical("TELEGRAM_BOT_TOKEN не найден")
+    if not TELEGRAM_BOT_TOKEN or not API_URL_NEWS:
+        logger.critical("Нет токенов!")
         return
     
-    if not API_URL_NEWS:
-        logger.critical("API_URL_NEWS не найден")
-        return
-    
-    logger.info("=" * 50)
-    logger.info("🚀 Запуск RVX AI-аналитик v0.2.0")
-    logger.info("=" * 50)
-    logger.info("Конфигурация:")
-    logger.info(f"  • MAX_INPUT: {MAX_INPUT_LENGTH}")
-    logger.info(f"  • TIMEOUT: {API_TIMEOUT}s")
-    logger.info(f"  • FLOOD: {FLOOD_COOLDOWN_SECONDS}s")
-    logger.info(f"  • WHITELIST: {'Да' if ALLOWED_USERS else 'Нет'}")
-    logger.info(f"  • CHANNEL: {MANDATORY_CHANNEL_ID if MANDATORY_CHANNEL_ID else 'Нет'}")
-    logger.info("=" * 50)
+    init_database()
+    logger.info("🚀 Перезапуск v0.3.1 (Fix Buttons)")
     
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
-
-    # Регистрируем обработчики
+    
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("stats", stats_command))
+    application.add_handler(CommandHandler("history", history_command))
+    application.add_handler(CommandHandler("search", search_command))
+    application.add_handler(CommandHandler("export", export_command))
     application.add_handler(CommandHandler("clear_cache", clear_cache_command))
     application.add_handler(CallbackQueryHandler(button_callback))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    logger.info("🤖 Бот v0.2.0 запущен!")
-    
-    try:
-        application.run_polling(allowed_updates=Update.ALL_TYPES)
-    except KeyboardInterrupt:
-        logger.info("Остановка бота...")
-        logger.info(f"Финальная статистика кэша: {len(response_cache)} записей")
-    except Exception as e:
-        logger.critical(f"Критическая ошибка: {e}", exc_info=True)
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
     main()
