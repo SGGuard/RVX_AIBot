@@ -776,4 +776,8 @@ if __name__ == "__main__":
         port=port,
         reload=True,
         log_level="info"
+<<<<<<< HEAD
     )
+=======
+    )
+>>>>>>> 0f7d810 (feat: Обновление API до v0.5.0, добавление тестов и кэширования)
