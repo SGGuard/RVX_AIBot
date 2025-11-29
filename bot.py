@@ -16,6 +16,16 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 from telegram.error import TelegramError, TimedOut, NetworkError
 from telegram.constants import ParseMode
 
+# Новый модуль для обучения (v0.5.0)
+from education import (
+    COURSES_DATA, XP_REWARDS, LEVEL_THRESHOLDS, BADGES,
+    load_courses_to_db, get_user_knowledge_level, calculate_user_level_and_xp,
+    add_xp_to_user, get_user_badges, add_badge_to_user, get_lesson_content,
+    extract_quiz_from_lesson, get_faq_by_keyword, save_question_to_db,
+    add_question_to_faq, get_user_course_progress, get_all_tools_db,
+    get_educational_context
+)
+
 # =============================================================================
 # КОНФИГУРАЦИЯ
 # =============================================================================
@@ -93,7 +103,7 @@ def check_column_exists(cursor, table: str, column: str) -> bool:
     return column in columns
 
 def migrate_database():
-    """Миграция базы данных к новой схеме."""
+    """Миграция базы данных к новой схеме v0.5.0."""
     logger.info("🔄 Проверка необходимости миграции...")
     
     with get_db() as conn:
@@ -120,6 +130,27 @@ def migrate_database():
         if not check_column_exists(cursor, 'users', 'daily_reset_at'):
             logger.info("  • Добавление колонки daily_reset_at...")
             cursor.execute("ALTER TABLE users ADD COLUMN daily_reset_at TIMESTAMP")
+            migrations_needed = True
+        
+        # NEW v0.5.0: Миграция новых полей для обучения
+        if not check_column_exists(cursor, 'users', 'knowledge_level'):
+            logger.info("  • Добавление колонки knowledge_level...")
+            cursor.execute("ALTER TABLE users ADD COLUMN knowledge_level TEXT DEFAULT 'unknown'")
+            migrations_needed = True
+        
+        if not check_column_exists(cursor, 'users', 'xp'):
+            logger.info("  • Добавление колонки xp...")
+            cursor.execute("ALTER TABLE users ADD COLUMN xp INTEGER DEFAULT 0")
+            migrations_needed = True
+        
+        if not check_column_exists(cursor, 'users', 'level'):
+            logger.info("  • Добавление колонки level...")
+            cursor.execute("ALTER TABLE users ADD COLUMN level INTEGER DEFAULT 1")
+            migrations_needed = True
+        
+        if not check_column_exists(cursor, 'users', 'badges'):
+            logger.info("  • Добавление колонки badges...")
+            cursor.execute("ALTER TABLE users ADD COLUMN badges TEXT DEFAULT '[]'")
             migrations_needed = True
         
         # Миграция requests
@@ -151,11 +182,11 @@ def migrate_database():
             logger.info("✅ Миграция не требуется, схема актуальна")
 
 def init_database():
-    """Инициализация базы данных с расширенной схемой."""
+    """Инициализация базы данных с расширенной схемой v0.5.0."""
     with get_db() as conn:
         cursor = conn.cursor()
         
-        # Таблица пользователей
+        # Таблица пользователей (обновленная)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 user_id INTEGER PRIMARY KEY,
@@ -167,7 +198,11 @@ def init_database():
                 is_banned BOOLEAN DEFAULT 0,
                 ban_reason TEXT,
                 daily_requests INTEGER DEFAULT 0,
-                daily_reset_at TIMESTAMP
+                daily_reset_at TIMESTAMP,
+                knowledge_level TEXT DEFAULT 'unknown',
+                xp INTEGER DEFAULT 0,
+                level INTEGER DEFAULT 1,
+                badges TEXT DEFAULT '[]'
             )
         """)
         
@@ -222,6 +257,106 @@ def init_database():
             )
         """)
         
+        # ============ НОВЫЕ ТАБЛИЦЫ v0.5.0 ============
+        
+        # Таблица курсов
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS courses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE,
+                title TEXT,
+                level TEXT,
+                description TEXT,
+                total_lessons INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Таблица уроков
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS lessons (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                course_id INTEGER,
+                lesson_number INTEGER,
+                title TEXT,
+                content TEXT,
+                duration_minutes INTEGER,
+                quiz_json TEXT,
+                xp_reward INTEGER DEFAULT 10,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (course_id) REFERENCES courses(id)
+            )
+        """)
+        
+        # Таблица прогресса пользователя
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_progress (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                lesson_id INTEGER,
+                completed_at TIMESTAMP,
+                quiz_score INTEGER,
+                xp_earned INTEGER,
+                FOREIGN KEY (user_id) REFERENCES users(user_id),
+                FOREIGN KEY (lesson_id) REFERENCES lessons(id)
+            )
+        """)
+        
+        # Таблица вопросов и ответов
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_questions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                question TEXT,
+                answer TEXT,
+                source TEXT,
+                is_in_faq BOOLEAN DEFAULT 0,
+                views INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(user_id)
+            )
+        """)
+        
+        # Таблица FAQ
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS faq (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                question TEXT UNIQUE,
+                answer TEXT,
+                related_lesson_id INTEGER,
+                category TEXT,
+                views INTEGER DEFAULT 0,
+                helpful INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (related_lesson_id) REFERENCES lessons(id)
+            )
+        """)
+        
+        # Таблица инструментов
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS tools (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE,
+                description TEXT,
+                url TEXT,
+                category TEXT,
+                difficulty TEXT,
+                tutorial TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Таблица избранных инструментов
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_bookmarks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                tool_name TEXT,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(user_id)
+            )
+        """)
+        
         # Индексы для производительности
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_requests_user_id 
@@ -235,8 +370,21 @@ def init_database():
             CREATE INDEX IF NOT EXISTS idx_cache_last_used 
             ON cache(last_used_at)
         """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_user_progress_user
+            ON user_progress(user_id)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_user_questions_user
+            ON user_questions(user_id)
+        """)
         
-        logger.info("✅ База данных инициализирована (v0.4.0)")
+        logger.info("✅ База данных инициализирована (v0.5.0)")
+    
+    # Инициализируем курсы (загружаем из markdown в БД)
+    with get_db() as conn:
+        cursor = conn.cursor()
+        load_courses_to_db(cursor)
     
     # Выполняем миграцию существующих таблиц
     migrate_database()
@@ -563,7 +711,7 @@ def validate_api_response(api_response: dict) -> Optional[str]:
 
 async def call_api_with_retry(news_text: str) -> Tuple[Optional[str], Optional[float], Optional[str]]:
     """
-    Вызывает API с повторными попытками.
+    Вызывает API с повторными попытками с экспоненциальной задержкой.
     Возвращает (response_text, processing_time_ms, error_message)
     """
     start_time = datetime.now()
@@ -591,21 +739,32 @@ async def call_api_with_retry(news_text: str) -> Tuple[Optional[str], Optional[f
                 
                 return simplified_text, processing_time, None
         
-        except httpx.TimeoutException:
+        except httpx.TimeoutException as e:
             last_error = f"Таймаут ({API_TIMEOUT}s)"
-            logger.warning(f"⏱️ Таймаут на попытке {attempt}")
+            logger.warning(f"⏱️ Таймаут на попытке {attempt}: {e}")
+        
+        except httpx.ConnectError as e:
+            last_error = "Ошибка подключения"
+            logger.warning(f"🔗 Ошибка подключения на попытке {attempt}: {e}")
         
         except httpx.HTTPStatusError as e:
             last_error = f"HTTP {e.response.status_code}"
-            logger.error(f"❌ HTTP ошибка на попытке {attempt}: {e}")
+            
+            if e.response.status_code == 429:  # Too many requests
+                logger.warning(f"⛔ Rate limit на попытке {attempt}: {e}")
+                last_error = "Rate limit от API"
+            else:
+                logger.error(f"❌ HTTP ошибка на попытке {attempt}: {e}")
         
         except Exception as e:
-            last_error = str(e)
+            last_error = str(e)[:100]  # Ограничиваем длину
             logger.error(f"❌ Ошибка на попытке {attempt}: {e}")
         
         # Ждем перед следующей попыткой (кроме последней)
         if attempt < API_RETRY_ATTEMPTS:
-            await asyncio.sleep(API_RETRY_DELAY * attempt)
+            wait_time = API_RETRY_DELAY * (2 ** (attempt - 1))  # Экспоненциальная задержка
+            logger.debug(f"⏳ Ожидание {wait_time:.1f}сек перед следующей попыткой...")
+            await asyncio.sleep(wait_time)
     
     # Все попытки исчерпаны
     processing_time = (datetime.now() - start_time).total_seconds() * 1000
@@ -895,6 +1054,224 @@ async def limits_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(limits_text, parse_mode=ParseMode.MARKDOWN)
 
+# ============= НОВЫЕ КОМАНДЫ v0.5.0 - ОБУЧЕНИЕ =============
+
+@log_command
+async def learn_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показывает список доступных курсов для обучения."""
+    user = update.effective_user
+    user_id = user.id
+    
+    save_user(user_id, user.username or "", user.first_name)
+    
+    # Получаем уровень пользователя
+    with get_db() as conn:
+        cursor = conn.cursor()
+        knowledge_level = get_user_knowledge_level(cursor, user_id)
+        level, xp = calculate_user_level_and_xp(cursor, user_id)
+    
+    learn_text = (
+        "📚 **Криптовалютная академия RVX v0.5.0**\n\n"
+        f"👤 Ваш уровень: **Level {level}** ({xp} XP)\n"
+        f"Знания: {knowledge_level}\n\n"
+        "🎓 **Доступные курсы:**\n\n"
+    )
+    
+    # Показываем все курсы
+    for course_key, course_data in COURSES_DATA.items():
+        learn_text += (
+            f"**{course_data['title']}** ({course_data['level'].upper()})\n"
+            f"• {course_data['description']}\n"
+            f"• Уроков: {course_data['total_lessons']} | XP: {course_data['total_xp']}\n"
+            f"• Начать: `/start_{course_key}`\n\n"
+        )
+    
+    learn_text += (
+        "💡 **Совет:** Начните с Blockchain Basics если новичок!\n"
+        "Используйте `/lesson 1` чтобы начать первый урок."
+    )
+    
+    await update.message.reply_text(learn_text, parse_mode=ParseMode.MARKDOWN)
+
+
+@log_command
+async def lesson_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показывает конкретный урок. Используется так: /lesson 1"""
+    user_id = update.effective_user.id
+    
+    if not context.args:
+        await update.message.reply_text(
+            "❌ Укажите номер урока\n\n"
+            "Пример: `/lesson 1`\n"
+            "Сначала начните курс через `/learn`"
+        )
+        return
+    
+    # Ищем текущий курс пользователя из контекста
+    # TODO: сохранять current_course в user контексте
+    
+    await update.message.reply_text(
+        "📖 Уроки доступны после выбора курса!\n\n"
+        "Используйте: `/learn` → выберите курс → `/start_blockchain_basics`"
+    )
+
+
+@log_command
+async def tools_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показывает интерактивный справочник инструментов."""
+    user_id = update.effective_user.id
+    
+    if not context.args:
+        # Показываем список всех инструментов
+        tools = get_all_tools_db()
+        
+        tools_text = "🛠️ **Справочник криптинструментов**\n\n"
+        
+        # Группируем по категориям
+        categories = {}
+        for tool in tools:
+            cat = tool['category']
+            if cat not in categories:
+                categories[cat] = []
+            categories[cat].append(tool)
+        
+        for category, category_tools in categories.items():
+            tools_text += f"**{category}:**\n"
+            for tool in category_tools:
+                tools_text += f"• {tool['name']} ({tool['difficulty']})\n"
+            tools_text += "\n"
+        
+        tools_text += "Введите название инструмента, чтобы узнать подробнее:\n`/tools Etherscan`"
+        
+        await update.message.reply_text(tools_text, parse_mode=ParseMode.MARKDOWN)
+        return
+    
+    # Показываем подробнее про конкретный инструмент
+    tool_name = " ".join(context.args)
+    tools = get_all_tools_db()
+    
+    tool = next((t for t in tools if t['name'].lower() == tool_name.lower()), None)
+    
+    if not tool:
+        await update.message.reply_text(
+            f"❌ Инструмент '{tool_name}' не найден\n\n"
+            "Используйте `/tools` для списка всех инструментов"
+        )
+        return
+    
+    tool_text = (
+        f"🔧 **{tool['name']}**\n\n"
+        f"📖 {tool['description']}\n\n"
+        f"📊 **Информация:**\n"
+        f"• Категория: {tool['category']}\n"
+        f"• Сложность: {tool['difficulty']}\n"
+        f"• URL: {tool['url']}\n\n"
+        f"📚 **Как использовать:**\n"
+        f"{tool['tutorial']}\n\n"
+        f"💡 Хотите сохранить в избранное? (`/bookmark {tool['name']}`)"
+    )
+    
+    await update.message.reply_text(tool_text, parse_mode=ParseMode.MARKDOWN)
+    
+    # Логируем просмотр
+    if ENABLE_ANALYTICS:
+        log_analytics_event("tool_viewed", user_id, {"tool": tool['name']})
+
+
+@log_command
+async def ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Задать вопрос про крипто (/ask какой вопрос?)"""
+    user_id = update.effective_user.id
+    
+    if not context.args:
+        await update.message.reply_text(
+            "❓ Задайте вопрос про крипто!\n\n"
+            "Пример: `/ask Что такое smart contract?`"
+        )
+        return
+    
+    question = " ".join(context.args)
+    
+    # Сначала проверяем FAQ
+    with get_db() as conn:
+        cursor = conn.cursor()
+        faq_result = get_faq_by_keyword(cursor, question)
+    
+    if faq_result:
+        faq_question, faq_answer, faq_id = faq_result
+        
+        await update.message.reply_text(
+            f"📖 **Найдено в FAQ:**\n\n"
+            f"**Q:** {faq_question}\n\n"
+            f"**A:** {faq_answer}",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        
+        # Увеличиваем просмотры
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE faq SET views = views + 1 WHERE id = ?", (faq_id,))
+        
+        return
+    
+    # Если нет в FAQ - используем Gemini для ответа
+    status_msg = await update.message.reply_text("🤖 Думаю над вашим вопросом...")
+    
+    try:
+        # Специальный промпт для Q&A
+        gemini_qa_prompt = f"""Ты эксперт по крипто, обучаешь новичков.
+Ответь на вопрос подробно, но понятно для новичка.
+Используй аналогии из обычной жизни если возможно.
+
+Вопрос: {question}
+
+Формат ответа:
+1. Прямой ответ (1 параграф)
+2. Простой пример
+3. Расширенное объяснение
+4. Частые ошибки при этом
+5. Дальнейшее чтение (какие уроки пройти)"""
+        
+        # Вызываем API
+        simplified_text, proc_time, error = await call_api_with_retry(gemini_qa_prompt)
+        
+        if not simplified_text:
+            raise ValueError(f"API ошибка: {error}")
+        
+        # Сохраняем вопрос и ответ
+        with get_db() as conn:
+            cursor = conn.cursor()
+            save_question_to_db(cursor, user_id, question, simplified_text, "gemini")
+            
+            # Добавляем в FAQ если это хороший ответ
+            try:
+                add_question_to_faq(cursor, question, simplified_text, "general")
+            except:
+                pass  # Вопрос уже в FAQ
+        
+        await status_msg.edit_text(
+            f"❓ **Ваш вопрос:** {question}\n\n"
+            f"📚 **Ответ:**\n\n{simplified_text}",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        
+        # Даем XP за вопрос
+        with get_db() as conn:
+            cursor = conn.cursor()
+            add_xp_to_user(cursor, user_id, XP_REWARDS['ask_question'], "asked_question")
+        
+        if ENABLE_ANALYTICS:
+            log_analytics_event("question_asked", user_id, {"question": question})
+    
+    except Exception as e:
+        logger.error(f"❌ Ошибка в /ask: {e}")
+        await status_msg.edit_text(
+            "❌ Не удалось найти ответ.\n\n"
+            "Попробуйте переформулировать вопрос или начните курс `/learn`"
+        )
+
+
+
 # =============================================================================
 # ADMIN КОМАНДЫ
 # =============================================================================
@@ -1107,8 +1484,54 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = query.data
     user = query.from_user
     
-    # Парсинг callback_data: action_requestid
+    # Парсинг callback_data
     parts = data.split("_")
+    
+    # ============ ОБУЧЕНИЕ - Новые кнопки v0.5.0 ============
+    
+    if data.startswith("learn_"):
+        # Формат: learn_course_lesson
+        try:
+            course = "_".join(parts[1:-1])  # blockchain_basics или defi_contracts
+            lesson = int(parts[-1])
+            
+            lesson_content = get_lesson_content(course, lesson)
+            if lesson_content:
+                # Показываем превью урока
+                preview = lesson_content[:800] + "...\n\n[Читайте полный урок в /learn]"
+                await query.edit_message_text(
+                    f"📖 **Урок загружен!**\n\n{preview}",
+                    parse_mode=ParseMode.MARKDOWN
+                )
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    add_xp_to_user(cursor, user.id, 5, "viewed_lesson")
+                logger.info(f"✅ Пользователь {user.id} начал урок {course} #{lesson}")
+            else:
+                await query.edit_message_text("❌ Урок не найден")
+        except Exception as e:
+            logger.error(f"Ошибка в learn_: {e}")
+            await query.edit_message_text("❌ Ошибка загрузки урока")
+        
+        return
+    
+    # ============ ВОПРОСЫ - Новая кнопка v0.5.0 ============
+    
+    if data.startswith("ask_related_"):
+        try:
+            request_id = int(data.split("_")[-1])
+            await query.edit_message_text(
+                "💬 **Задайте уточняющий вопрос:**\n\n"
+                "Используйте `/ask [ваш вопрос]` чтобы задать вопрос эксперту\n\n"
+                "Пример: `/ask Как это работает с другими блокчейнами?`",
+                parse_mode=ParseMode.MARKDOWN
+            )
+        except Exception as e:
+            logger.error(f"Ошибка в ask_related_: {e}")
+        
+        return
+    
+    # ============ ОРИГИНАЛЬНЫЕ КНОПКИ ============
     
     try:
         request_id = int(parts[-1])
@@ -1365,10 +1788,25 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             InlineKeyboardButton("👎 Не помогло", callback_data=f"feedback_not_helpful_{request_id}")
         ]]
         
+        # Рекомендуем связанные уроки (v0.5.0)
+        educational_context, learn_callback = get_educational_context(simplified_text, user.id)
+        
+        full_response = f"🤖 **RVX Скаут:**\n\n{simplified_text}"
+        
+        # Добавляем образовательные кнопки если есть рекомендация
+        if educational_context:
+            full_response += educational_context
+            keyboard.append([
+                InlineKeyboardButton("📚 Начать урок", callback_data=learn_callback),
+                InlineKeyboardButton("💬 Задать вопрос", callback_data=f"ask_related_{request_id}")
+            ])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
         # Отправляем результат
         await status_msg.edit_text(
-            f"🤖 **RVX Скаут:**\n\n{simplified_text}",
-            reply_markup=InlineKeyboardMarkup(keyboard),
+            full_response,
+            reply_markup=reply_markup,
             parse_mode=ParseMode.MARKDOWN
         )
         
@@ -1425,16 +1863,26 @@ async def periodic_cache_cleanup(context: ContextTypes.DEFAULT_TYPE):
 # =============================================================================
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
-    """Глобальный обработчик ошибок."""
-    logger.error(f"❌ Необработанная ошибка: {context.error}", exc_info=context.error)
+    """Глобальный обработчик ошибок с восстановлением после сетевых ошибок."""
+    error = context.error
     
+    # Логируем ошибку
+    logger.error(f"❌ Необработанная ошибка: {error}", exc_info=error)
+    
+    # Не отправляем сообщение об ошибке для сетевых проблем
+    if isinstance(error, (TelegramError, TimedOut, NetworkError)):
+        logger.warning(f"⚠️ Сетевая ошибка Telegram: {type(error).__name__}")
+        return  # Пропускаем отправку уведомления при сетевых ошибках
+    
+    # Для других ошибок пытаемся отправить уведомление
     if isinstance(update, Update) and update.effective_message:
         try:
             await update.effective_message.reply_text(
                 "❌ Произошла внутренняя ошибка.\n\n"
-                "Команда уже уведомлена."
+                "Пожалуйста, попробуйте позже."
             )
-        except TelegramError:
+        except (TelegramError, TimedOut, NetworkError) as e:
+            logger.warning(f"⚠️ Не удалось отправить ошибку: {e}")
             pass  # Не можем отправить сообщение
 
 # =============================================================================
@@ -1456,7 +1904,7 @@ def main():
     init_database()
     
     logger.info("=" * 70)
-    logger.info("🚀 RVX Telegram Bot v0.4.0 запускается...")
+    logger.info("🚀 RVX Telegram Bot v0.5.0 запускается...")
     logger.info("=" * 70)
     logger.info(f"📊 Конфигурация:")
     logger.info(f"  • API URL: {API_URL_NEWS}")
@@ -1479,6 +1927,12 @@ def main():
     application.add_handler(CommandHandler("search", search_command))
     application.add_handler(CommandHandler("export", export_command))
     application.add_handler(CommandHandler("limits", limits_command))
+    
+    # НОВЫЕ КОМАНДЫ v0.5.0
+    application.add_handler(CommandHandler("learn", learn_command))
+    application.add_handler(CommandHandler("lesson", lesson_command))
+    application.add_handler(CommandHandler("tools", tools_command))
+    application.add_handler(CommandHandler("ask", ask_command))
     
     # Админские команды
     application.add_handler(CommandHandler("admin_stats", admin_stats_command))
