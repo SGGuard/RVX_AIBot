@@ -1,0 +1,38 @@
+# ============================================
+# RVX AI Backend - Python Dependencies
+# ============================================
+
+# Core Framework
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+python-dotenv==1.0.1
+
+# Telegram Bot (с поддержкой job queue)
+python-telegram-bot[job-queue]==21.9
+
+# Google Gemini AI
+google-genai==1.52.0
+
+# HTTP & Networking
+httpx==0.28.1
+aiohttp==3.11.10
+
+# Retry & Resilience
+tenacity==9.0.0
+
+# Monitoring & Logging (опционально для production)
+prometheus-client==0.21.0
+
+# Testing (опционально)
+pytest==8.3.4
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0
+
+# Code Quality (опционально для разработки)
+black==24.10.0
+flake8==7.1.1
+mypy==1.13.0
+
+# Security
+cryptography==44.0.0
