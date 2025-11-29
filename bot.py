@@ -23,8 +23,21 @@ from education import (
     add_xp_to_user, get_user_badges, add_badge_to_user, get_lesson_content,
     extract_quiz_from_lesson, get_faq_by_keyword, save_question_to_db,
     add_question_to_faq, get_user_course_progress, get_all_tools_db,
-    get_educational_context
+    get_educational_context, clean_lesson_content, split_lesson_content,
+    get_next_lesson_info, build_user_context_prompt, get_user_course_summary
 )
+
+# В памяти считаем попытки регенерации фидбека (ключ — request_id)
+feedback_attempts: Dict[int, int] = {}
+FEEDBACK_MAX_RETRIES = 4
+
+# Последовательность режимов регенерации (от простого к более наглядному)
+REGENERATION_MODES = [
+    ("упрости", "Объясни проще, используя короткие предложения и минимум терминов."),
+    ("примеры", "Приведи конкретные примеры и короткие сценарии использования."),
+    ("пошагово", "Разбей объяснение на пошаговую инструкцию с нумерованными шагами."),
+    ("аналогия", "Поясни через аналогию или метафору, чтобы упростить понимание.")
+]
 
 # =============================================================================
 # КОНФИГУРАЦИЯ
@@ -389,6 +402,133 @@ def init_database():
     # Выполняем миграцию существующих таблиц
     migrate_database()
 
+# =============================================================================
+# ФОРМАТИРОВАНИЕ ТЕКСТА
+# =============================================================================
+
+def format_header(title: str) -> str:
+    """Форматирование заголовка с красивым отделением."""
+    return f"\n{'─' * 45}\n✨ {title}\n{'─' * 45}\n"
+
+def format_section(title: str, content: str, emoji: str = "•") -> str:
+    """Форматирование раздела с заголовком и содержимым."""
+    return f"\n{emoji} <b>{title}</b>\n{content}"
+
+def format_tips_block(tips: List[str], emoji: str = "💡") -> str:
+    """Форматирование блока советов с нумерацией."""
+    if not tips:
+        return ""
+    formatted = f"\n{emoji} <b>ПРАКТИЧЕСКИЕ СОВЕТЫ:</b>"
+    for i, tip in enumerate(tips[:3], 1):
+        formatted += f"\n  {i}. {tip}"
+    return formatted
+
+def format_impact_points(points: List[str]) -> str:
+    """Форматирование ключевых моментов с иконками."""
+    if not points:
+        return ""
+    formatted = f"\n📍 <b>КЛЮЧЕВЫЕ МОМЕНТЫ:</b>"
+    for point in points[:5]:
+        formatted += f"\n  ▪️ {point}"
+    return formatted
+
+def format_educational_content(context_text: str, callback: str = "", emoji: str = "📚") -> str:
+    """Форматирование образовательного контента."""
+    if not context_text:
+        return ""
+    
+    formatted = f"\n{emoji} <b>ОБРАЗОВАТЕЛЬНО:</b>\n{context_text}"
+    if callback:
+        formatted += f"\n  <i>👉 {callback}</i>"
+    return formatted
+
+def format_question_block(question: str, emoji: str = "❓") -> str:
+    """Форматирование вопроса для размышления."""
+    if not question:
+        return ""
+    return f"\n{emoji} <b>ВОПРОС ДЛЯ РАЗМЫШЛЕНИЯ:</b>\n  \"{question}\""
+
+def format_related_topics(topics: List[str], emoji: str = "🔗") -> str:
+    """Форматирование связанных тем."""
+    if not topics or all(t.strip() == "" for t in topics):
+        return ""
+    
+    formatted = f"\n{emoji} <b>СВЯЗАННЫЕ ТЕМЫ:</b>"
+    for topic in topics[:5]:
+        if topic.strip():
+            formatted += f"\n  • {topic}"
+    return formatted
+
+def format_main_response(
+    summary_text: str,
+    impact_points: List[str] = None,
+    practical_tips: List[str] = None,
+    learning_question: str = "",
+    educational_context: str = "",
+    related_topics: List[str] = None,
+    callback_text: str = ""
+) -> str:
+    """
+    Главное форматирование ответа анализа новостей.
+    Объединяет все компоненты в красивый читаемый формат.
+    """
+    
+    response = f"<b>📰 АНАЛИЗ НОВОСТИ</b>"
+    
+    # Основной текст
+    response += f"\n\n{summary_text}"
+    
+    # Ключевые моменты
+    if impact_points:
+        response += format_impact_points(impact_points)
+    
+    # Практические советы
+    if practical_tips and any(t.strip() for t in practical_tips):
+        response += format_tips_block([t for t in practical_tips if t.strip()])
+    
+    # Вопрос для размышления
+    if learning_question and learning_question.strip():
+        response += format_question_block(learning_question)
+    
+    # Образовательный контент
+    if educational_context and educational_context.strip():
+        response += format_educational_content(educational_context, callback_text)
+    
+    # Связанные темы
+    if related_topics:
+        response += format_related_topics([t for t in related_topics if t.strip()])
+    
+    # Финальный разделитель
+    response += f"\n\n{'─' * 45}"
+    
+    return response
+
+def format_command_response(title: str, content: str, emoji: str = "ℹ️") -> str:
+    """Форматирование ответа на команду с заголовком."""
+    return f"{emoji} <b>{title}</b>\n\n{content}"
+
+def format_error(error_msg: str, emoji: str = "❌") -> str:
+    """Форматирование сообщения об ошибке."""
+    return f"{emoji} <b>Ошибка:</b>\n{error_msg}"
+
+def format_success(message: str, emoji: str = "✅") -> str:
+    """Форматирование сообщения об успехе."""
+    return f"{emoji} {message}"
+
+def format_list_items(items: List[str], numbered: bool = False) -> str:
+    """Форматирование списка элементов."""
+    if not items:
+        return ""
+    
+    formatted = ""
+    if numbered:
+        for i, item in enumerate(items, 1):
+            formatted += f"\n{i}. {item}"
+    else:
+        for item in items:
+            formatted += f"\n• {item}"
+    return formatted
+
 # --- Функции работы с пользователями ---
 
 def save_user(user_id: int, username: str, first_name: str):
@@ -416,7 +556,11 @@ def check_user_banned(user_id: int) -> Tuple[bool, Optional[str]]:
         return False, None
 
 def check_daily_limit(user_id: int) -> Tuple[bool, int]:
-    """Проверяет дневной лимит запросов. Возвращает (можно_ли, оставшиеся_запросы)."""
+    """Проверяет дневной лимит запросов. Администраторы имеют безлимитный доступ."""
+    # Администраторы имеют безлимитный доступ
+    if user_id in ADMIN_USERS:
+        return True, 999999
+    
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -494,6 +638,25 @@ def save_request(user_id: int, news_text: str, response_text: str,
         """, (user_id, news_text, response_text, from_cache, processing_time_ms, error_message))
         return cursor.lastrowid
 
+def get_request_by_id(request_id: int) -> Optional[Dict[str, str]]:
+    """Возвращает запись запроса по id или None."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, user_id, news_text, response_text, created_at
+            FROM requests WHERE id = ?
+        """, (request_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "id": row[0],
+            "user_id": row[1],
+            "news_text": row[2],
+            "response_text": row[3],
+            "created_at": row[4]
+        }
+
 def save_feedback(user_id: int, request_id: int, is_helpful: bool, comment: Optional[str] = None):
     """Сохраняет фидбек с опциональным комментарием."""
     with get_db() as conn:
@@ -538,16 +701,25 @@ def set_cache(cache_key: str, response_text: str):
         """, (cache_key, response_text))
 
 def cleanup_old_cache():
-    """Удаляет старый кэш."""
+    """Удаляет старый и неиспользуемый кэш."""
     with get_db() as conn:
         cursor = conn.cursor()
         cutoff_date = datetime.now() - timedelta(days=CACHE_MAX_AGE_DAYS)
+        
+        # Удаляем старые записи (старше CACHE_MAX_AGE_DAYS) с низким числом попаданий или вообще не использованные
         cursor.execute("""
             DELETE FROM cache 
-            WHERE last_used_at < ? AND hit_count < 5
+            WHERE (last_used_at < ? AND hit_count < 5) OR (hit_count = 0)
         """, (cutoff_date,))
         deleted = cursor.rowcount
-        logger.info(f"🗑️ Удалено {deleted} старых записей из кэша")
+        logger.info(f"🗑️ Удалено {deleted} старых/неиспользуемых записей из кэша")
+        
+        # Логируем статистику оставшегося кэша
+        cursor.execute("SELECT COUNT(*) FROM cache")
+        total = cursor.fetchone()[0]
+        cursor.execute("SELECT SUM(hit_count) FROM cache")
+        total_hits = cursor.fetchone()[0] or 0
+        logger.info(f"💾 Кэш: {total} записей, всего попаданий: {total_hits}")
 
 # --- Функции работы с историей ---
 
@@ -647,6 +819,10 @@ def log_analytics_event(event_type: str, user_id: Optional[int] = None, data: Op
 # In-memory хранилища для rate limiting
 user_last_request: Dict[int, datetime] = {}
 user_last_news: Dict[int, str] = {}
+user_current_course: Dict[int, str] = {}  # Отслеживает текущий курс пользователя
+
+# Quiz state tracking: user_id -> {lesson, questions, current_q, answers, score}
+user_quiz_state: Dict[int, Dict] = {}
 
 def check_flood(user_id: int) -> bool:
     """Проверяет flood control."""
@@ -708,14 +884,41 @@ def validate_api_response(api_response: dict) -> Optional[str]:
         return simplified_text[:4090] + "\n\n..."
     
     return simplified_text
-
-async def call_api_with_retry(news_text: str) -> Tuple[Optional[str], Optional[float], Optional[str]]:
+async def call_api_with_retry(news_text: str, user_id: Optional[int] = None) -> Tuple[Optional[str], Optional[float], Optional[str]]:
     """
     Вызывает API с повторными попытками с экспоненциальной задержкой.
+    Включает контекст знаний пользователя в запрос если доступен.
     Возвращает (response_text, processing_time_ms, error_message)
     """
     start_time = datetime.now()
     last_error = None
+    
+    # Подготавливаем контент для отправки
+    request_payload = {"text_content": news_text}
+    
+    # Добавляем контекст пользователя если доступен
+    user_context = None
+    if user_id:
+        try:
+            with get_db() as conn:
+                cursor = conn.cursor()
+                # Получаем уровень знаний пользователя
+                cursor.execute("SELECT knowledge_level FROM users WHERE user_id = ?", (user_id,))
+                row = cursor.fetchone()
+                user_level = row[0] if row else "beginner"
+                
+                # Получаем краткий прогресс
+                progress = get_user_course_summary(cursor, user_id)
+                
+                user_context = {
+                    "knowledge_level": user_level,
+                    "course_progress": progress
+                }
+                
+                request_payload["user_context"] = user_context
+                logger.info(f"📚 Добавлен контекст пользователя {user_id}: уровень={user_level}")
+        except Exception as e:
+            logger.warning(f"⚠️ Не удалось получить контекст пользователя: {e}")
     
     for attempt in range(1, API_RETRY_ATTEMPTS + 1):
         try:
@@ -724,7 +927,7 @@ async def call_api_with_retry(news_text: str) -> Tuple[Optional[str], Optional[f
             async with httpx.AsyncClient(timeout=API_TIMEOUT) as client:
                 response = await client.post(
                     API_URL_NEWS,
-                    json={"text_content": news_text}
+                    json=request_payload
                 )
                 response.raise_for_status()
                 api_response = response.json()
@@ -814,60 +1017,106 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_banned, ban_reason = check_user_banned(user.id)
     if is_banned:
         await update.message.reply_text(
-            f"⛔ Вы заблокированы\n\nПричина: {ban_reason or 'Не указана'}"
+            f"⛔ <b>Вы заблокированы</b>\n\nПричина: <i>{ban_reason or 'Не указана'}</i>",
+            parse_mode=ParseMode.HTML
         )
         return
     
     welcome_text = (
-        f"👋 Привет, {user.first_name}!\n\n"
-        "🤖 **RVX AI Analyzer v0.4.0**\n\n"
-        "Я помогаю понять сложные криптоновости простым языком.\n\n"
-        "📋 **Основные команды:**\n"
-        "• Просто отправь текст новости\n"
-        "• /help — полная инструкция\n"
-        "• /history — твоя история\n"
-        "• /stats — статистика\n\n"
-        f"💡 Лимит: {MAX_REQUESTS_PER_DAY} запросов/день"
+        f"👋 <b>Привет, {user.first_name}!</b>\n\n"
+        "🤖 <b>RVX AI ANALYZER v0.5.0</b>\n\n"
+        "<i>Я помогаю понять сложные криптоновости простым языком.</i>\n\n"
+        "<b>⚡ БЫСТРЫЙ СТАРТ:</b>\n"
+        "  1️⃣ Просто отправь текст новости\n"
+        "  2️⃣ Получи понятное объяснение\n"
+        "  3️⃣ Оцени результат 👍 или 👎\n\n"
+        "<b>📋 КОМАНДЫ:</b>\n"
+        "  • /help — полная инструкция\n"
+        "  • /history — твоя история\n"
+        "  • /stats — статистика\n"
+        "  • /menu — меню действий\n\n"
+        f"💡 <b>Твой лимит:</b> {MAX_REQUESTS_PER_DAY} запросов в день"
     )
     
     if MANDATORY_CHANNEL_ID:
-        welcome_text += f"\n\n📢 Обязательная подписка:\n{MANDATORY_CHANNEL_LINK}"
+        welcome_text += f"\n\n📢 <b>Официальный канал:</b>\n{MANDATORY_CHANNEL_LINK}"
     
-    await update.message.reply_text(welcome_text, parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(welcome_text, parse_mode=ParseMode.HTML)
 
 @log_command
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Помощь по использованию."""
+    is_callback = update.callback_query is not None
+    query = update.callback_query if is_callback else None
+    
     help_text = (
-        "📖 **Инструкция по использованию**\n\n"
-        "**Как работает:**\n"
+        "📖 <b>ИНСТРУКЦИЯ ПО ИСПОЛЬЗОВАНИЮ</b>\n\n"
+        "<b>✨ Как работает:</b>\n"
         "1️⃣ Отправь текст криптоновости\n"
         "2️⃣ Получи понятное объяснение\n"
         "3️⃣ Оцени ответ (👍/👎)\n\n"
-        "**Команды:**\n"
+        "<b>⚙️ КОМАНДЫ:</b>\n"
         "• /start — приветствие\n"
         "• /help — эта справка\n"
         "• /stats — статистика\n"
         "• /history — последние 10 анализов\n"
-        "• /search <текст> — поиск в истории\n"
+        "• /search &lt;текст&gt; — поиск в истории\n"
         "• /export — экспорт истории\n"
-        "• /limits — твои лимиты\n\n"
-        f"⚡ **Лимиты:**\n"
+        "• /limits — твои лимиты\n"
+        "• /menu — быстрые действия\n\n"
+        f"⚡ <b>ТВОИ ЛИМИТЫ:</b>\n"
         f"• {MAX_REQUESTS_PER_DAY} запросов в день\n"
         f"• {FLOOD_COOLDOWN_SECONDS}с между запросами\n"
-        f"• Макс. длина: {MAX_INPUT_LENGTH} символов\n\n"
-        "❓ **Проблемы?** Напиши администратору"
+        f"• Макс. длина текста: {MAX_INPUT_LENGTH} символов\n\n"
+        "❓ <b>Проблемы?</b> Напиши администратору"
     )
     
     if MANDATORY_CHANNEL_ID:
-        help_text += f"\n\n📢 Канал: {MANDATORY_CHANNEL_LINK}"
+        help_text += f"\n\n📢 <b>Официальный канал:</b>\n{MANDATORY_CHANNEL_LINK}"
     
-    await update.message.reply_text(help_text, parse_mode=ParseMode.MARKDOWN)
+    try:
+        if is_callback and query:
+            await query.edit_message_text(help_text, parse_mode=ParseMode.HTML)
+        else:
+            await update.message.reply_text(help_text, parse_mode=ParseMode.HTML)
+    except Exception as e:
+        logger.error(f"Ошибка при отправке справки: {e}")
+
+
+@log_command
+async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показывает главное меню с быстрыми действиями (команда /menu)."""
+    keyboard = [
+        [
+            InlineKeyboardButton("📚 Курсы", callback_data="menu_learn"),
+            InlineKeyboardButton("🧰 Инструменты", callback_data="menu_tools")
+        ],
+        [
+            InlineKeyboardButton("💬 Задать вопрос", callback_data="menu_ask"),
+            InlineKeyboardButton("📜 История", callback_data="menu_history")
+        ],
+        [
+            InlineKeyboardButton("❓ Помощь", callback_data="menu_help"),
+            InlineKeyboardButton("⚙️ Статус", callback_data="menu_stats")
+        ]
+    ]
+
+    try:
+        await update.message.reply_text(
+            "📋 **Главное меню RVX**",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.MARKDOWN
+        )
+    except Exception:
+        #fallback
+        await update.message.reply_text("📋 Главное меню RVX")
 
 @log_command
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Показывает статистику."""
     user_id = update.effective_user.id
+    is_callback = update.callback_query is not None
+    query = update.callback_query if is_callback else None
     
     with get_db() as conn:
         cursor = conn.cursor()
@@ -883,51 +1132,75 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     stats = get_global_stats()
     
     stats_text = (
-        "📊 **Статистика RVX v0.4.0**\n\n"
-        f"👤 **Твоя статистика:**\n"
-        f"• Всего запросов: {user_requests}\n"
-        f"• Сегодня: {daily_requests}/{MAX_REQUESTS_PER_DAY}\n"
-        f"• С нами с: {member_since[:10]}\n\n"
-        f"🌐 **Глобальная:**\n"
-        f"• 👥 Пользователей: {stats['total_users']}\n"
-        f"• 📝 Запросов: {stats['total_requests']}\n"
-        f"• 💾 Кэш: {stats['cache_size']} записей\n"
-        f"• ⚡ Попадания в кэш: {stats['cache_hits']}\n"
-        f"• ⏱️ Среднее время: {stats['avg_processing_time']}ms\n"
-        f"• 👍 Полезно: {stats['helpful']}\n"
-        f"• 👎 Не помогло: {stats['not_helpful']}\n\n"
-        f"🏆 **ТОП пользователей:**\n"
+        "📊 <b>СТАТИСТИКА RVX v0.5.0</b>\n\n"
+        "<b>👤 ТВОЯ СТАТИСТИКА:</b>\n"
+        f"  • Всего запросов: <b>{user_requests}</b>\n"
+        f"  • Сегодня: <b>{daily_requests}/{MAX_REQUESTS_PER_DAY}</b>\n"
+        f"  • Участник с: <b>{member_since[:10]}</b>\n\n"
+        "<b>🌐 ГЛОБАЛЬНАЯ СТАТИСТИКА:</b>\n"
+        f"  • 👥 Активных пользователей: <b>{stats['total_users']}</b>\n"
+        f"  • 📝 Всего запросов: <b>{stats['total_requests']}</b>\n"
+        f"  • 💾 Записей в кэше: <b>{stats['cache_size']}</b>\n"
+        f"  • ⚡ Попадания в кэш: <b>{stats['cache_hits']}</b>\n"
+        f"  • ⏱️ Среднее время обработки: <b>{stats['avg_processing_time']}ms</b>\n\n"
+        "<b>👍 ОЦЕНКИ:</b>\n"
+        f"  • Полезно: <b>{stats['helpful']}</b>\n"
+        f"  • Не помогло: <b>{stats['not_helpful']}</b>\n\n"
+        f"🏆 <b>ТОП-5 ПОЛЬЗОВАТЕЛЕЙ:</b>\n"
     )
     
     for i, (username, first_name, requests) in enumerate(stats['top_users'], 1):
         name = username or first_name or "Аноним"
-        stats_text += f"{i}. {name}: {requests} запросов\n"
+        medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}️⃣"
+        stats_text += f"  {medal} {name}: <b>{requests}</b> запросов\n"
     
-    await update.message.reply_text(stats_text, parse_mode=ParseMode.MARKDOWN)
+    try:
+        if is_callback and query:
+            await query.edit_message_text(stats_text, parse_mode=ParseMode.HTML)
+        else:
+            await update.message.reply_text(stats_text, parse_mode=ParseMode.HTML)
+    except Exception as e:
+        logger.error(f"Ошибка при отправке статистики: {e}")
 
 @log_command
 async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Показывает историю запросов."""
     user_id = update.effective_user.id
+    is_callback = update.callback_query is not None
+    query = update.callback_query if is_callback else None
+    
     history = get_user_history(user_id, limit=10)
     
     if not history:
-        await update.message.reply_text("📜 История пуста. Отправь первую новость!")
+        response = "📜 <b>История пуста</b>\n\nОтправь первую новость для анализа!"
+        try:
+            if is_callback and query:
+                await query.edit_message_text(response, parse_mode=ParseMode.HTML)
+            else:
+                await update.message.reply_text(response, parse_mode=ParseMode.HTML)
+        except Exception as e:
+            logger.error(f"Ошибка при отправке пустой истории: {e}")
         return
     
-    response = "📜 **Последние 10 анализов:**\n\n"
+    response = "📜 <b>ПОСЛЕДНИЕ 10 АНАЛИЗОВ:</b>\n\n"
     
     for i, (news, _, created_at, from_cache, proc_time) in enumerate(history, 1):
-        news_preview = news[:60] + "..." if len(news) > 60 else news
-        icon = "⚡" if from_cache else "🆕"
+        news_preview = news[:50] + "..." if len(news) > 50 else news
+        icon = "⚡ Кэш" if from_cache else "🆕 Новый"
         time_str = f"{proc_time:.0f}ms" if proc_time else "—"
         
         response += (
-            f"{i}. {icon} {news_preview}\n"
-            f"   🕐 {created_at[:16]} | ⏱️ {time_str}\n\n"
+            f"<b>{i}.</b> {news_preview}\n"
+            f"  {icon} | 🕐 {created_at[:16]} | ⏱️ {time_str}\n\n"
         )
     
-    await update.message.reply_text(response, parse_mode=ParseMode.MARKDOWN)
+    try:
+        if is_callback and query:
+            await query.edit_message_text(response, parse_mode=ParseMode.HTML)
+        else:
+            await update.message.reply_text(response, parse_mode=ParseMode.HTML)
+    except Exception as e:
+        logger.error(f"Ошибка при отправке истории: {e}")
 
 @log_command
 async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -936,8 +1209,9 @@ async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if not context.args:
         await update.message.reply_text(
-            "❌ Укажите текст для поиска\n\n"
-            "Пример: /search биткоин"
+            "❌ <b>Укажите текст для поиска</b>\n\n"
+            "<i>Пример:</i> /search биткоин",
+            parse_mode=ParseMode.HTML
         )
         return
     
@@ -946,21 +1220,22 @@ async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if not results:
         await update.message.reply_text(
-            f"🔍 Ничего не найдено по запросу: **{search_text}**",
-            parse_mode=ParseMode.MARKDOWN
+            f"🔍 <b>Ничего не найдено</b>\n\n"
+            f"По запросу: <i>{search_text}</i>",
+            parse_mode=ParseMode.HTML
         )
         return
     
-    response = f"🔍 **Найдено {len(results)} результатов:**\n\n"
+    response = f"🔍 <b>НАЙДЕНО {len(results)} РЕЗУЛЬТАТОВ</b>\n\n"
     
     for i, (news, _, created_at) in enumerate(results[:5], 1):
-        news_preview = news[:70] + "..."
-        response += f"{i}. {news_preview}\n   🕐 {created_at[:16]}\n\n"
+        news_preview = news[:50] + "..."
+        response += f"<b>{i}.</b> {news_preview}\n  🕐 {created_at[:16]}\n\n"
     
     if len(results) > 5:
-        response += f"_...и еще {len(results) - 5} результатов_"
+        response += f"<i>...и ещё {len(results) - 5} результатов</i>"
     
-    await update.message.reply_text(response, parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(response, parse_mode=ParseMode.HTML)
 
 @log_command
 async def export_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1037,22 +1312,29 @@ async def limits_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     status_emoji = "✅" if can_request else "⛔"
     
+    # Прогресс-бар
+    progress_bar = ""
+    percent = (daily_used / MAX_REQUESTS_PER_DAY) * 100
+    filled = int(percent / 10)
+    empty = 10 - filled
+    progress_bar = "█" * filled + "░" * empty
+    
     limits_text = (
-        f"{status_emoji} **Ваши лимиты**\n\n"
-        f"📊 **Дневной лимит:**\n"
-        f"• Использовано: {daily_used}/{MAX_REQUESTS_PER_DAY}\n"
-        f"• Осталось: {remaining}\n"
-        f"• Сброс через: {reset_str}\n\n"
-        f"⏱️ **Flood control:**\n"
-        f"• Минимум {FLOOD_COOLDOWN_SECONDS}с между запросами\n\n"
-        f"📏 **Лимиты текста:**\n"
-        f"• Максимум {MAX_INPUT_LENGTH} символов\n\n"
+        f"{status_emoji} <b>ВАШИ ЛИМИТЫ</b>\n\n"
+        f"<b>📊 ДНЕВНОЙ ЛИМИТ:</b>\n"
+        f"  {progress_bar} {daily_used}/{MAX_REQUESTS_PER_DAY}\n"
+        f"  • Осталось: <b>{remaining}</b> запросов\n"
+        f"  • Сброс: <b>{reset_str}</b>\n\n"
+        f"<b>⏱️ FLOOD CONTROL:</b>\n"
+        f"  • Минимум: <b>{FLOOD_COOLDOWN_SECONDS}с</b> между запросами\n\n"
+        f"<b>📏 ОГРАНИЧЕНИЯ ТЕКСТА:</b>\n"
+        f"  • Максимум: <b>{MAX_INPUT_LENGTH}</b> символов\n\n"
     )
     
     if not can_request:
-        limits_text += "⚠️ **Дневной лимит исчерпан!**\nПопробуйте завтра."
+        limits_text += "⚠️ <b>ЛИМИТ ИСЧЕРПАН!</b>\n<i>Попробуйте завтра.</i>"
     
-    await update.message.reply_text(limits_text, parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(limits_text, parse_mode=ParseMode.HTML)
 
 # ============= НОВЫЕ КОМАНДЫ v0.5.0 - ОБУЧЕНИЕ =============
 
@@ -1061,6 +1343,8 @@ async def learn_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Показывает список доступных курсов для обучения."""
     user = update.effective_user
     user_id = user.id
+    is_callback = update.callback_query is not None
+    query = update.callback_query if is_callback else None
     
     save_user(user_id, user.username or "", user.first_name)
     
@@ -1071,61 +1355,239 @@ async def learn_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         level, xp = calculate_user_level_and_xp(cursor, user_id)
     
     learn_text = (
-        "📚 **Криптовалютная академия RVX v0.5.0**\n\n"
-        f"👤 Ваш уровень: **Level {level}** ({xp} XP)\n"
-        f"Знания: {knowledge_level}\n\n"
-        "🎓 **Доступные курсы:**\n\n"
+        "📚 <b>КРИПТОВАЛЮТНАЯ АКАДЕМИЯ RVX v0.5.0</b>\n\n"
+        f"👤 <b>Ваш уровень:</b> Level {level} ({xp} XP)\n"
+        f"<b>Знания:</b> {knowledge_level}\n\n"
+        "<b>🎓 ДОСТУПНЫЕ КУРСЫ:</b>\n\n"
     )
     
     # Показываем все курсы
     for course_key, course_data in COURSES_DATA.items():
         learn_text += (
-            f"**{course_data['title']}** ({course_data['level'].upper()})\n"
-            f"• {course_data['description']}\n"
-            f"• Уроков: {course_data['total_lessons']} | XP: {course_data['total_xp']}\n"
-            f"• Начать: `/start_{course_key}`\n\n"
+            f"<b>{course_data['title']}</b> <i>({course_data['level'].upper()})</i>\n"
+            f"  • {course_data['description']}\n"
+            f"  • Уроков: {course_data['total_lessons']} | XP: {course_data['total_xp']}\n"
+            f"  • Начать: <code>/start_{course_key}</code>\n\n"
         )
     
     learn_text += (
-        "💡 **Совет:** Начните с Blockchain Basics если новичок!\n"
-        "Используйте `/lesson 1` чтобы начать первый урок."
+        "💡 <b>Совет:</b> Начните с Blockchain Basics если новичок!\n"
+        "Используйте <code>/lesson 1</code> чтобы начать первый урок."
     )
     
-    await update.message.reply_text(learn_text, parse_mode=ParseMode.MARKDOWN)
+    try:
+        if is_callback and query:
+            await query.edit_message_text(learn_text, parse_mode=ParseMode.HTML)
+        else:
+            await update.message.reply_text(learn_text, parse_mode=ParseMode.HTML)
+    except Exception as e:
+        logger.error(f"Ошибка при отправке learn: {e}")
+        # Fallback
+        try:
+            fallback_text = f"📚 Криптовалютная академия\n\nУровень: Level {level} ({xp} XP)"
+            if is_callback and query:
+                await query.edit_message_text(fallback_text)
+            else:
+                await update.message.reply_text(fallback_text)
+        except Exception as e2:
+            logger.error(f"Ошибка fallback: {e2}")
 
 
 @log_command
 async def lesson_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Показывает конкретный урок. Используется так: /lesson 1"""
     user_id = update.effective_user.id
+    user = update.effective_user
     
     if not context.args:
         await update.message.reply_text(
-            "❌ Укажите номер урока\n\n"
-            "Пример: `/lesson 1`\n"
-            "Сначала начните курс через `/learn`"
+            "❌ <b>Укажите номер урока</b>\n\n"
+            "<i>Пример:</i> <code>/lesson 1</code>\n"
+            "Сначала начните курс через <code>/learn</code>",
+            parse_mode=ParseMode.HTML
         )
         return
     
-    # Ищем текущий курс пользователя из контекста
-    # TODO: сохранять current_course в user контексте
+    # Проверяем, есть ли текущий курс у пользователя
+    if user_id not in user_current_course:
+        await update.message.reply_text(
+            "❌ <b>Сначала выберите курс!</b>\n\n"
+            "Доступные команды:\n"
+            "<code>/start_blockchain_basics</code>\n"
+            "<code>/start_defi_contracts</code>\n"
+            "<code>/start_scaling_dao</code>",
+            parse_mode=ParseMode.HTML
+        )
+        return
     
-    await update.message.reply_text(
-        "📖 Уроки доступны после выбора курса!\n\n"
-        "Используйте: `/learn` → выберите курс → `/start_blockchain_basics`"
+    try:
+        lesson_num = int(context.args[0])
+    except (ValueError, IndexError):
+        await update.message.reply_text(
+            "❌ <b>Укажите номер урока (число)</b>\n\n"
+            "<i>Пример:</i> <code>/lesson 1</code>",
+            parse_mode=ParseMode.HTML
+        )
+        return
+    
+    course_name = user_current_course[user_id]
+    course_data = COURSES_DATA.get(course_name)
+    
+    if not course_data:
+        await update.message.reply_text(
+            "❌ <b>Курс не найден</b>",
+            parse_mode=ParseMode.HTML
+        )
+        return
+    
+    # Проверяем валидность номера урока
+    if lesson_num < 1 or lesson_num > course_data['total_lessons']:
+        await update.message.reply_text(
+            f"❌ <b>Номер урока должен быть от 1 до {course_data['total_lessons']}</b>",
+            parse_mode=ParseMode.HTML
+        )
+        return
+    
+    # Получаем контент урока
+    lesson_content = get_lesson_content(course_name, lesson_num)
+    
+    if not lesson_content:
+        await update.message.reply_text(
+            "❌ <b>Урок не найден</b>",
+            parse_mode=ParseMode.HTML
+        )
+        return
+    
+    # Очищаем контент от проблемных символов
+    lesson_content = clean_lesson_content(lesson_content)
+    
+    # Разделяем контент на основной текст и quiz
+    lesson_text, quiz_section = split_lesson_content(lesson_content)
+    
+    # Форматируем и отправляем урок (БЕЗ quiz секции)
+    # Ограничиваем размер (Telegram лимит 4096 символов)
+    max_length = 3500  # Оставляем место для кнопок
+    if len(lesson_text) > max_length:
+        lesson_preview = lesson_text[:max_length] + "\n\n[... урок продолжается]"
+    else:
+        lesson_preview = lesson_text
+    
+    response = (
+        f"📚 <b>{course_data['title'].upper()}</b>\n"
+        f"📖 Урок {lesson_num}/{course_data['total_lessons']}\n\n"
+        f"{lesson_preview}"
     )
+    
+    # Создаем кнопку для старта quiz (если есть questions)
+    keyboard = []
+    if quiz_section:
+        keyboard.append([
+            InlineKeyboardButton("🎯 Начать тест", callback_data=f"start_quiz_{course_name}_{lesson_num}")
+        ])
+    
+    # Проверяем и добавляем кнопку "Следующий урок"
+    next_lesson_info = get_next_lesson_info(course_name, lesson_num)
+    if next_lesson_info:
+        keyboard.append([
+            InlineKeyboardButton("▶️ Следующий урок", callback_data=f"next_lesson_{course_name}_{lesson_num + 1}")
+        ])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
+    
+    await update.message.reply_text(response, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+    
+    # Добавляем XP за просмотр урока
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            add_xp_to_user(cursor, user_id, 5, "viewed_lesson")
+        logger.info(f"⭐ Пользователь {user_id} получил 5 XP за урок {lesson_num}")
+    except Exception as e:
+        logger.error(f"Ошибка при добавлении XP: {e}")
+    
+    # Логируем событие
+    if ENABLE_ANALYTICS:
+        log_analytics_event("lesson_viewed", user_id, {"course": course_name, "lesson": lesson_num})
+
+
+@log_command
+async def start_course_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Запускает конкретный курс по команде /start_<course_name>"""
+    user_id = update.effective_user.id
+    user = update.effective_user
+    
+    # Получаем имя курса из команды
+    # update.message.text содержит полную команду, например '/start_blockchain_basics'
+    command_text = update.message.text.strip()
+    
+    # Извлекаем имя курса из команды
+    if command_text.startswith('/start_'):
+        course_name = command_text[7:].strip().lower()  # Убираем '/start_' 
+    else:
+        await update.message.reply_text(
+            "❓ <b>Укажите курс</b>\n\n"
+            "<i>Доступные команды:</i>\n"
+            "<code>/start_blockchain_basics</code>\n"
+            "<code>/start_defi_contracts</code>\n"
+            "<code>/start_scaling_dao</code>",
+            parse_mode=ParseMode.HTML
+        )
+        return
+    
+    # Проверяем, существует ли такой курс
+    if course_name not in COURSES_DATA:
+        await update.message.reply_text(
+            f"❌ <b>Курс не найден:</b> {course_name}\n\n"
+            "<i>Доступные курсы:</i>\n"
+            "• <code>blockchain_basics</code>\n"
+            "• <code>defi_contracts</code>\n"
+            "• <code>scaling_dao</code>",
+            parse_mode=ParseMode.HTML
+        )
+        return
+    
+    course_data = COURSES_DATA[course_name]
+    save_user(user_id, user.username or "", user.first_name)
+    
+    # СОХРАНЯЕМ текущий курс пользователя для использования в /lesson команде
+    user_current_course[user_id] = course_name
+    logger.info(f"📚 Пользователь {user_id} начал курс {course_name}")
+    
+    # Получаем информацию о пользователе
+    with get_db() as conn:
+        cursor = conn.cursor()
+        level, xp = calculate_user_level_and_xp(cursor, user_id)
+    
+    # Показываем информацию о курсе и первый урок
+    response = (
+        f"📚 <b>{course_data['title'].upper()}</b>\n\n"
+        f"<b>Уровень:</b> {course_data['level'].upper()}\n"
+        f"<b>Уроков:</b> {course_data['total_lessons']}\n"
+        f"<b>XP к получению:</b> {course_data['total_xp']}\n\n"
+        f"<b>Описание:</b>\n{course_data['description']}\n\n"
+        f"💡 <b>Твой прогресс:</b> Level {level} ({xp} XP)\n\n"
+        f"📖 <i>Используй команду <code>/lesson 1</code> чтобы начать первый урок</i>"
+    )
+    
+    await update.message.reply_text(response, parse_mode=ParseMode.HTML)
+    
+    # Логируем событие
+    if ENABLE_ANALYTICS:
+        log_analytics_event("course_started", user_id, {"course": course_name})
 
 
 @log_command
 async def tools_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Показывает интерактивный справочник инструментов."""
     user_id = update.effective_user.id
+    is_callback = update.callback_query is not None
+    query = update.callback_query if is_callback else None
     
     if not context.args:
         # Показываем список всех инструментов
         tools = get_all_tools_db()
         
-        tools_text = "🛠️ **Справочник криптинструментов**\n\n"
+        tools_text = "🛠️ <b>СПРАВОЧНИК КРИПТИНСТРУМЕНТОВ</b>\n\n"
         
         # Группируем по категориям
         categories = {}
@@ -1136,14 +1598,20 @@ async def tools_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             categories[cat].append(tool)
         
         for category, category_tools in categories.items():
-            tools_text += f"**{category}:**\n"
+            tools_text += f"<b>{category}:</b>\n"
             for tool in category_tools:
-                tools_text += f"• {tool['name']} ({tool['difficulty']})\n"
+                tools_text += f"  • {tool['name']} <i>({tool['difficulty']})</i>\n"
             tools_text += "\n"
         
-        tools_text += "Введите название инструмента, чтобы узнать подробнее:\n`/tools Etherscan`"
+        tools_text += "📖 <i>Введите название инструмента, чтобы узнать подробнее:</i>\n<code>/tools Etherscan</code>"
         
-        await update.message.reply_text(tools_text, parse_mode=ParseMode.MARKDOWN)
+        try:
+            if is_callback and query:
+                await query.edit_message_text(tools_text, parse_mode=ParseMode.HTML)
+            else:
+                await update.message.reply_text(tools_text, parse_mode=ParseMode.HTML)
+        except Exception as e:
+            logger.error(f"Ошибка при отправке tools: {e}")
         return
     
     # Показываем подробнее про конкретный инструмент
@@ -1153,29 +1621,174 @@ async def tools_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tool = next((t for t in tools if t['name'].lower() == tool_name.lower()), None)
     
     if not tool:
-        await update.message.reply_text(
-            f"❌ Инструмент '{tool_name}' не найден\n\n"
-            "Используйте `/tools` для списка всех инструментов"
-        )
+        error_text = f"❌ <b>Инструмент не найден</b>\n\n<i>'{tool_name}'</i>\n\nИспользуйте <code>/tools</code> для списка всех инструментов"
+        try:
+            if is_callback and query:
+                await query.edit_message_text(error_text, parse_mode=ParseMode.HTML)
+            else:
+                await update.message.reply_text(error_text, parse_mode=ParseMode.HTML)
+        except Exception as e:
+            logger.error(f"Ошибка при отправке ошибки tools: {e}")
         return
     
     tool_text = (
-        f"🔧 **{tool['name']}**\n\n"
-        f"📖 {tool['description']}\n\n"
-        f"📊 **Информация:**\n"
-        f"• Категория: {tool['category']}\n"
-        f"• Сложность: {tool['difficulty']}\n"
-        f"• URL: {tool['url']}\n\n"
-        f"📚 **Как использовать:**\n"
+        f"🔧 <b>{tool['name']}</b>\n\n"
+        f"📖 <i>{tool['description']}</i>\n\n"
+        f"<b>ℹ️ ИНФОРМАЦИЯ:</b>\n"
+        f"  • Категория: <b>{tool['category']}</b>\n"
+        f"  • Сложность: <b>{tool['difficulty']}</b>\n"
+        f"  • URL: <code>{tool['url']}</code>\n\n"
+        f"<b>📚 КАК ИСПОЛЬЗОВАТЬ:</b>\n"
         f"{tool['tutorial']}\n\n"
-        f"💡 Хотите сохранить в избранное? (`/bookmark {tool['name']}`)"
+        f"💡 <i>Хотите сохранить в избранное?</i> <code>/bookmark {tool['name']}</code>"
     )
     
-    await update.message.reply_text(tool_text, parse_mode=ParseMode.MARKDOWN)
+    try:
+        if is_callback and query:
+            await query.edit_message_text(tool_text, parse_mode=ParseMode.HTML)
+        else:
+            await update.message.reply_text(tool_text, parse_mode=ParseMode.HTML)
+    except Exception as e:
+        logger.error(f"Ошибка при отправке информации о tool: {e}")
     
     # Логируем просмотр
     if ENABLE_ANALYTICS:
         log_analytics_event("tool_viewed", user_id, {"tool": tool['name']})
+
+
+@log_command
+async def bookmark_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Добавляет инструмент в закладки. Использование: /bookmark Etherscan"""
+    user_id = update.effective_user.id
+    
+    if not context.args:
+        await update.message.reply_text(
+            "📌 <b>Добавить инструмент в закладки</b>\n\n"
+            "Использование: <code>/bookmark Etherscan</code>\n"
+            "Просмотр закладок: <code>/bookmarks</code>",
+            parse_mode=ParseMode.HTML
+        )
+        return
+    
+    tool_name = " ".join(context.args)
+    tools = get_all_tools_db()
+    
+    # Проверяем, существует ли инструмент
+    tool = next((t for t in tools if t['name'].lower() == tool_name.lower()), None)
+    
+    if not tool:
+        await update.message.reply_text(
+            f"❌ <b>Инструмент не найден</b>\n\n"
+            f"<i>'{tool_name}'</i>\n\n"
+            f"Используйте <code>/tools</code> для списка всех инструментов",
+            parse_mode=ParseMode.HTML
+        )
+        return
+    
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            
+            # Проверяем, не добавлена ли уже
+            cursor.execute(
+                "SELECT id FROM user_bookmarks WHERE user_id = ? AND tool_name = ?",
+                (user_id, tool['name'])
+            )
+            
+            if cursor.fetchone():
+                await update.message.reply_text(
+                    f"ℹ️ <b>{tool['name']}</b> уже в ваших закладках",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+            
+            # Добавляем в закладки
+            cursor.execute(
+                "INSERT INTO user_bookmarks (user_id, tool_name) VALUES (?, ?)",
+                (user_id, tool['name'])
+            )
+            conn.commit()
+        
+        await update.message.reply_text(
+            f"✅ <b>{tool['name']}</b> добавлена в закладки!\n\n"
+            f"Просмотреть все закладки: <code>/bookmarks</code>",
+            parse_mode=ParseMode.HTML
+        )
+        
+        # Логируем событие
+        if ENABLE_ANALYTICS:
+            log_analytics_event("tool_bookmarked", user_id, {"tool": tool['name']})
+    
+    except Exception as e:
+        logger.error(f"Ошибка при добавлении в закладки: {e}")
+        await update.message.reply_text(
+            "❌ Ошибка при добавлении в закладки",
+            parse_mode=ParseMode.HTML
+        )
+
+
+@log_command
+async def bookmarks_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показывает сохраненные в закладках инструменты."""
+    user_id = update.effective_user.id
+    is_callback = update.callback_query is not None
+    query = update.callback_query if is_callback else None
+    
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            
+            # Получаем закладки пользователя
+            cursor.execute(
+                "SELECT tool_name FROM user_bookmarks WHERE user_id = ? ORDER BY added_at DESC",
+                (user_id,)
+            )
+            
+            bookmarks = cursor.fetchall()
+        
+        if not bookmarks:
+            response = (
+                "📌 <b>Ваши закладки пусты</b>\n\n"
+                "Добавить инструмент: <code>/bookmark Etherscan</code>\n"
+                "Посмотреть инструменты: <code>/tools</code>"
+            )
+        else:
+            response = "📌 <b>ВАШИ ЗАКЛАДКИ</b>\n\n"
+            
+            # Получаем информацию о каждом инструменте
+            all_tools = get_all_tools_db()
+            tools_by_name = {t['name']: t for t in all_tools}
+            
+            for (tool_name,) in bookmarks:
+                tool = tools_by_name.get(tool_name)
+                if tool:
+                    response += (
+                        f"🔧 <b>{tool['name']}</b>\n"
+                        f"   <i>{tool['description'][:60]}...</i>\n"
+                        f"   Сложность: {tool['difficulty']}\n\n"
+                    )
+            
+            response += f"\n🔗 Просмотреть подробнее: <code>/tools ИмяИнструмента</code>"
+        
+        try:
+            if is_callback and query:
+                await query.edit_message_text(response, parse_mode=ParseMode.HTML)
+            else:
+                await update.message.reply_text(response, parse_mode=ParseMode.HTML)
+        except Exception as e:
+            logger.error(f"Ошибка при отправке закладок: {e}")
+            await update.message.reply_text("❌ Ошибка при получении закладок", parse_mode=ParseMode.HTML)
+        
+        # Логируем событие
+        if ENABLE_ANALYTICS:
+            log_analytics_event("bookmarks_viewed", user_id, {"count": len(bookmarks)})
+    
+    except Exception as e:
+        logger.error(f"Ошибка при получении закладок: {e}")
+        await update.message.reply_text(
+            "❌ Ошибка при получении закладок",
+            parse_mode=ParseMode.HTML
+        )
 
 
 @log_command
@@ -1487,6 +2100,70 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Парсинг callback_data
     parts = data.split("_")
     
+    # Быстрое меню (глобальная кнопка)
+    if data == "menu":
+        # Показываем главное меню с быстрыми действиями
+        keyboard = [
+            [
+                InlineKeyboardButton("📚 Курсы", callback_data="menu_learn"),
+                InlineKeyboardButton("🧰 Инструменты", callback_data="menu_tools")
+            ],
+            [
+                InlineKeyboardButton("💬 Задать вопрос", callback_data="menu_ask"),
+                InlineKeyboardButton("📜 История", callback_data="menu_history")
+            ],
+            [
+                InlineKeyboardButton("❓ Помощь", callback_data="menu_help"),
+                InlineKeyboardButton("⚙️ Статус", callback_data="menu_stats")
+            ]
+        ]
+        try:
+            await query.edit_message_text(
+                "📋 <b>ГЛАВНОЕ МЕНЮ RVX</b>",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode=ParseMode.HTML
+            )
+        except Exception:
+            # Если редактирование не удалось (сообщение удалено) — отправим новое
+            await query.message.reply_text(
+                "📋 **Главное меню RVX**",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode=ParseMode.MARKDOWN
+            )
+        return
+
+    # Обработка быстрых меню-опций (вызываем существующие команды если нужно)
+    if data.startswith("menu_"):
+        sub = data.split("_", 1)[1]
+        # Перенаправляем на существующие команды, они работают с callback Update тоже
+        if sub == "learn":
+            await learn_command(update, context)
+            return
+        if sub == "tools":
+            await tools_command(update, context)
+            return
+        if sub == "ask":
+            # Покажем подсказку по /ask
+            try:
+                await query.edit_message_text(
+                    "💬 <b>Чтобы задать уточняющий вопрос используйте команду:</b>\n<code>/ask &lt;ваш вопрос&gt;</code>",
+                    parse_mode=ParseMode.HTML
+                )
+            except Exception:
+                await query.message.reply_text(
+                    "💬 Чтобы задать уточняющий вопрос используйте команду:\n/ask <ваш вопрос>"
+                )
+            return
+        if sub == "history":
+            await history_command(update, context)
+            return
+        if sub == "help":
+            await help_command(update, context)
+            return
+        if sub == "stats":
+            await stats_command(update, context)
+            return
+
     # ============ ОБУЧЕНИЕ - Новые кнопки v0.5.0 ============
     
     if data.startswith("learn_"):
@@ -1497,21 +2174,114 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             lesson_content = get_lesson_content(course, lesson)
             if lesson_content:
-                # Показываем превью урока
-                preview = lesson_content[:800] + "...\n\n[Читайте полный урок в /learn]"
+                # Показываем превью урока (ограничиваем длину и безопасно форматируем)
+                preview = lesson_content[:600]  # Сокращаем до 600 символов
+                # Экранируем HTML специальные символы
+                preview = preview.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                
+                response_text = f"📖 <b>УРОК ЗАГРУЖЕН!</b>\n\n{preview}\n\n<i>Читайте полный урок в команде /learn</i>"
+                
                 await query.edit_message_text(
-                    f"📖 **Урок загружен!**\n\n{preview}",
-                    parse_mode=ParseMode.MARKDOWN
+                    response_text,
+                    parse_mode=ParseMode.HTML
                 )
                 with get_db() as conn:
                     cursor = conn.cursor()
                     add_xp_to_user(cursor, user.id, 5, "viewed_lesson")
                 logger.info(f"✅ Пользователь {user.id} начал урок {course} #{lesson}")
             else:
-                await query.edit_message_text("❌ Урок не найден")
+                await query.edit_message_text("❌ <b>Урок не найден</b>", parse_mode=ParseMode.HTML)
         except Exception as e:
-            logger.error(f"Ошибка в learn_: {e}")
-            await query.edit_message_text("❌ Ошибка загрузки урока")
+            logger.error(f"Ошибка в learn_: {e}", exc_info=True)
+            try:
+                await query.edit_message_text("❌ <b>Ошибка загрузки урока</b>", parse_mode=ParseMode.HTML)
+            except:
+                await query.answer("Ошибка загрузки урока", show_alert=True)
+        
+        return
+    
+    # ============ НАВИГАЦИЯ ПО УРОКАМ - Следующий урок ============
+    
+    if data.startswith("next_lesson_"):
+        try:
+            # Формат: next_lesson_course_name_lesson_num
+            parts_list = data.split("_")
+            # Последний элемент - номер урока
+            lesson_num = int(parts_list[-1])
+            # Остальное - имя курса
+            course_name = "_".join(parts_list[2:-1])
+            
+            course_data = COURSES_DATA.get(course_name)
+            if not course_data:
+                await query.answer("❌ Курс не найден", show_alert=True)
+                return
+            
+            # Проверяем валидность номера урока
+            if lesson_num < 1 or lesson_num > course_data['total_lessons']:
+                await query.answer("❌ Урок не найден", show_alert=True)
+                return
+            
+            # Получаем контент урока
+            lesson_content = get_lesson_content(course_name, lesson_num)
+            
+            if not lesson_content:
+                await query.answer("❌ Урок не найден", show_alert=True)
+                return
+            
+            # Очищаем контент
+            lesson_content = clean_lesson_content(lesson_content)
+            lesson_text, quiz_section = split_lesson_content(lesson_content)
+            
+            # Форматируем и отправляем
+            max_length = 3500
+            if len(lesson_text) > max_length:
+                lesson_preview = lesson_text[:max_length] + "\n\n[... урок продолжается]"
+            else:
+                lesson_preview = lesson_text
+            
+            response = (
+                f"📚 <b>{course_data['title'].upper()}</b>\n"
+                f"📖 Урок {lesson_num}/{course_data['total_lessons']}\n\n"
+                f"{lesson_preview}"
+            )
+            
+            # Создаем кнопки
+            keyboard = []
+            if quiz_section:
+                keyboard.append([
+                    InlineKeyboardButton("🎯 Начать тест", callback_data=f"start_quiz_{course_name}_{lesson_num}")
+                ])
+            
+            # Проверяем, есть ли следующий урок
+            next_lesson_info = get_next_lesson_info(course_name, lesson_num)
+            if next_lesson_info:
+                keyboard.append([
+                    InlineKeyboardButton("▶️ Следующий урок", callback_data=f"next_lesson_{course_name}_{lesson_num + 1}")
+                ])
+            
+            reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
+            
+            await query.edit_message_text(response, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+            
+            # Добавляем XP за просмотр
+            try:
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    add_xp_to_user(cursor, user.id, 5, "viewed_lesson")
+                logger.info(f"⭐ Пользователь {user.id} получил 5 XP за урок {lesson_num}")
+            except Exception as e:
+                logger.error(f"Ошибка при добавлении XP: {e}")
+            
+            # Логируем событие
+            if ENABLE_ANALYTICS:
+                log_analytics_event("next_lesson_clicked", user.id, {"course": course_name, "lesson": lesson_num})
+        
+        except Exception as e:
+            logger.error(f"Ошибка в next_lesson_: {e}", exc_info=True)
+            try:
+                await query.answer("❌ Ошибка загрузки урока", show_alert=True)
+            except:
+                pass
         
         return
     
@@ -1521,13 +2291,17 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             request_id = int(data.split("_")[-1])
             await query.edit_message_text(
-                "💬 **Задайте уточняющий вопрос:**\n\n"
-                "Используйте `/ask [ваш вопрос]` чтобы задать вопрос эксперту\n\n"
-                "Пример: `/ask Как это работает с другими блокчейнами?`",
-                parse_mode=ParseMode.MARKDOWN
+                "💬 <b>ЗАДАЙТЕ УТОЧНЯЮЩИЙ ВОПРОС:</b>\n\n"
+                "Используйте <code>/ask [ваш вопрос]</code> чтобы задать вопрос эксперту\n\n"
+                "<i>Пример:</i> <code>/ask Как это работает с другими блокчейнами?</code>",
+                parse_mode=ParseMode.HTML
             )
         except Exception as e:
             logger.error(f"Ошибка в ask_related_: {e}")
+            try:
+                await query.answer("Ошибка при загрузке вопроса", show_alert=True)
+            except:
+                pass
         
         return
     
@@ -1552,6 +2326,12 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if user.id in user_last_news:
             del user_last_news[user.id]
+        # Сбрасываем счётчик регенераций для этого запроса
+        if request_id in feedback_attempts:
+            try:
+                del feedback_attempts[request_id]
+            except KeyError:
+                pass
         
         if ENABLE_ANALYTICS:
             log_analytics_event("feedback_positive", user.id, {
@@ -1574,54 +2354,93 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "😔 Попробуйте отправить новость заново для нового анализа."
             )
             return
-        
+
         original_text = user_last_news[user.id]
-        
+
+        # Подсчитываем попытку регенерации для данного request_id
+        attempt = feedback_attempts.get(request_id, 0) + 1
+        feedback_attempts[request_id] = attempt
+
+        # Если превысили лимит — эскалируем
+        if attempt > FEEDBACK_MAX_RETRIES:
+            await query.edit_message_reply_markup(reply_markup=None)
+            await query.message.reply_text(
+                "😓 Похоже, я не смог объяснить иначе. \n"
+                "Могу предложить: \n"
+                "• Задать уточняющий вопрос командой `/ask` \n"
+                "• Обратиться к эксперту — напишите администратору",
+                parse_mode=ParseMode.MARKDOWN
+            )
+            try:
+                del feedback_attempts[request_id]
+            except KeyError:
+                pass
+            return
+
+        # Выбираем режим регенерации по попытке
+        mode_name, mode_desc = REGENERATION_MODES[min(attempt-1, len(REGENERATION_MODES)-1)]
+
         await query.edit_message_text(
-            "🔄 Анализирую иначе... (попытка 2)"
+            f"🔄 Готовлю альтернативное объяснение ({mode_name}) — попытка {attempt}/{FEEDBACK_MAX_RETRIES}"
         )
-        
+
         try:
-            # Вызываем API заново для регенерации
-            simplified_text, proc_time, error = await call_api_with_retry(original_text)
-            
+            # Пытаемся взять предыдущий ответ (если есть) чтобы задать более точную задачу модели
+            prev = get_request_by_id(request_id)
+            prev_response_text = prev.get("response_text") if prev else ""
+
+            regen_prompt = (
+                "Пользователь отметил, что предыдущий ответ не помог. "
+                f"Требование: {mode_desc}\n\n"
+                "Исходная новость:\n" + original_text + "\n\n"
+                "Предыдущий анализ:\n" + (prev_response_text or "(не доступен)") + "\n\n"
+                "Перепиши анализ в соответствии с требованием выше. Будь максимально понятным и конкретным."
+            )
+
+            # Вызываем API с модифицированным вводом, чтобы получить альтернативный стиль ответа
+            simplified_text, proc_time, error = await call_api_with_retry(regen_prompt)
+
             if not simplified_text:
                 raise ValueError(f"Ошибка API: {error}")
-            
-            # Сохраняем новый запрос
+
+            # Сохраняем новый вариант ответа (для истории)
             new_request_id = save_request(
-                user.id, 
-                original_text, 
-                simplified_text, 
+                user.id,
+                original_text,
+                simplified_text,
                 from_cache=False,
                 processing_time_ms=proc_time
             )
-            
-            # Отправляем новый ответ с кнопками
-            new_response = f"🤖 **RVX Скаут (попытка 2):**\n\n{simplified_text}"
-            
+
+            # Формируем ответ — оставляем callback на исходный request_id, чтобы отслеживать попытки
+            new_response = f"🤖 **RVX Скаут (альтернатива):**\n\n{simplified_text}"
+
             keyboard = [
                 [
                     InlineKeyboardButton(
-                        "👍 Полезно", 
-                        callback_data=f"feedback_helpful_{new_request_id}"
+                        "👍 Полезно",
+                        callback_data=f"feedback_helpful_{request_id}"
                     ),
                     InlineKeyboardButton(
-                        "👎 Не помогло", 
-                        callback_data=f"feedback_not_helpful_{new_request_id}"
+                        "👎 Не помогло",
+                        callback_data=f"feedback_not_helpful_{request_id}"
                     )
                 ]
             ]
+            # Добавляем кнопку меню
+            keyboard.append([
+                InlineKeyboardButton("📋 Меню", callback_data="menu")
+            ])
             reply_markup = InlineKeyboardMarkup(keyboard)
-            
+
             await query.edit_message_text(
                 new_response,
                 reply_markup=reply_markup,
                 parse_mode=ParseMode.MARKDOWN
             )
-            
-            logger.info(f"✅ Регенерация успешна для {user.id}")
-        
+
+            logger.info(f"✅ Регенерация ({mode_name}) успешна для {user.id} (попытка {attempt})")
+
         except Exception as e:
             logger.error(f"❌ Ошибка регенерации: {e}")
             await query.edit_message_text(
@@ -1731,11 +2550,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             InlineKeyboardButton("👍 Полезно", callback_data=f"feedback_helpful_{request_id}"),
             InlineKeyboardButton("👎 Не помогло", callback_data=f"feedback_not_helpful_{request_id}")
         ]]
+        # Добавляем кнопку меню
+        keyboard.append([
+            InlineKeyboardButton("📋 Меню", callback_data="menu")
+        ])
         
         await update.message.reply_text(
-            f"⚡ **Из кэша:**\n\n{cached_response}",
+            f"⚡ <b>Из кэша:</b>\n\n{cached_response}",
             reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode=ParseMode.MARKDOWN
+            parse_mode=ParseMode.HTML
         )
         
         # Уведомление об оставшихся запросах
@@ -1752,7 +2575,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     try:
         # Вызов API с retry логикой
-        simplified_text, proc_time, error = await call_api_with_retry(user_text)
+        simplified_text, proc_time, error = await call_api_with_retry(user_text, user_id=user.id)
         
         if not simplified_text:
             # Сохраняем неудачный запрос
@@ -1788,26 +2611,39 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             InlineKeyboardButton("👎 Не помогло", callback_data=f"feedback_not_helpful_{request_id}")
         ]]
         
-        # Рекомендуем связанные уроки (v0.5.0)
-        educational_context, learn_callback = get_educational_context(simplified_text, user.id)
+        # Рекомендуем связанные уроки и практические советы (v0.5.0)
+        educational_context, learn_callback, practical_tips = get_educational_context(simplified_text, user.id)
         
-        full_response = f"🤖 **RVX Скаут:**\n\n{simplified_text}"
+        # Улучшенное форматирование ответа
+        full_response = f"<b>📰 RVX АНАЛИЗ</b>\n\n{simplified_text}"
         
-        # Добавляем образовательные кнопки если есть рекомендация
-        if educational_context:
-            full_response += educational_context
+        # Добавляем практические советы
+        if practical_tips and any(t.strip() for t in practical_tips):
+            full_response += "\n\n💡 <b>ПРАКТИЧЕСКИЕ СОВЕТЫ:</b>"
+            for i, tip in enumerate(practical_tips[:3], 1):
+                if tip.strip():
+                    full_response += f"\n  {i}. {tip}"
+        
+        # Добавляем образовательные рекомендации если есть
+        if educational_context and educational_context.strip():
+            full_response += f"\n\n📚 <b>ОБРАЗОВАТЕЛЬНО:</b>\n{educational_context}"
             keyboard.append([
                 InlineKeyboardButton("📚 Начать урок", callback_data=learn_callback),
                 InlineKeyboardButton("💬 Задать вопрос", callback_data=f"ask_related_{request_id}")
             ])
         
+        # Добавляем кнопку меню внизу
+        keyboard.append([
+            InlineKeyboardButton("📋 Меню", callback_data="menu")
+        ])
+
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         # Отправляем результат
         await status_msg.edit_text(
             full_response,
             reply_markup=reply_markup,
-            parse_mode=ParseMode.MARKDOWN
+            parse_mode=ParseMode.HTML
         )
         
         logger.info(f"✅ Запрос успешно обработан для {user.id} за {proc_time:.0f}ms")
@@ -1821,28 +2657,28 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except httpx.TimeoutException:
         logger.error(f"⏱️ Таймаут для {user.id}")
         await status_msg.edit_text(
-            "❌ **Превышено время ожидания**\n\n"
+            "❌ <b>Превышено время ожидания</b>\n\n"
             "AI сервис не ответил вовремя.\n"
             "Попробуйте через минуту.",
-            parse_mode=ParseMode.MARKDOWN
+            parse_mode=ParseMode.HTML
         )
     
     except httpx.HTTPStatusError as e:
         logger.error(f"❌ HTTP ошибка для {user.id}: {e}")
         await status_msg.edit_text(
-            f"❌ **Ошибка API (HTTP {e.response.status_code})**\n\n"
+            f"❌ <b>Ошибка API (HTTP {e.response.status_code})</b>\n\n"
             "AI сервис временно недоступен.\n"
             "Попробуйте позже.",
-            parse_mode=ParseMode.MARKDOWN
+            parse_mode=ParseMode.HTML
         )
     
     except Exception as e:
         logger.error(f"❌ Неожиданная ошибка для {user.id}: {e}", exc_info=True)
         await status_msg.edit_text(
-            "❌ **Произошла ошибка**\n\n"
+            "❌ <b>Произошла ошибка</b>\n\n"
             "Попробуйте отправить новость заново.\n"
             "Если проблема повторяется, свяжитесь с администратором.",
-            parse_mode=ParseMode.MARKDOWN
+            parse_mode=ParseMode.HTML
         )
 
 # =============================================================================
@@ -1922,6 +2758,7 @@ def main():
     # Регистрация команд
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("menu", menu_command))
     application.add_handler(CommandHandler("stats", stats_command))
     application.add_handler(CommandHandler("history", history_command))
     application.add_handler(CommandHandler("search", search_command))
@@ -1932,7 +2769,12 @@ def main():
     application.add_handler(CommandHandler("learn", learn_command))
     application.add_handler(CommandHandler("lesson", lesson_command))
     application.add_handler(CommandHandler("tools", tools_command))
+    application.add_handler(CommandHandler("bookmark", bookmark_command))
+    application.add_handler(CommandHandler("bookmarks", bookmarks_command))
     application.add_handler(CommandHandler("ask", ask_command))
+    
+    # Динамические команды для запуска курсов (start_blockchain_basics, start_defi_contracts, etc.)
+    application.add_handler(CommandHandler(["start_blockchain_basics", "start_defi_contracts", "start_scaling_dao"], start_course_command))
     
     # Админские команды
     application.add_handler(CommandHandler("admin_stats", admin_stats_command))
