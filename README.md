@@ -292,8 +292,8 @@ Contributions are welcome! Пожалуйста:
 
 Создано с ❤️ для крипто-комьюнити
 
-- Telegram: [@your_username](https://t.me/your_username)
-- GitHub: [@your_github](https://github.com/your_github)
+- Telegram: [@RVX_AIBot](https://t.me/your_username)
+- GitHub: [@SGGuard](https://github.com/your_github)
 
 ---
 
