@@ -84,4 +84,8 @@ Desktop.ini
 
 # Local configuration overrides
 config.local.py
+<<<<<<< HEAD
 settings.local.py
+=======
+settings.local.py
+>>>>>>> 0f7d810 (feat: Обновление API до v0.5.0, добавление тестов и кэширования)

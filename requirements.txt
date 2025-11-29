@@ -35,4 +35,8 @@ flake8==7.1.1
 mypy==1.13.0
 
 # Security
+<<<<<<< HEAD
 cryptography==44.0.0
+=======
+cryptography==44.0.0
+>>>>>>> 0f7d810 (feat: Обновление API до v0.5.0, добавление тестов и кэширования)
