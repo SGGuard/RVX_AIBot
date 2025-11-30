@@ -19,6 +19,12 @@ from tenacity import retry, stop_after_attempt, wait_exponential, RetryError
 from google import genai
 from google.genai.errors import APIError
 
+# Drops Tracker - для информации о дропах и активностях (v0.15.0)
+from drops_tracker import (
+    get_trending_tokens, get_nft_drops, get_activities,
+    get_drops_by_chain, get_token_info, get_cache_info
+)
+
 # =============================================================================
 # КОНФИГУРАЦИЯ И НАСТРОЙКА
 # =============================================================================
@@ -67,10 +73,38 @@ class NewsPayload(BaseModel):
             raise ValueError("Текст не может быть пустым")
         return sanitize_input(v.strip())
 
+class TeachingPayload(BaseModel):
+    """Входные данные для создания урока."""
+    topic: str = Field(..., min_length=3, max_length=100)
+    difficulty_level: str = Field(default="beginner")
+    
+    @validator('topic')
+    def validate_topic(cls, v):
+        if not v.strip():
+            raise ValueError("Тема не может быть пустой")
+        return v.strip().lower()
+    
+    @validator('difficulty_level')
+    def validate_difficulty(cls, v):
+        valid_levels = ["beginner", "intermediate", "advanced", "expert"]
+        if v.lower() not in valid_levels:
+            raise ValueError(f"Уровень должен быть одним из: {', '.join(valid_levels)}")
+        return v.lower()
+
 class SimplifiedResponse(BaseModel):
     """Ответ API с анализом."""
     simplified_text: str
     cached: bool = False
+    processing_time_ms: Optional[float] = None
+
+class TeachingResponse(BaseModel):
+    """Ответ API с учебным уроком."""
+    lesson_title: str
+    content: str
+    key_points: list = Field(default_factory=list)
+    real_world_example: str = ""
+    practice_question: str = ""
+    next_topics: list = Field(default_factory=list)
     processing_time_ms: Optional[float] = None
 
 class HealthResponse(BaseModel):
@@ -84,6 +118,43 @@ class HealthResponse(BaseModel):
     requests_rate_limited: int = 0
     cache_size: int
     uptime_seconds: Optional[float] = None
+
+# ============================================================================= 
+# МОДЕЛИ ДРОПОВ И АКТИВНОСТЕЙ (v0.15.0)
+# =============================================================================
+
+class DropsResponse(BaseModel):
+    """Ответ с информацией о дропах."""
+    drops: list = Field(default_factory=list)
+    count: int = 0
+    source: str = "CoinGecko + Launchpads"
+    timestamp: str = ""
+    cache_ttl_minutes: int = 60
+
+class ActivitiesResponse(BaseModel):
+    """Ответ с информацией об активностях."""
+    staking_updates: list = Field(default_factory=list)
+    new_launches: list = Field(default_factory=list)
+    contract_updates: list = Field(default_factory=list)
+    governance: list = Field(default_factory=list)
+    partnerships: list = Field(default_factory=list)
+    total_activities: int = 0
+    timestamp: str = ""
+    cache_ttl_minutes: int = 60
+
+class TokenInfoResponse(BaseModel):
+    """Информация о конкретном токене."""
+    name: str
+    symbol: str
+    price: float
+    market_cap: float
+    market_cap_rank: Optional[int]
+    change_24h: float
+    change_7d: float
+    volume_24h: float
+    ath: float
+    atl: float
+    timestamp: str = ""
 
 # =============================================================================
 # RATE LIMITING
@@ -201,13 +272,85 @@ def extract_json_from_response(raw_text: str) -> Optional[dict]:
             logger.warning(f"JSON не найден. Начало ответа: {raw_text[:100]}...")
             return None
     
+    # НОВОЕ: Очищаем от звёздочек и маркеров внутри JSON
+    # Это нужно для некорректно работающих моделей
+    # Но будьте осторожны - не удаляйте подчеркивания из field names!
+    text_to_parse = text_to_parse.replace("**", "")  # Жирный текст
+    text_to_parse = text_to_parse.replace("__", "")  # Подчеркивание  
+    text_to_parse = text_to_parse.replace("~~", "")  # Зачеркивание
+    # Удаляем только markdown-стиль подчеркивания (слово_слово_), но не в JSON ключах
+    # Для этого ищем и заменяем только одиночные подчеркивания в контексте текста
+    # В JSON, подчеркивания используются в ключах, поэтому мы их НЕ трогаем
+    
     # Парсинг с обработкой ошибок
     try:
         data = json.loads(text_to_parse)
         return data if isinstance(data, dict) else None
     except json.JSONDecodeError as e:
         logger.error(f"JSON decode error на строке {e.lineno}, колонке {e.colno}")
-        logger.debug(f"Проблемный текст: {text_to_parse[:200]}")
+        logger.debug(f"Проблемный текст: {text_to_parse[:300]}")
+        
+        # Попытка исправить распространённые ошибки JSON
+        # Заменяем одиночные кавычки на двойные
+        cleaned = text_to_parse.replace("'", '"')
+        try:
+            data = json.loads(cleaned)
+            logger.info("✅ JSON успешно распарсен после очистки кавычек")
+            return data if isinstance(data, dict) else None
+        except json.JSONDecodeError:
+            logger.error("❌ Не удалось распарсить JSON даже после очистки")
+            logger.debug(f"Очищенный текст: {cleaned[:400]}")
+            return None
+
+def extract_teaching_json(raw_text: str) -> Optional[dict]:
+    """Извлекает JSON урока из ответа AI с множественными стратегиями."""
+    if not raw_text:
+        return None
+    
+    # Стратегия 1: Удаляем markdown блоки
+    text = re.sub(r'```json\s*', '', raw_text, flags=re.IGNORECASE).strip()
+    text = re.sub(r'```\s*', '', text).strip()
+    
+    # Стратегия 2: XML теги <json>...</json>
+    xml_match = re.search(r'<json>(.*?)</json>', text, re.DOTALL | re.IGNORECASE)
+    if xml_match:
+        text_to_parse = xml_match.group(1).strip()
+    else:
+        # Стратегия 3: Ищем первый валидный JSON блок
+        brace_match = re.search(r'\{.*\}', text, re.DOTALL)
+        if brace_match:
+            text_to_parse = brace_match.group(0)
+        else:
+            logger.warning(f"Урок JSON не найден. Начало ответа: {raw_text[:100]}...")
+            return None
+    
+    # Очищаем от markdown маркеров
+    text_to_parse = text_to_parse.replace("**", "")
+    text_to_parse = text_to_parse.replace("__", "")
+    text_to_parse = text_to_parse.replace("~~", "")
+    
+    # Парсинг с обработкой ошибок
+    try:
+        data = json.loads(text_to_parse)
+        if not isinstance(data, dict):
+            logger.error(f"Урок JSON не является словарем, тип: {type(data)}")
+            return None
+        logger.info("✅ Урок JSON успешно распарсен")
+        return data
+    except json.JSONDecodeError as e:
+        logger.error(f"Ошибка парсинга урока JSON на строке {e.lineno}, колонке {e.colno}: {e.msg}")
+        logger.debug(f"Проблемный текст: {text_to_parse[:300]}")
+        
+        # Попытка исправить распространённые ошибки JSON
+        cleaned = text_to_parse.replace("'", '"')
+        try:
+            data = json.loads(cleaned)
+            if isinstance(data, dict):
+                logger.info("✅ Урок JSON успешно распарсен после очистки кавычек")
+                return data
+        except json.JSONDecodeError:
+            logger.error("❌ Не удалось распарсить урок JSON даже после очистки")
+        
         return None
 
 def validate_analysis(data: Any) -> tuple[bool, Optional[str]]:
@@ -260,7 +403,19 @@ def validate_analysis(data: Any) -> tuple[bool, Optional[str]]:
     if "related_topics" in data:
         topics = data["related_topics"]
         if isinstance(topics, list):
-            valid_topics = [t for t in topics if isinstance(t, str) and 10 < len(t) < 500]
+            valid_topics = []
+            for t in topics:
+                if isinstance(t, str):
+                    # Очищаем и проверяем каждую тему
+                    clean_t = clean_text(t).strip()
+                    # Отфильтровываем темы, которые выглядят как форматированный текст
+                    # (содержат много эмодзи или выглядят как заголовки)
+                    if (10 < len(clean_t) < 500 and 
+                        not clean_t.startswith("💡") and 
+                        not clean_t.startswith("📚") and
+                        not clean_t.startswith("⛓️") and
+                        ":" not in clean_t[:20]):  # Не начинается с заголовка
+                        valid_topics.append(clean_t)
             data["related_topics"] = valid_topics[:3]  # Максимум 3 темы
         else:
             data["related_topics"] = None
@@ -349,35 +504,36 @@ def cleanup_expired_cache():
 def build_gemini_config() -> dict:
     """Создает оптимизированную конфигурацию для Gemini с поддержкой образовательного контента."""
     system_prompt = (
-        "Ты — **незаменимый криптоаналитик и наставник RVX**, созданный для анализа криптоновостей "
+        "Ты — незаменимый криптоаналитик и наставник RVX, созданный для анализа криптоновостей "
         "и погружения пользователей в мир Web3 через понятные объяснения.\n\n"
         
-        "**ОСНОВНАЯ ЗАДАЧА:**\n"
+        "ОСНОВНАЯ ЗАДАЧА:\n"
         "1. Объяснить новость максимально просто для новичков\n"
         "2. Показать влияние на рынок и практическую применимость\n"
         "3. Дать образовательный вопрос для углубленного изучения\n"
         "4. Предложить 2-3 похожих топика для дальнейшего обучения\n\n"
         
-        "**СТИЛЬ ОБЩЕНИЯ:**\n"
+        "СТИЛЬ ОБЩЕНИЯ:\n"
         "- Тон: дружелюбный, как опытный наставник для новичков\n"
         "- Фокус: практическое применение, не теория\n"
         "- Целевая аудитория: люди, только начинающие изучать крипто\n"
         "- Метод: погружение от простого к сложному\n\n"
         
-        "**СТРОГИЕ ПРАВИЛА ОТВЕТА:**\n"
+        "СТРОГИЕ ПРАВИЛА ОТВЕТА:\n"
         "1. Отвечай ТОЛЬКО в формате JSON, заключенном в теги <json></json>\n"
-        "2. ЗАПРЕЩЕНО использовать Markdown (**, *, _, ~, `) внутри JSON-полей\n"
+        "2. ЗАПРЕЩЕНО использовать *, **, _, ~, ` (никаких звёздочек и маркеров!)\n"
         "3. ЗАПРЕЩЕНО использовать эмодзи внутри JSON-полей\n"
         "4. ЗАПРЕЩЕНО использовать HTML-теги\n"
-        "5. Используй только простой текст в полях JSON\n\n"
+        "5. Используй только простой текст в полях JSON\n"
+        "6. Используй только буквы, цифры, пунктуацию и пробелы\n\n"
         
-        "**СТРУКТУРА ОТВЕТА (4 поля):**\n"
+        "СТРУКТУРА ОТВЕТА (4 поля):\n"
         "- summary_text: 2-3 предложения о сути новости\n"
         "- impact_points: массив с влияниями\n"
         "- learning_question: вопрос для углубления\n"
         "- related_topics: 2-3 смежных темы\n\n"
         
-        "**ПРИМЕР ОТВЕТА:**\n"
+        "ПРИМЕР ОТВЕТА:\n"
         "<json>{\n"
         '"summary_text": "SEC одобрила биткоин-ETF. Люди могут инвестировать через обычный брокер без криптокошельков.",'
         '\n"impact_points": ["Капитал: 50-100 млрд в год подтолкнут BTC вверх", "Легитимность: банки одобрили крипто", "Конкуренция: другие ETF последуют"],'
@@ -394,6 +550,71 @@ def build_gemini_config() -> dict:
         "max_output_tokens": GEMINI_MAX_TOKENS,
         "top_p": 0.95,
         "top_k": 40
+    }
+
+def build_teaching_config() -> dict:
+    """Создает конфигурацию для Gemini специально для создания уроков."""
+    system_prompt = (
+        "Ты — опытный преподаватель криптографии и блокчейна, создающий ясные и доступные уроки.\n\n"
+        
+        "ТВОЯ ЗАДАЧА:\n"
+        "1. Создать учебный урок по запрошенной теме\n"
+        "2. Адаптировать сложность под уровень ученика\n"
+        "3. Предоставить практические примеры\n"
+        "4. Дать вопрос для проверки понимания\n\n"
+        
+        "УРОВНИ СЛОЖНОСТИ:\n"
+        "- beginner: основные концепции, простой язык, нет технических деталей\n"
+        "- intermediate: промежуточные детали, немного формальности, кейсы\n"
+        "- advanced: технические детали, математика, архитектура\n"
+        "- expert: глубокий анализ, стандарты, исследовательские ссылки\n\n"
+        
+        "СТРОГИЕ ПРАВИЛА ОТВЕТА:\n"
+        "1. Отвечай ТОЛЬКО валидным JSON без никаких других текстов\n"
+        "2. JSON должен быть в формате: { \"lesson_title\": \"...\", \"content\": \"...\", ... }\n"
+        "3. ЗАПРЕЩЕНО использовать markdown: никаких *, **, _, ~, ` символов\n"
+        "4. ЗАПРЕЩЕНО использовать эмодзи\n"
+        "5. ЗАПРЕЩЕНО использовать HTML теги\n"
+        "6. Используй только простой текст\n"
+        "7. Используй только основные пунктуационные знаки: точка, запятая, двоеточие\n\n"
+        
+        "ОБЯЗАТЕЛЬНАЯ СТРУКТУРА JSON:\n"
+        "{\n"
+        '  "lesson_title": "Название урока",\n'
+        '  "content": "Основное объяснение (200-300 слов)",\n'
+        '  "key_points": ["пункт1", "пункт2", "пункт3"],\n'
+        '  "real_world_example": "Практический пример применения",\n'
+        '  "practice_question": "Вопрос для проверки понимания",\n'
+        '  "next_topics": ["тема1", "тема2"]\n'
+        "}\n\n"
+        
+        "ПРАВИЛА ДЛЯ КАЖДОГО ПОЛЯ:\n"
+        "- lesson_title: 4-8 слов, ясное и информативное\n"
+        "- content: 200-300 слов, адаптировано под уровень сложности\n"
+        "- key_points: ровно 3 пункта, 1-2 предложения каждый\n"
+        "- real_world_example: конкретный, понятный пример (1-2 предложения)\n"
+        "- practice_question: открытый вопрос для размышления (1 предложение)\n"
+        "- next_topics: 2 логических продолжения темы\n\n"
+        
+        "ПРИМЕР ХОРОШЕГО ОТВЕТА:\n"
+        '{\n'
+        '  "lesson_title": "Что такое приватный ключ",\n'
+        '  "content": "Приватный ключ это длинная последовательность символов, которая дает полный контроль над вашим криптоактивом. Думайте о нем как о пароле от вашего банковского счета, но намного более важном. Если кто-то получит ваш приватный ключ, он может взять все ваши деньги. Вот почему нужно хранить приватный ключ в безопасности. Существуют разные способы хранения: в железных кошельках, на листе бумаги в сейфе, или в специальных приложениях.",\n'
+        '  "key_points": ["Приватный ключ это доступ к вашим средствам", "Если потеряете ключ, потеряете деньги", "Никогда не делитесь ключом"],\n'
+        '  "real_world_example": "Представьте приватный ключ как комбинацию от замка. Только у вас есть комбинация. Если дать комбинацию другому, он может открыть замок и взять ваши вещи.",\n'
+        '  "practice_question": "Почему важнее хранить приватный ключ, чем пароль от обычного банка?",\n'
+        '  "next_topics": ["Типы кошельков", "Как создать кошелек"]\n'
+        '}\n\n'
+        
+        "СОЗДАЙ УРОК ПО ЗАПРОСУ, СЛЕДУЯ ВСЕМ ПРАВИЛАМ."
+    )
+    
+    return {
+        "system_instruction": system_prompt,
+        "temperature": 0.3,  # Более консервативная температура для структурированного вывода
+        "max_output_tokens": 2000,  # Достаточно для полного урока
+        "top_p": 0.9,
+        "top_k": 30
     }
 
 # =============================================================================
@@ -595,7 +816,7 @@ async def health_check():
     )
 
 @app.post("/explain_news", response_model=SimplifiedResponse)
-async def explain_news(payload: NewsPayload):
+async def explain_news(payload: NewsPayload, request: Request):
     """
     Анализирует криптоновость с помощью AI.
     
@@ -605,7 +826,55 @@ async def explain_news(payload: NewsPayload):
     news_text = payload.text_content
     text_hash = hash_text(news_text)
     
-    logger.info(f"📥 Новый запрос: {len(news_text)} символов | Hash: {text_hash[:8]}...")
+    # Получаем user_id из заголовков (отправляет bot)
+    user_id = request.headers.get("X-User-ID", "anonymous")
+    
+    logger.info(f"📥 Новый запрос от {user_id}: {len(news_text)} символов | Hash: {text_hash[:8]}...")
+    
+    # NEW v0.14.0: Проверка лимита запросов (если есть user_id)
+    if user_id != "anonymous":
+        try:
+            # Импортируем функции проверки лимитов
+            from education import check_daily_limit, increment_daily_requests, reset_daily_requests
+            import sqlite3
+            from datetime import datetime as dt
+            
+            # Подключаемся к БД бота
+            bot_db_path = os.getenv("DB_PATH", "rvx_bot.db")
+            if os.path.exists(bot_db_path):
+                conn = sqlite3.connect(bot_db_path)
+                cursor = conn.cursor()
+                
+                # Проверяем дату последнего запроса
+                cursor.execute(
+                    "SELECT last_request_date FROM users WHERE user_id = ?",
+                    (int(user_id),)
+                )
+                row = cursor.fetchone()
+                today = dt.now().strftime('%Y-%m-%d')
+                
+                # Если день изменился, обнуляем счетчик
+                if row and row[0] != today:
+                    reset_daily_requests(cursor, int(user_id))
+                    conn.commit()
+                
+                # Проверяем лимит
+                allowed, limit_message = check_daily_limit(cursor, int(user_id))
+                
+                if not allowed:
+                    conn.close()
+                    logger.warning(f"⚠️ Лимит запросов исчерпан для {user_id}")
+                    
+                    return SimplifiedResponse(
+                        simplified_text=limit_message,
+                        cached=False,
+                        processing_time_ms=0
+                    )
+                
+                conn.close()
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка проверки лимита: {e}")
+            # Продолжаем обработку, даже если ошибка
     
     # Очистка кэша от истёкших записей
     if CACHE_ENABLED:
@@ -653,13 +922,38 @@ async def explain_news(payload: NewsPayload):
             config=gemini_config
         )
         
-        raw_text = response.text
+        # Проверка response object
+        if not response:
+            logger.error("❌ Пустой ответ от Gemini (response is None)")
+            raise ValueError("AI вернул пустой ответ")
+        
+        # Попытка получить текст разными способами
+        raw_text = None
+        if hasattr(response, 'text') and response.text:
+            raw_text = response.text
+        elif hasattr(response, 'candidates') and response.candidates:
+            # Fallback: попробуем получить из candidates
+            found = False
+            for candidate in response.candidates:
+                if hasattr(candidate, 'content') and candidate.content is not None:
+                    if hasattr(candidate.content, 'parts') and candidate.content.parts is not None:
+                        for part in candidate.content.parts:
+                            if hasattr(part, 'text') and part.text:
+                                raw_text = part.text
+                                found = True
+                                break
+                if found:
+                    break
         
         if not raw_text or len(raw_text.strip()) < 10:
-            logger.warning("⚠️ Получен пустой/короткий ответ от AI")
+            logger.error(f"❌ Получен пустой/короткий ответ от AI. Response type: {type(response)}")
+            if hasattr(response, 'candidates'):
+                logger.error(f"Candidates: {response.candidates}")
             raise ValueError("AI вернул пустой ответ")
         
         logger.info(f"📤 Получен ответ от AI: {len(raw_text)} символов")
+        logger.info(f"📝 Начало ответа: {raw_text[:300]}")
+        logger.info(f"📝 Конец ответа: {raw_text[-300:]}")
         
         # Парсинг и валидация
         data = extract_json_from_response(raw_text)
@@ -764,6 +1058,360 @@ async def explain_news(payload: NewsPayload):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Внутренняя ошибка сервера"
+        )
+
+# =============================================================================
+# ENDPOINT: TEACHING LESSONS
+# =============================================================================
+
+@app.post("/teach_lesson", response_model=TeachingResponse)
+async def teach_lesson(payload: TeachingPayload):
+    """
+    Создает интерактивный учебный урок по криптографии.
+    
+    Возвращает структурированный урок с названием, содержанием, примерами и вопросом.
+    """
+    start_time_request = datetime.utcnow()
+    topic = payload.topic
+    difficulty = payload.difficulty_level
+    
+    logger.info(f"📚 Запрос урока: {topic} ({difficulty})")
+    
+    # Если Gemini недоступен, используем fallback
+    if not client:
+        logger.warning("⚠️ Gemini недоступен, использую fallback режим для урока")
+        request_counter["fallback"] += 1
+        
+        duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
+        
+        return TeachingResponse(
+            lesson_title=f"Введение в {topic.capitalize()}",
+            content="Сервис AI временно недоступен. Пожалуйста, попробуйте позже.",
+            key_points=["Основное", "Практика", "Применение"],
+            real_world_example="Пример в крипто-экосистеме",
+            practice_question=f"Что такое {topic}?",
+            next_topics=[],
+            processing_time_ms=round(duration_ms, 2)
+        )
+    
+    # Вызов AI
+    try:
+        teaching_config = build_teaching_config()
+        
+        # Создаем промпт для урока НА РУССКОМ языке
+        prompt = f"""Ты создаешь КОРОТКИЕ УЧЕБНЫЕ БЛОКИ по криптографии и блокчейну на русском языке.
+
+Тема: {topic.replace('_', ' ')}
+Уровень сложности: {difficulty}
+
+КРИТИЧЕСКИ ВАЖНО - Раздели материал на НЕСКОЛЬКО КОРОТКИХ БЛОКОВ для лучшего усвоения:
+- БЕЗ ПЕРЕГРУЗКИ информацией новичков
+- Каждый блок фокусируется на ОДНОЙ главной идее
+- Используй ПРОСТОЙ язык
+
+Структурируй контент так:
+1. Один основной вопрос/концепция (2-3 предложения для начинающих)
+2. Объяснение с примером
+3. Как это применяется в крипто
+
+СОЗДАЙ JSON (ТОЛЬКО РУССКИЙ):
+{{
+  "lesson_title": "Название блока (2-4 слова) на русском",
+  "content": "Краткое объяснение (150-200 слов максимум). 
+  Для beginner: совсем простой язык, визуальные аналогии, только основное
+  Для intermediate: добавь технические детали
+  Для advanced/expert: углубленный анализ, детали механики",
+  "key_points": ["кратко пункт 1", "кратко пункт 2", "кратко пункт 3"],
+  "real_world_example": "Один конкретный пример из крипто (1-2 предложения)",
+  "practice_question": "Простой вопрос для проверки",
+  "next_topics": ["следующая_тема_1", "следующая_тема_2"]
+}}
+
+ЗАПРЕТЫ:
+1. *, **, _, ~, `, маркдаун, эмодзи - НЕЛЬЗЯ
+2. Слишком длинные предложения - разбей на короче
+3. Перегруз информацией - оставь самое важное
+4. ТОЛЬКО русский язык
+5. ТОЛЬКО JSON без доп текста"""
+        
+        logger.info(f"🤖 Отправка запроса на генерацию урока '{topic}' (уровень {difficulty}) к Gemini API...")
+        
+        response = await call_gemini_with_retry(
+            client=client,
+            model=GEMINI_MODEL,
+            contents=[prompt],
+            config=teaching_config
+        )
+        
+        # Проверка response object
+        if not response:
+            logger.error("❌ Пустой ответ от Gemini при создании урока")
+            raise ValueError("AI вернул пустой ответ")
+        
+        logger.debug(f"Response type: {type(response)}, attributes: {dir(response)}")
+        
+        # Получение текста из response
+        raw_text = None
+        if hasattr(response, 'text') and response.text:
+            logger.debug("Использую response.text")
+            raw_text = response.text
+        elif hasattr(response, 'candidates') and response.candidates:
+            logger.debug(f"Использую response.candidates ({len(response.candidates)} кандидатов)")
+            found = False
+            for i, candidate in enumerate(response.candidates):
+                logger.debug(f"  Candidate {i}: type={type(candidate)}")
+                if hasattr(candidate, 'content') and candidate.content is not None:
+                    logger.debug(f"    content: type={type(candidate.content)}")
+                    if hasattr(candidate.content, 'parts') and candidate.content.parts is not None:
+                        logger.debug(f"    parts: {len(candidate.content.parts)} частей")
+                        for j, part in enumerate(candidate.content.parts):
+                            logger.debug(f"      Part {j}: type={type(part)}, has text={hasattr(part, 'text')}")
+                            if hasattr(part, 'text') and part.text:
+                                raw_text = part.text
+                                logger.debug(f"      Найден текст: {len(part.text)} символов")
+                                found = True
+                                break
+                if found:
+                    break
+        else:
+            logger.error(f"Response не имеет text или candidates. Тип: {type(response)}")
+        
+        if not raw_text or len(raw_text.strip()) < 10:
+            logger.error(f"❌ Получен пустой ответ от AI (raw_text={repr(raw_text)})")
+            raise ValueError("AI вернул пустой ответ")
+        
+        logger.info(f"📤 Получен ответ от AI: {len(raw_text)} символов")
+        logger.debug(f"Полный ответ: {raw_text}")
+        
+        # Парсинг JSON из ответа
+        lesson_data = extract_teaching_json(raw_text)
+        
+        if not lesson_data:
+            logger.error("❌ Не удалось извлечь JSON из ответа урока")
+            raise ValueError("Некорректный формат ответа AI")
+        
+        # Валидация структуры
+        required_fields = ["lesson_title", "content", "key_points", "real_world_example", "practice_question", "next_topics"]
+        for field in required_fields:
+            if field not in lesson_data or not lesson_data[field]:
+                logger.warning(f"⚠️ Поле {field} отсутствует или пусто в уроке, заполняю значением по умолчанию")
+                if field == "key_points" or field == "next_topics":
+                    lesson_data[field] = []
+                else:
+                    lesson_data[field] = ""
+        
+        duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
+        
+        logger.info(f"✅ Урок создан за {duration_ms:.0f}ms: {lesson_data.get('lesson_title', 'Без названия')}")
+        request_counter["success"] += 1
+        
+        return TeachingResponse(
+            lesson_title=lesson_data.get("lesson_title", "Урок"),
+            content=lesson_data.get("content", ""),
+            key_points=lesson_data.get("key_points", []),
+            real_world_example=lesson_data.get("real_world_example", ""),
+            practice_question=lesson_data.get("practice_question", ""),
+            next_topics=lesson_data.get("next_topics", []),
+            processing_time_ms=round(duration_ms, 2)
+        )
+    
+    except asyncio.TimeoutError:
+        logger.error(f"⏱️ Timeout при создании урока")
+        request_counter["errors"] += 1
+        request_counter["fallback"] += 1
+        
+        duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
+        
+        return TeachingResponse(
+            lesson_title=f"Введение в {topic.capitalize()}",
+            content="Время ожидания истекло. Пожалуйста, попробуйте позже.",
+            key_points=["Основное", "Практика", "Применение"],
+            real_world_example="Пример в крипто-экосистеме",
+            practice_question=f"Что такое {topic}?",
+            next_topics=[],
+            processing_time_ms=round(duration_ms, 2)
+        )
+    
+    except Exception as e:
+        logger.error(f"❌ Ошибка при создании урока: {e}", exc_info=True)
+        request_counter["errors"] += 1
+        request_counter["fallback"] += 1
+        
+        duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
+        
+        return TeachingResponse(
+            lesson_title=f"Введение в {topic.capitalize()}",
+            content=f"Ошибка: {str(e)}",
+            key_points=["Основное", "Практика", "Применение"],
+            real_world_example="Пример в крипто-экосистеме",
+            practice_question=f"Что такое {topic}?",
+            next_topics=[],
+            processing_time_ms=round(duration_ms, 2)
+        )
+
+# =============================================================================
+# ENDPOINTS ДЛЯ ДРОПОВ И АКТИВНОСТЕЙ (v0.15.0)
+# =============================================================================
+
+@app.get("/get_drops", response_model=DropsResponse, tags=["Drops"])
+async def get_drops_endpoint(limit: int = 10, chain: str = "all"):
+    """
+    Получить информацию о свежих NFT дропах.
+    
+    Args:
+        limit: Количество дропов (по умолчанию 10)
+        chain: Цепь (arbitrum, solana, polygon, ethereum, all)
+    
+    Returns:
+        DropsResponse с информацией о дропах
+    """
+    try:
+        request_counter["total"] += 1
+        start_time = datetime.utcnow()
+        
+        if chain.lower() == "all":
+            drops = await get_nft_drops(limit)
+        else:
+            drops = await get_drops_by_chain(chain)
+            drops = drops[:limit]
+        
+        duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        request_counter["success"] += 1
+        
+        return DropsResponse(
+            drops=drops,
+            count=len(drops),
+            timestamp=datetime.now().isoformat(),
+            cache_ttl_minutes=60
+        )
+    except Exception as e:
+        logger.error(f"❌ Ошибка при получении дропов: {e}")
+        request_counter["errors"] += 1
+        return DropsResponse(
+            drops=[],
+            count=0,
+            timestamp=datetime.now().isoformat()
+        )
+
+
+@app.get("/get_activities", response_model=ActivitiesResponse, tags=["Drops"])
+async def get_activities_endpoint():
+    """
+    Получить информацию об активностях в топ-проектах.
+    
+    Включает:
+    - Обновления стейкинга (APY изменения)
+    - Новые ланчи и события
+    - Обновления контрактов
+    - Гавернанс предложения
+    - Партнерства
+    
+    Returns:
+        ActivitiesResponse с информацией об активностях
+    """
+    try:
+        request_counter["total"] += 1
+        start_time = datetime.utcnow()
+        
+        activities = await get_activities()
+        
+        total_count = (
+            len(activities.get("staking_updates", [])) +
+            len(activities.get("new_launches", [])) +
+            len(activities.get("contract_updates", [])) +
+            len(activities.get("governance", [])) +
+            len(activities.get("partnerships", []))
+        )
+        
+        duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        request_counter["success"] += 1
+        
+        return ActivitiesResponse(
+            staking_updates=activities.get("staking_updates", []),
+            new_launches=activities.get("new_launches", []),
+            contract_updates=activities.get("contract_updates", []),
+            governance=activities.get("governance", []),
+            partnerships=activities.get("partnerships", []),
+            total_activities=total_count,
+            timestamp=datetime.now().isoformat(),
+            cache_ttl_minutes=60
+        )
+    except Exception as e:
+        logger.error(f"❌ Ошибка при получении активностей: {e}")
+        request_counter["errors"] += 1
+        return ActivitiesResponse(
+            timestamp=datetime.now().isoformat()
+        )
+
+
+@app.get("/get_trending", response_model=DropsResponse, tags=["Drops"])
+async def get_trending_endpoint(limit: int = 10):
+    """
+    Получить список трендовых (вирусных) токенов за последние 24ч.
+    
+    Args:
+        limit: Количество токенов (по умолчанию 10)
+    
+    Returns:
+        DropsResponse с информацией о трендовых токенах
+    """
+    try:
+        request_counter["total"] += 1
+        start_time = datetime.utcnow()
+        
+        trending = await get_trending_tokens(limit)
+        
+        duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        request_counter["success"] += 1
+        
+        return DropsResponse(
+            drops=trending,
+            count=len(trending),
+            source="CoinGecko Trending API",
+            timestamp=datetime.now().isoformat(),
+            cache_ttl_minutes=60
+        )
+    except Exception as e:
+        logger.error(f"❌ Ошибка при получении трендовых токенов: {e}")
+        request_counter["errors"] += 1
+        return DropsResponse(
+            drops=[],
+            count=0,
+            timestamp=datetime.now().isoformat()
+        )
+
+
+@app.get("/get_token_info/{token_id}", response_model=TokenInfoResponse, tags=["Drops"])
+async def get_token_info_endpoint(token_id: str):
+    """
+    Получить подробную информацию о конкретном токене.
+    
+    Args:
+        token_id: ID токена в CoinGecko (например, 'bitcoin', 'ethereum', 'uniswap')
+    
+    Returns:
+        TokenInfoResponse с информацией о токене
+    """
+    try:
+        request_counter["total"] += 1
+        start_time = datetime.utcnow()
+        
+        token_info = await get_token_info(token_id)
+        
+        if not token_info:
+            request_counter["errors"] += 1
+            raise ValueError(f"Токен {token_id} не найден")
+        
+        request_counter["success"] += 1
+        token_info["timestamp"] = datetime.now().isoformat()
+        
+        return TokenInfoResponse(**token_info)
+    except Exception as e:
+        logger.error(f"❌ Ошибка при получении информации о токене: {e}")
+        request_counter["errors"] += 1
+        raise HTTPException(
+            status_code=404,
+            detail=f"Токен не найден: {str(e)}"
         )
 
 # =============================================================================

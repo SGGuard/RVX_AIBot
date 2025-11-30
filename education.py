@@ -764,3 +764,99 @@ def get_user_course_summary(cursor, user_id: int) -> str:
     except Exception as e:
         logger.error(f"Ошибка при получении резюме курса: {e}")
         return ""
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# СИСТЕМА ЛИМИТОВ НА ЗАПРОСЫ (v0.14.0)
+# ═════════════════════════════════════════════════════════════════════════════
+
+# Таблица лимитов: XP диапазон → лимит запросов в день
+XP_TIER_LIMITS = {
+    1: {"min_xp": 0,    "max_xp": 99,    "limit": 20,  "name": "🌱 Новичок"},
+    2: {"min_xp": 100,  "max_xp": 299,   "limit": 40,  "name": "📈 Ученик"},
+    3: {"min_xp": 300,  "max_xp": 599,   "limit": 60,  "name": "⭐ Опытный"},
+    4: {"min_xp": 600,  "max_xp": 999,   "limit": 100, "name": "🔥 Профессионал"},
+    5: {"min_xp": 1000, "max_xp": 1999,  "limit": 150, "name": "👑 Эксперт"},
+    6: {"min_xp": 2000, "max_xp": float('inf'), "limit": 300, "name": "💎 Легенда"},
+}
+
+
+def get_daily_limit_by_xp(xp: int) -> Tuple[int, str, int]:
+    """
+    Определить дневной лимит по XP.
+    Возвращает: (tier, tier_name, limit)
+    """
+    for tier, tier_data in sorted(XP_TIER_LIMITS.items()):
+        if tier_data['min_xp'] <= xp <= tier_data['max_xp']:
+            return tier, tier_data['name'], tier_data['limit']
+    return 1, "🌱 Новичок", 20
+
+
+def get_remaining_requests(cursor, user_id: int) -> Tuple[int, int, str]:
+    """
+    Получить оставшиеся запросы на день.
+    Возвращает: (remaining, total_limit, tier_name)
+    """
+    try:
+        # Получаем XP пользователя
+        cursor.execute("SELECT xp, requests_today FROM users WHERE user_id = ?", (user_id,))
+        row = cursor.fetchone()
+        
+        if not row:
+            # Новый пользователь
+            xp = 0
+            requests_today = 0
+        else:
+            xp, requests_today = row
+            requests_today = requests_today or 0
+        
+        # Определяем лимит
+        tier, tier_name, total_limit = get_daily_limit_by_xp(xp)
+        
+        # Вычисляем оставшиеся
+        remaining = max(0, total_limit - requests_today)
+        
+        return remaining, total_limit, tier_name
+    
+    except Exception as e:
+        logger.error(f"Ошибка при расчете лимитов: {e}")
+        return 0, 20, "🌱 Новичок"
+
+
+def check_daily_limit(cursor, user_id: int) -> Tuple[bool, str]:
+    """
+    Проверить не превышен ли дневной лимит.
+    Возвращает: (allowed, message)
+    """
+    remaining, total_limit, tier_name = get_remaining_requests(cursor, user_id)
+    
+    if remaining <= 0:
+        return False, (
+            f"❌ Лимит запросов исчерпан!\n\n"
+            f"📊 {tier_name}\n"
+            f"Лимит: {total_limit} в день\n"
+            f"Используется в: {datetime.now().strftime('%H:%M')}\n\n"
+            f"💡 Совет: Получи больше XP, чтобы увеличить лимит!\n"
+            f"Текущий лимит: {total_limit} запросов"
+        )
+    
+    return True, f"Осталось запросов: {remaining}/{total_limit}"
+
+
+def increment_daily_requests(cursor, user_id: int) -> None:
+    """Увеличить счетчик запросов на день."""
+    cursor.execute("""
+        UPDATE users 
+        SET requests_today = COALESCE(requests_today, 0) + 1,
+            last_request_date = ?
+        WHERE user_id = ?
+    """, (datetime.now().strftime('%Y-%m-%d'), user_id))
+
+
+def reset_daily_requests(cursor, user_id: int) -> None:
+    """Обнулить счетчик запросов на новый день."""
+    cursor.execute("""
+        UPDATE users 
+        SET requests_today = 0
+        WHERE user_id = ?
+    """, (user_id,))
