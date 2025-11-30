@@ -3210,7 +3210,8 @@ async def drops_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
     # Проверка лимита запросов
-    if not is_unlimited_admin(user_id) and not check_daily_limit(user_id):
+    has_limit, _ = check_daily_limit(user_id)
+    if not has_limit:
         try:
             if is_callback and query:
                 await query.answer("❌ Превышен лимит запросов", show_alert=True)
@@ -3249,11 +3250,15 @@ async def drops_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 name = drop.get("name", "Unknown")
                 chain = drop.get("chain", "N/A")
                 price = drop.get("price", "N/A")
-                date = drop.get("date", "N/A")
+                time_until = drop.get("time_until", "N/A")
+                url = drop.get("url", "")
                 text += f"{i}. <b>{name}</b>\n"
                 text += f"   🔗 Цепь: {chain}\n"
                 text += f"   💰 Цена: {price}\n"
-                text += f"   📅 Дата: {date}\n\n"
+                text += f"   ⏱️ Время: {time_until}\n"
+                if url:
+                    text += f"   🌐 <a href='{url}'>Перейти</a>\n"
+                text += "\n"
         
         keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]]
         
@@ -3266,7 +3271,6 @@ async def drops_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Логирование
         logger.info(f"📦 /drops команда от {user_id}")
-        increment_daily_counter(user_id)
         
     except httpx.ConnectError:
         error_msg = "❌ Не удалось подключиться к API. Пожалуйста, попробуйте позже."
@@ -3294,7 +3298,8 @@ async def activities_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     user_id = update.effective_user.id
     
     # Проверка лимита запросов
-    if not is_unlimited_admin(user_id) and not check_daily_limit(user_id):
+    has_limit, _ = check_daily_limit(user_id)
+    if not has_limit:
         try:
             if is_callback and query:
                 await query.answer("❌ Превышен лимит запросов", show_alert=True)
@@ -3373,7 +3378,6 @@ async def activities_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         
         # Логирование
         logger.info(f"🔥 /activities команда от {user_id}")
-        increment_daily_counter(user_id)
         
     except httpx.ConnectError:
         error_msg = "❌ Не удалось подключиться к API. Пожалуйста, попробуйте позже."
