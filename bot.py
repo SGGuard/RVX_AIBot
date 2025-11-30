@@ -189,6 +189,12 @@ def migrate_database():
             cursor.execute("ALTER TABLE cache ADD COLUMN last_used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
             migrations_needed = True
         
+        # NEW v0.6.0: Добавление course_name в user_progress для поддержки get_user_course_summary()
+        if not check_column_exists(cursor, 'user_progress', 'course_name'):
+            logger.info("  • Добавление колонки course_name в user_progress...")
+            cursor.execute("ALTER TABLE user_progress ADD COLUMN course_name TEXT")
+            migrations_needed = True
+        
         if migrations_needed:
             logger.info("✅ Миграция успешно завершена")
         else:
