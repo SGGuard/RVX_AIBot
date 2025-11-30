@@ -3200,6 +3200,201 @@ async def notify_milestone_command(update: Update, context: ContextTypes.DEFAULT
 
 
 # =============================================================================
+# КОМАНДЫ ДРОПОВ И АКТИВНОСТЕЙ
+# =============================================================================
+
+async def drops_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Получить свежие NFT дропы"""
+    is_callback = update.callback_query is not None
+    query = update.callback_query if is_callback else None
+    user_id = update.effective_user.id
+    
+    # Проверка лимита запросов
+    if not is_unlimited_admin(user_id) and not check_daily_limit(user_id):
+        try:
+            if is_callback and query:
+                await query.answer("❌ Превышен лимит запросов", show_alert=True)
+            else:
+                await update.message.reply_text("❌ Превышен лимит запросов на день")
+        except Exception as e:
+            logger.error(f"❌ Ошибка при проверке лимита: {e}")
+        return
+    
+    try:
+        # Отправить статус "печатает"
+        if is_callback and query:
+            await query.answer()
+        
+        if not is_callback:
+            await update.message.chat.send_action(ChatAction.TYPING)
+        
+        # Запрос к API
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(
+                f"{API_URL_NEWS.replace('/explain_news', '')}/get_drops",
+                params={"limit": 10, "chain": "all"}
+            )
+        
+        if response.status_code != 200:
+            raise Exception(f"API вернул статус {response.status_code}")
+        
+        data = response.json()
+        drops = data.get("drops", [])
+        
+        if not drops:
+            text = "❌ Дропы не найдены"
+        else:
+            text = "📦 <b>ТОП-10 СВЕЖИХ NFT ДРОПОВ</b>\n\n"
+            for i, drop in enumerate(drops[:10], 1):
+                name = drop.get("name", "Unknown")
+                chain = drop.get("chain", "N/A")
+                price = drop.get("price", "N/A")
+                date = drop.get("date", "N/A")
+                text += f"{i}. <b>{name}</b>\n"
+                text += f"   🔗 Цепь: {chain}\n"
+                text += f"   💰 Цена: {price}\n"
+                text += f"   📅 Дата: {date}\n\n"
+        
+        keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]]
+        
+        if is_callback and query:
+            await query.edit_message_text(text, parse_mode=ParseMode.HTML, 
+                                         reply_markup=InlineKeyboardMarkup(keyboard))
+        else:
+            await update.message.reply_text(text, parse_mode=ParseMode.HTML,
+                                           reply_markup=InlineKeyboardMarkup(keyboard))
+        
+        # Логирование
+        logger.info(f"📦 /drops команда от {user_id}")
+        increment_daily_counter(user_id)
+        
+    except httpx.ConnectError:
+        error_msg = "❌ Не удалось подключиться к API. Пожалуйста, попробуйте позже."
+    except httpx.TimeoutException:
+        error_msg = "⏱️ Запрос к API занял слишком много времени. Пожалуйста, попробуйте позже."
+    except Exception as e:
+        logger.error(f"❌ Ошибка в /drops: {e}")
+        error_msg = "❌ Произошла внутренняя ошибка.\n\nПожалуйста, попробуйте позже."
+    
+    try:
+        if 'error_msg' in locals():
+            if is_callback and query:
+                await query.edit_message_text(error_msg, parse_mode=ParseMode.HTML,
+                                             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]]))
+            else:
+                await update.message.reply_text(error_msg, parse_mode=ParseMode.HTML)
+    except Exception as e:
+        logger.error(f"❌ Ошибка при отправке ошибки: {e}")
+
+
+async def activities_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Получить активности в крипто"""
+    is_callback = update.callback_query is not None
+    query = update.callback_query if is_callback else None
+    user_id = update.effective_user.id
+    
+    # Проверка лимита запросов
+    if not is_unlimited_admin(user_id) and not check_daily_limit(user_id):
+        try:
+            if is_callback and query:
+                await query.answer("❌ Превышен лимит запросов", show_alert=True)
+            else:
+                await update.message.reply_text("❌ Превышен лимит запросов на день")
+        except Exception as e:
+            logger.error(f"❌ Ошибка при проверке лимита: {e}")
+        return
+    
+    try:
+        # Отправить статус "печатает"
+        if is_callback and query:
+            await query.answer()
+        
+        if not is_callback:
+            await update.message.chat.send_action(ChatAction.TYPING)
+        
+        # Запрос к API
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(
+                f"{API_URL_NEWS.replace('/explain_news', '')}/get_activities",
+                timeout=30.0
+            )
+        
+        if response.status_code != 200:
+            raise Exception(f"API вернул статус {response.status_code}")
+        
+        data = response.json()
+        
+        text = "🔥 <b>АКТИВНОСТИ В КРИПТО</b>\n\n"
+        
+        # Стейкинг
+        staking = data.get("staking_updates", [])
+        if staking:
+            text += "<b>📊 Стейкинг обновления:</b>\n"
+            for item in staking[:3]:
+                text += f"• {item}\n"
+            text += "\n"
+        
+        # Новые ланчи
+        launches = data.get("new_launches", [])
+        if launches:
+            text += "<b>🚀 Новые ланчи:</b>\n"
+            for item in launches[:3]:
+                text += f"• {item}\n"
+            text += "\n"
+        
+        # Гавернанс
+        governance = data.get("governance", [])
+        if governance:
+            text += "<b>🗳️ Гавернанс:</b>\n"
+            for item in governance[:3]:
+                text += f"• {item}\n"
+            text += "\n"
+        
+        # Партнерства
+        partnerships = data.get("partnerships", [])
+        if partnerships:
+            text += "<b>🤝 Партнерства:</b>\n"
+            for item in partnerships[:3]:
+                text += f"• {item}\n"
+        
+        if not text.endswith("\n"):
+            text += "\n\n"
+        
+        text += "💡 <i>Обновляется раз в час</i>"
+        
+        keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]]
+        
+        if is_callback and query:
+            await query.edit_message_text(text, parse_mode=ParseMode.HTML,
+                                         reply_markup=InlineKeyboardMarkup(keyboard))
+        else:
+            await update.message.reply_text(text, parse_mode=ParseMode.HTML,
+                                           reply_markup=InlineKeyboardMarkup(keyboard))
+        
+        # Логирование
+        logger.info(f"🔥 /activities команда от {user_id}")
+        increment_daily_counter(user_id)
+        
+    except httpx.ConnectError:
+        error_msg = "❌ Не удалось подключиться к API. Пожалуйста, попробуйте позже."
+    except httpx.TimeoutException:
+        error_msg = "⏱️ Запрос к API занял слишком много времени. Пожалуйста, попробуйте позже."
+    except Exception as e:
+        logger.error(f"❌ Ошибка в /activities: {e}")
+        error_msg = "❌ Произошла внутренняя ошибка.\n\nПожалуйста, попробуйте позже."
+    
+    try:
+        if 'error_msg' in locals():
+            if is_callback and query:
+                await query.edit_message_text(error_msg, parse_mode=ParseMode.HTML,
+                                             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]]))
+            else:
+                await update.message.reply_text(error_msg, parse_mode=ParseMode.HTML)
+    except Exception as e:
+        logger.error(f"❌ Ошибка при отправке ошибки: {e}")
+
+
+# =============================================================================
 # CALLBACK ОБРАБОТЧИК
 # =============================================================================
 
