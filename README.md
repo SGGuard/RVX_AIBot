@@ -296,8 +296,7 @@ Contributions are welcome! Пожалуйста:
 - Telegram: [@RVX_AIBot](https://t.me/RVX_AIBot))
 - GitHub: [@SGGuard](https://github.com/SGGuard))
 =======
-- Telegram: [@your_username](https://t.me/your_username)
-- GitHub: [@your_github](https://github.com/your_github)
+- Telegram: [@SV4096](https://t.me/SV4096)
 >>>>>>> 0f7d810 (feat: Обновление API до v0.5.0, добавление тестов и кэширования)
 
 ---
