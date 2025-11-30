@@ -36,3 +36,6 @@ mypy==1.13.0
 
 # Security
 cryptography==44.0.0
+
+# Drops Tracker - CoinGecko API и Web3 интеграции (v0.15.0)
+# httpx уже установлен, используем его для API запросов

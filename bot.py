@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from functools import wraps
 
 from dotenv import load_dotenv
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from telegram.error import TelegramError, TimedOut, NetworkError
 from telegram.constants import ParseMode
@@ -24,7 +24,22 @@ from education import (
     extract_quiz_from_lesson, get_faq_by_keyword, save_question_to_db,
     add_question_to_faq, get_user_course_progress, get_all_tools_db,
     get_educational_context, clean_lesson_content, split_lesson_content,
-    get_next_lesson_info, build_user_context_prompt, get_user_course_summary
+    get_next_lesson_info, build_user_context_prompt, get_user_course_summary,
+    # NEW v0.14.0: функции для лимитов на запросы
+    XP_TIER_LIMITS, get_daily_limit_by_xp, get_remaining_requests,
+    check_daily_limit, increment_daily_requests, reset_daily_requests
+)
+
+# Учительский модуль (v0.7.0) - ИИ преподает крипто, AI, Web3, трейдинг
+from teacher import teach_lesson, TEACHING_TOPICS, DIFFICULTY_LEVELS
+
+# Новая система адаптивных квестов v2 (v0.13.0)
+from daily_quests_v2 import (
+    DAILY_QUESTS, get_user_level, get_level_name, get_level_info,
+    get_daily_quests_for_level
+)
+from quest_handler_v2 import (
+    start_quest, start_test, show_question, handle_answer, show_results
 )
 
 # В памяти считаем попытки регенерации фидбека (ключ — request_id)
@@ -56,12 +71,17 @@ API_RETRY_DELAY = float(os.getenv("API_RETRY_DELAY", "2.0"))
 # Контроль доступа
 ALLOWED_USERS = set(map(int, filter(None, os.getenv("ALLOWED_USERS", "").split(","))))
 ADMIN_USERS = set(map(int, filter(None, os.getenv("ADMIN_USERS", "").split(","))))
+UNLIMITED_ADMIN_USERS = set(map(int, filter(None, os.getenv("UNLIMITED_ADMIN_USERS", "").split(","))))  # Админы без лимитов
 FLOOD_COOLDOWN_SECONDS = int(os.getenv("FLOOD_COOLDOWN_SECONDS", "3"))
 MAX_REQUESTS_PER_DAY = int(os.getenv("MAX_REQUESTS_PER_DAY", "50"))
 
 # Обязательная подписка
 MANDATORY_CHANNEL_ID = os.getenv("MANDATORY_CHANNEL_ID", "")
 MANDATORY_CHANNEL_LINK = os.getenv("MANDATORY_CHANNEL_LINK", "")
+
+# Канал для постов об обновлениях (админский канал для публикации новостей)
+UPDATE_CHANNEL_ID = os.getenv("UPDATE_CHANNEL_ID", "")  # Канал для постов об обновлениях
+BOT_VERSION = "0.15.0"  # Текущая версия бота
 
 # База данных
 DB_PATH = os.getenv("DB_PATH", "rvx_bot.db")
@@ -87,6 +107,147 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # =============================================================================
+# ФУНКЦИИ ДЛЯ ПУБЛИКАЦИИ ПОСТОВ В КАНАЛ
+# =============================================================================
+
+async def send_channel_post(
+    context: ContextTypes.DEFAULT_TYPE,
+    text: str,
+    parse_mode: str = ParseMode.HTML,
+    silent: bool = True
+) -> bool:
+    """
+    Отправляет пост в канал обновлений.
+    
+    Args:
+        context: Контекст бота
+        text: Текст поста
+        parse_mode: Режим парсинга (HTML или Markdown)
+        silent: Отправлять ли без звука уведомления
+    
+    Returns:
+        True если успешно, False если ошибка
+    """
+    if not UPDATE_CHANNEL_ID:
+        logger.warning("⚠️ UPDATE_CHANNEL_ID не установлен - посты не будут отправляться")
+        return False
+    
+    try:
+        await context.bot.send_message(
+            chat_id=UPDATE_CHANNEL_ID,
+            text=text,
+            parse_mode=parse_mode,
+            disable_notification=silent
+        )
+        logger.info("📢 Пост отправлен в канал обновлений")
+        return True
+    except TelegramError as e:
+        logger.error(f"❌ Ошибка при отправке поста в канал: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"❌ Неожиданная ошибка при отправке поста: {e}")
+        return False
+
+
+async def notify_version_update(context: ContextTypes.DEFAULT_TYPE, version: str, changelog: str):
+    """
+    Отправляет уведомление об обновлении версии в канал.
+    """
+    post = f"""🚀 <b>ОБНОВЛЕНИЕ БОТА - Версия {version}</b>
+
+<b>Что нового:</b>
+{changelog}
+
+⏰ Обновление: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}
+
+✨ Спасибо за активность! Ваши отзывы помогают улучшить бот!"""
+    
+    await send_channel_post(context, post)
+
+
+async def notify_new_quests(context: ContextTypes.DEFAULT_TYPE):
+    """
+    Отправляет уведомление о новых ежедневных квестах.
+    """
+    post = """📋 <b>Новые ежедневные квесты готовы!</b>
+
+✅ У вас доступно 5 новых квестов
+
+🎁 Полученные награды:
+• XP за выполнение
+• Бейджи за достижения
+• Увеличение лимита запросов
+
+💡 Совет: Используйте команду /tasks для просмотра квестов
+
+⚡ Лимит запросов зависит от вашего уровня - получайте XP через квесты!"""
+    
+    await send_channel_post(context, post)
+
+
+async def notify_system_maintenance(context: ContextTypes.DEFAULT_TYPE, duration_minutes: int = 5):
+    """
+    Отправляет уведомление об обслуживании системы.
+    """
+    post = f"""🔧 <b>Техническое обслуживание</b>
+
+⏸️ Бот временно недоступен для обслуживания
+
+⏱️ Ожидаемая длительность: ~{duration_minutes} минут
+
+🔄 Система будет восстановлена вскоре
+
+Спасибо за ваше терпение!"""
+    
+    await send_channel_post(context, post)
+
+
+async def notify_milestone_reached(context: ContextTypes.DEFAULT_TYPE, milestone: str, count: int):
+    """
+    Отправляет уведомление о достижении вехи (например, 100 пользователей).
+    """
+    post = f"""🎉 <b>Веха достигнута: {milestone}!</b>
+
+📈 В сообществе RVX {count} активных пользователей!
+
+🙏 Спасибо за вашу поддержку и активность
+
+✨ Продолжайте учиться и развиваться вместе с нами!"""
+    
+    await send_channel_post(context, post)
+
+
+async def notify_new_feature(context: ContextTypes.DEFAULT_TYPE, feature_name: str, description: str):
+    """
+    Отправляет уведомление о новой функции.
+    """
+    post = f"""✨ <b>Новая функция: {feature_name}</b>
+
+📝 {description}
+
+🎯 Используйте /help для подробной информации
+
+💪 Продолжайте развиваться с новыми возможностями!"""
+    
+    await send_channel_post(context, post)
+
+
+async def notify_stats_milestone(context: ContextTypes.DEFAULT_TYPE, stat_name: str, value: str):
+    """
+    Отправляет уведомление о статистическом рекорде.
+    """
+    post = f"""📊 <b>Новый рекорд: {stat_name}</b>
+
+🏆 {value}
+
+🔥 Это показывает активность нашего сообщества!
+
+✨ Спасибо вам всем за участие!"""
+    
+    await send_channel_post(context, post)
+
+# =============================================================================
+
 # БАЗА ДАННЫХ
 # =============================================================================
 
@@ -195,6 +356,17 @@ def migrate_database():
             cursor.execute("ALTER TABLE user_progress ADD COLUMN course_name TEXT")
             migrations_needed = True
         
+        # NEW v0.14.0: Добавление колонок для системы лимитов (XP-зависимые запросы)
+        if not check_column_exists(cursor, 'users', 'requests_today'):
+            logger.info("  • Добавление колонки requests_today...")
+            cursor.execute("ALTER TABLE users ADD COLUMN requests_today INTEGER DEFAULT 0")
+            migrations_needed = True
+        
+        if not check_column_exists(cursor, 'users', 'last_request_date'):
+            logger.info("  • Добавление колонки last_request_date...")
+            cursor.execute("ALTER TABLE users ADD COLUMN last_request_date TEXT")
+            migrations_needed = True
+        
         if migrations_needed:
             logger.info("✅ Миграция успешно завершена")
         else:
@@ -221,7 +393,9 @@ def init_database():
                 knowledge_level TEXT DEFAULT 'unknown',
                 xp INTEGER DEFAULT 0,
                 level INTEGER DEFAULT 1,
-                badges TEXT DEFAULT '[]'
+                badges TEXT DEFAULT '[]',
+                requests_today INTEGER DEFAULT 0,
+                last_request_date TEXT
             )
         """)
         
@@ -376,29 +550,81 @@ def init_database():
             )
         """)
         
-        # Индексы для производительности
+        # Таблица ЕЖЕДНЕВНЫХ ЗАДАЧ (v0.11.0) - Самообучение & Геймификация
         cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_requests_user_id 
-            ON requests(user_id)
-        """)
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_requests_created_at 
-            ON requests(created_at DESC)
-        """)
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_cache_last_used 
-            ON cache(last_used_at)
-        """)
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_user_progress_user
-            ON user_progress(user_id)
-        """)
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_user_questions_user
-            ON user_questions(user_id)
+            CREATE TABLE IF NOT EXISTS daily_tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                task_type TEXT,
+                task_name TEXT,
+                xp_reward INTEGER,
+                progress INTEGER DEFAULT 0,
+                target INTEGER,
+                completed BOOLEAN DEFAULT 0,
+                completed_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                reset_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(user_id)
+            )
         """)
         
-        logger.info("✅ База данных инициализирована (v0.5.0)")
+        # ============ НОВЫЕ ТАБЛИЦЫ v0.15.0 (ДРОПЫ И АКТИВНОСТИ) ============
+        
+        # Таблица подписок на дропы
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_drop_subscriptions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                chain TEXT,
+                notify_interval TEXT DEFAULT 'daily',
+                enabled BOOLEAN DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(user_id)
+            )
+        """)
+        
+        # Таблица истории дропов (кэш просмотренных)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS drops_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                drop_name TEXT,
+                drop_type TEXT,
+                chain TEXT,
+                viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_new BOOLEAN DEFAULT 1,
+                FOREIGN KEY (user_id) REFERENCES users(user_id)
+            )
+        """)
+        
+        # Таблица кэша активностей
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS activities_cache (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                activity_type TEXT,
+                project_name TEXT,
+                activity_data TEXT,
+                chain TEXT,
+                cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP
+            )
+        """)
+        
+        # Индексы для дропов
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_user_drop_subscriptions
+            ON user_drop_subscriptions(user_id)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_drops_history_user
+            ON drops_history(user_id)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_activities_cache_expires
+            ON activities_cache(expires_at)
+        """)
+        
+        logger.info("✅ База данных инициализирована (v0.15.0)")
     
     # Инициализируем курсы (загружаем из markdown в БД)
     with get_db() as conn:
@@ -563,8 +789,8 @@ def check_user_banned(user_id: int) -> Tuple[bool, Optional[str]]:
 
 def check_daily_limit(user_id: int) -> Tuple[bool, int]:
     """Проверяет дневной лимит запросов. Администраторы имеют безлимитный доступ."""
-    # Администраторы имеют безлимитный доступ
-    if user_id in ADMIN_USERS:
+    # Администраторы и избранные пользователи имеют безлимитный доступ
+    if user_id in ADMIN_USERS or user_id in UNLIMITED_ADMIN_USERS:
         return True, 999999
     
     with get_db() as conn:
@@ -786,12 +1012,13 @@ def get_global_stats() -> dict:
         """)
         avg_processing_time = cursor.fetchone()[0] or 0
         
+        # TOP-10 пользователей по XP (обновлено v0.9.0)
         cursor.execute("""
-            SELECT username, first_name, total_requests
+            SELECT username, first_name, xp, level
             FROM users
-            WHERE is_banned = 0
-            ORDER BY total_requests DESC
-            LIMIT 5
+            WHERE is_banned = 0 AND xp > 0
+            ORDER BY xp DESC
+            LIMIT 10
         """)
         top_users = cursor.fetchall()
         
@@ -805,6 +1032,277 @@ def get_global_stats() -> dict:
             "avg_processing_time": round(avg_processing_time, 2),
             "top_users": top_users
         }
+
+def get_user_learning_style() -> dict:
+    """Анализирует стиль обучения пользователя на основе фидбека. v0.10.0 - Самообучение."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        # Получаем все фидбеки пользователя
+        cursor.execute("""
+            SELECT f.is_helpful, r.processing_time_ms
+            FROM feedback f
+            JOIN requests r ON f.request_id = r.id
+            WHERE f.created_at > datetime('now', '-7 days')
+            ORDER BY f.created_at DESC
+            LIMIT 50
+        """)
+        recent_feedback = cursor.fetchall()
+        
+        if not recent_feedback:
+            return {
+                "helpful_rate": 0.5,
+                "preferred_length": "medium",
+                "style": "balanced",
+                "samples_count": 0
+            }
+        
+        helpful_count = sum(1 for h, _ in recent_feedback if h)
+        total_count = len(recent_feedback)
+        helpful_rate = helpful_count / total_count if total_count > 0 else 0.5
+        
+        # Анализ скорости обработки
+        times = [t for _, t in recent_feedback if t]
+        avg_time = sum(times) / len(times) if times else 0
+        
+        # Определяем предпочитаемую длину ответа
+        if helpful_rate > 0.75:
+            preferred_length = "current"  # Текущий стиль работает
+        elif helpful_rate > 0.5:
+            if avg_time > 1000:
+                preferred_length = "shorter"  # Слишком долго
+            else:
+                preferred_length = "with_examples"  # Добавить примеры
+        else:
+            preferred_length = "simpler"  # Упростить
+        
+        style = "effective" if helpful_rate > 0.7 else "needs_adjustment"
+        
+        logger.info(f"📊 Анализ стиля: полезность {helpful_rate:.1%}, длина {preferred_length}")
+        
+        return {
+            "helpful_rate": helpful_rate,
+            "preferred_length": preferred_length,
+            "style": style,
+            "samples_count": total_count,
+            "avg_response_time_ms": round(avg_time, 0)
+        }
+
+def get_user_knowledge_gaps() -> dict:
+    """Определяет пробелы в знаниях на основе XP и истории. v0.10.0 - Самообучение."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        # Получаем предметы, по которым пользователь спрашивал больше всего
+        cursor.execute("""
+            SELECT topic, COUNT(*) as count
+            FROM (
+                SELECT 
+                    CASE 
+                        WHEN news_text LIKE '%bitcoin%' OR news_text LIKE '%BTC%' THEN 'bitcoin'
+                        WHEN news_text LIKE '%ethereum%' OR news_text LIKE '%ETH%' THEN 'ethereum'
+                        WHEN news_text LIKE '%defi%' THEN 'defi'
+                        WHEN news_text LIKE '%nft%' THEN 'nft'
+                        WHEN news_text LIKE '%trading%' OR news_text LIKE '%трейдинг%' THEN 'trading'
+                        ELSE 'other'
+                    END as topic
+                FROM requests
+                WHERE user_id = ? AND created_at > datetime('now', '-30 days')
+            )
+            GROUP BY topic
+            ORDER BY count DESC
+            LIMIT 3
+        """, (...,))  # Placeholder
+        
+        topics = cursor.fetchall()
+        return {
+            "top_topics": [t[0] for t in topics],
+            "total_requests": sum(t[1] for t in topics)
+        }
+
+# ============= ЕЖЕДНЕВНЫЕ ЗАДАЧИ (v0.11.0) =============
+
+DAILY_TASKS_TEMPLATES = {
+    "news_5": {
+        "name": "📰 Новостной аналитик",
+        "emoji": "📰",
+        "quest_title": "Анализ новостей крипто-мира",
+        "quest_description": "Твоя задача - проанализировать 5 криптоновостей и понять их влияние на рынок. Каждый анализ развивает твой навык в оценке рыночных событий.",
+        "what_to_do": "Отправь боту текст криптоновости (например, о Bitcoin, Ethereum или других проектах). Бот проанализирует её и даст упрощённое объяснение.",
+        "tips": [
+            "💡 Начни с коротких новостей о популярных криптовалютах (Bitcoin, Ethereum)",
+            "💡 Обрати внимание на ключевые события: листинги, обновления, регуляция",
+            "💡 После каждого анализа оцени полезность ответа (👍 или 👎)"
+        ],
+        "related_topics": ["crypto_basics", "trading"],
+        "target": 5,
+        "xp_reward": 50
+    },
+    "lessons_2": {
+        "name": "🎓 Ученик",
+        "emoji": "🎓",
+        "quest_title": "Путь познания",
+        "quest_description": "Развивай свои знания, проходя интерактивные уроки. Каждый урок - новая информация, которая поможет лучше понять крипто-индустрию.",
+        "what_to_do": "Используй команду /teach для прохождения интерактивных уроков. Можешь выбрать тему и уровень сложности (beginner, intermediate, advanced).",
+        "tips": [
+            "💡 Начни с уровня 'beginner' для основ криптографии",
+            "💡 Команда: /teach crypto_basics beginner",
+            "💡 После урока ответь на проверочный вопрос для лучшего запоминания"
+        ],
+        "related_topics": ["crypto_basics", "web3", "defi"],
+        "target": 2,
+        "xp_reward": 40
+    },
+    "voting_3": {
+        "name": "👍 Критик",
+        "emoji": "👍",
+        "quest_title": "Оценка знаний",
+        "quest_description": "Помоги боту улучшать качество ответов, оценивая полезность анализов. Твой голос важен для развития AI!",
+        "what_to_do": "После каждого анализа новости ты увидишь кнопки 👍 и 👎. Нажми на одну из них, чтобы оценить качество ответа.",
+        "tips": [
+            "💡 Оцени ответ как полезный (👍), если объяснение понятное и точное",
+            "💡 Оцени как неполезный (👎), если чего-то не хватает или есть ошибки",
+            "💡 Твои оценки помогают улучшать систему для всех"
+        ],
+        "related_topics": ["news_5"],
+        "target": 3,
+        "xp_reward": 30
+    },
+    "learning_quiz": {
+        "name": "🧠 Студент",
+        "emoji": "🧠",
+        "quest_title": "Проверка знаний",
+        "quest_description": "Реши квиз из интерактивного курса и проверь, насколько хорошо ты усвоил пройденный материал. Это лучший способ закрепить знания!",
+        "what_to_do": "Используй /learn для доступа к интерактивным курсам. В каждом курсе есть квизы для проверки знаний.",
+        "tips": [
+            "💡 Квизы состоят из 3-5 вопросов с вариантами ответов",
+            "💡 За каждый правильный ответ получаешь XP",
+            "💡 Если ошибёшься, ты узнаешь правильный ответ и сможешь учиться дальше"
+        ],
+        "related_topics": ["crypto_basics", "trading"],
+        "target": 1,
+        "xp_reward": 35
+    },
+    "teach_explore": {
+        "name": "🔍 Исследователь",
+        "emoji": "🔍",
+        "quest_title": "Расширение горизонтов",
+        "quest_description": "Исследуй разные темы обучения и найди то, что тебя интересует больше всего. Разносторонние знания - ключ к успеху!",
+        "what_to_do": "Используй /teach с разными темами. Доступные темы: crypto_basics, trading, web3, ai, defi, nft, security, tokenomics.",
+        "tips": [
+            "💡 Начни с crypto_basics, если новичок",
+            "💡 Затем попробуй web3 для понимания децентрализации",
+            "💡 Завершись последовательностью: trading → defi → tokenomics для полного понимания"
+        ],
+        "related_topics": ["crypto_basics", "web3", "defi", "trading"],
+        "target": 3,
+        "xp_reward": 45
+    }
+}
+
+def init_daily_tasks(user_id: int):
+    """Инициализирует ежедневные задачи для пользователя. v0.11.0"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        # Проверяем есть ли задачи на сегодня
+        today_date = datetime.now().date().isoformat()
+        cursor.execute("""
+            SELECT COUNT(*) FROM daily_tasks 
+            WHERE user_id = ? AND DATE(reset_at) = ?
+        """, (user_id, today_date))
+        
+        if cursor.fetchone()[0] > 0:
+            return  # Задачи уже инициализированы
+        
+        # Создаем новые задачи на день
+        today = datetime.now().isoformat()
+        for task_id, task_data in DAILY_TASKS_TEMPLATES.items():
+            cursor.execute("""
+                INSERT INTO daily_tasks 
+                (user_id, task_type, task_name, target, xp_reward, reset_at, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                user_id,
+                task_id,
+                task_data["name"],
+                task_data["target"],
+                task_data["xp_reward"],
+                today,
+                today
+            ))
+        
+        conn.commit()
+        logger.info(f"✨ Инициализированы ежедневные задачи для {user_id}")
+
+def get_user_daily_tasks(user_id: int) -> List[dict]:
+    """Получает текущие ежедневные задачи пользователя. v0.11.0"""
+    init_daily_tasks(user_id)
+    
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, task_type, task_name, progress, target, xp_reward, completed
+            FROM daily_tasks
+            WHERE user_id = ? AND DATE(reset_at) = DATE('now')
+            ORDER BY completed, xp_reward DESC
+        """, (user_id,))
+        
+        tasks = []
+        for task_id, task_type, task_name, progress, target, xp, completed in cursor.fetchall():
+            pct = int((progress / target * 100) if target > 0 else 0)
+            tasks.append({
+                "id": task_id,
+                "type": task_type,
+                "name": task_name,
+                "progress": progress,
+                "target": target,
+                "xp_reward": xp,
+                "completed": completed,
+                "percentage": min(pct, 100),
+                "bar": "█" * (pct // 10) + "░" * (10 - pct // 10)
+            })
+        
+        return tasks
+
+def update_task_progress(user_id: int, task_type: str, increment: int = 1):
+    """Обновляет прогресс задачи. v0.11.0"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        # Получаем текущий прогресс
+        cursor.execute("""
+            SELECT id, progress, target, xp_reward, completed FROM daily_tasks
+            WHERE user_id = ? AND task_type = ? AND DATE(reset_at) = DATE('now')
+        """, (user_id, task_type))
+        
+        row = cursor.fetchone()
+        if not row:
+            return False
+        
+        task_id, progress, target, xp_reward, completed = row
+        
+        # Если уже выполнена, не обновляем
+        if completed:
+            return False
+        
+        new_progress = min(progress + increment, target)
+        is_completed = new_progress >= target
+        
+        # Обновляем прогресс
+        cursor.execute("""
+            UPDATE daily_tasks
+            SET progress = ?, completed = ?
+            WHERE id = ?
+        """, (new_progress, is_completed, task_id))
+        
+        # Если задача выполнена, даем XP
+        if is_completed and not completed:
+            add_xp_to_user(cursor, user_id, xp_reward, f"daily_task_{task_type}")
+            logger.info(f"🎉 Задача выполнена! {user_id} получил {xp_reward} XP за {task_type}")
+        
+        conn.commit()
+        return is_completed
 
 def log_analytics_event(event_type: str, user_id: Optional[int] = None, data: Optional[dict] = None):
     """Логирует аналитическое событие."""
@@ -867,7 +1365,7 @@ async def check_subscription(user_id: int, context: ContextTypes.DEFAULT_TYPE) -
         return True  # В случае ошибки не блокируем пользователя
 
 def validate_api_response(api_response: dict) -> Optional[str]:
-    """Валидирует ответ от API."""
+    """Валидирует ответ от API и очищает от нежелательного форматирования."""
     if not isinstance(api_response, dict):
         logger.warning(f"⚠️ API вернул не dict: {type(api_response)}")
         return None
@@ -879,6 +1377,12 @@ def validate_api_response(api_response: dict) -> Optional[str]:
         return None
     
     simplified_text = simplified_text.strip()
+    
+    # Очищаем от звёздочек и markdown маркеров
+    # Но СОХРАНЯЕМ подчеркивания в словах (например, learning_question)
+    simplified_text = simplified_text.replace("**", "")  # Убираем жирное
+    simplified_text = simplified_text.replace("__", "")  # Убираем двойное подчеркивание
+    simplified_text = simplified_text.replace("~~", "")  # Убираем зачеркивание
     
     if len(simplified_text) < 10:
         logger.warning(f"⚠️ Слишком короткий ответ: {len(simplified_text)} символов")
@@ -933,7 +1437,8 @@ async def call_api_with_retry(news_text: str, user_id: Optional[int] = None) -> 
             async with httpx.AsyncClient(timeout=API_TIMEOUT) as client:
                 response = await client.post(
                     API_URL_NEWS,
-                    json=request_payload
+                    json=request_payload,
+                    headers={"X-User-ID": str(user_id)}  # NEW v0.14.0: передаем user_id для проверки лимита
                 )
                 response.raise_for_status()
                 api_response = response.json()
@@ -945,6 +1450,15 @@ async def call_api_with_retry(news_text: str, user_id: Optional[int] = None) -> 
                 
                 processing_time = (datetime.now() - start_time).total_seconds() * 1000
                 logger.info(f"✅ API успех за {processing_time:.0f}ms (попытка {attempt})")
+                
+                # NEW v0.14.0: Инкрементируем счетчик запросов
+                try:
+                    with get_db() as conn:
+                        cursor = conn.cursor()
+                        increment_daily_requests(cursor, user_id)
+                        conn.commit()
+                except Exception as e:
+                    logger.warning(f"⚠️ Ошибка при обновлении счетчика запросов: {e}")
                 
                 return simplified_text, processing_time, None
         
@@ -1015,8 +1529,97 @@ def log_command(func):
 # =============================================================================
 
 @log_command
+async def tasks_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Показывает адаптивные ежедневные задания по уровню пользователя."""
+    user = update.effective_user
+    user_id = user.id
+    
+    is_callback = update.callback_query is not None
+    query = update.callback_query if is_callback else None
+    
+    try:
+        # Получаем XP пользователя из БД
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT xp FROM users WHERE user_id = ?", (user_id,))
+            row = cursor.fetchone()
+            user_xp = row[0] if row else 0
+        
+        # Определяем уровень и получаем список заданий
+        user_level = get_user_level(user_xp)
+        level_name = get_level_name(user_level)
+        level_info = get_level_info(user_level)
+        quests = get_daily_quests_for_level(user_level)
+        
+        # Формируем текст
+        text = f"""📋 <b>ЕЖЕДНЕВНЫЕ ЗАДАНИЯ</b>
+
+{level_name}
+XP: {user_xp}
+
+────────────────────
+Выбери задание и пройди тест!"""
+        
+        # Строим клавиатуру с кнопками заданий
+        keyboard = []
+        for quest in quests:
+            button_text = f"▶️ {quest['title']}"
+            keyboard.append([InlineKeyboardButton(
+                button_text,
+                callback_data=f"start_quest_{quest['id']}"
+            )])
+        
+        # Добавляем кнопку назад
+        keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")])
+        
+        if is_callback and query:
+            await query.edit_message_text(
+                text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            await query.answer()
+        else:
+            await update.message.reply_text(
+                text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            
+    except Exception as e:
+        logger.error(f"❌ Ошибка tasks_command: {e}")
+        error_text = "❌ Ошибка. Попробуй позже."
+        if is_callback and query:
+            await query.edit_message_text(error_text, parse_mode=ParseMode.HTML)
+        else:
+            await update.message.reply_text(error_text, parse_mode=ParseMode.HTML)
+
+
+@log_command
+async def quest_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик команд /quest_* для запуска конкретного квеста."""
+    user_id = update.effective_user.id
+    
+    # Получаем quest_id из команды
+    # Например: /quest_what_is_dex → quest_id = "what_is_dex"
+    if not context.args or len(context.args) == 0:
+        await update.message.reply_text("❌ Укажи ID квеста", parse_mode=ParseMode.HTML)
+        return
+    
+    quest_id = "_".join(context.args)  # На случай, если ID содержит подчеркивания
+    
+    # Проверяем, существует ли такой квест
+    if quest_id not in DAILY_QUESTS:
+        await update.message.reply_text(f"❌ Квест '{quest_id}' не найден", parse_mode=ParseMode.HTML)
+        return
+    
+    # Запускаем квест
+    await start_quest(update, context, quest_id)
+
+
+@log_command
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Приветственное сообщение."""
+    """Приветственное сообщение с интерактивными кнопками."""
     user = update.effective_user
     save_user(user.id, user.username or "", user.first_name)
     
@@ -1028,26 +1631,71 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     
+    # Получаем информацию о лимитах
+    can_request, remaining = check_daily_limit(user.id)
+    if user.id in ADMIN_USERS:
+        limits_text = f"⚡ <b>Твой лимит:</b> <i>БЕЗЛИМИТНЫЙ (Admin)</i>"
+    else:
+        limits_text = f"⚡ <b>Твой лимит:</b> <i>{remaining}/{MAX_REQUESTS_PER_DAY} запросов</i>"
+    
     welcome_text = (
-        f"👋 <b>Привет, {user.first_name}!</b>\n\n"
-        "🤖 <b>RVX AI ANALYZER v0.5.0</b>\n\n"
-        "<i>Я помогаю понять сложные криптоновости простым языком.</i>\n\n"
-        "<b>⚡ БЫСТРЫЙ СТАРТ:</b>\n"
-        "  1️⃣ Просто отправь текст новости\n"
-        "  2️⃣ Получи понятное объяснение\n"
-        "  3️⃣ Оцени результат 👍 или 👎\n\n"
-        "<b>📋 КОМАНДЫ:</b>\n"
-        "  • /help — полная инструкция\n"
-        "  • /history — твоя история\n"
-        "  • /stats — статистика\n"
-        "  • /menu — меню действий\n\n"
-        f"💡 <b>Твой лимит:</b> {MAX_REQUESTS_PER_DAY} запросов в день"
+        f"<b>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</b>\n"
+        f"👋 Привет, {user.first_name}!\n"
+        f"<b>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</b>\n\n"
+        
+        f"🤖 <b>RVX AI v0.11.0</b>\n"
+        f"Твой AI-помощник в крипто, Web3, AI и новых технологиях\n\n"
+        
+        f"<b>Что я делаю:</b>\n"
+        f"📰 Анализирую новости простым языком\n"
+        f"🎓 Учу: Криптовалюты • Web3 • AI • Трейдинг • DeFi • NFT\n"
+        f"🏆 Даю награды за обучение и активность\n\n"
+        
+        f"<b>Мои возможности:</b>\n"
+        f"• 3 полных интерактивных курса\n"
+        f"• XP система & 6 бейджей за достижения\n"
+        f"• Лидерборд TOP-10 по знаниям\n"
+        f"• 5 ежедневных задач с бонусами\n\n"
+        
+        f"{limits_text}\n\n"
+        
+        f"<b>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</b>\n"
+        f"<b>С чего хочешь начать?</b>\n"
+        f"<b>⬇️</b>\n"
     )
     
     if MANDATORY_CHANNEL_ID:
-        welcome_text += f"\n\n📢 <b>Официальный канал:</b>\n{MANDATORY_CHANNEL_LINK}"
+        welcome_text += f"\n📢 Подпишись: {MANDATORY_CHANNEL_LINK}"
     
-    await update.message.reply_text(welcome_text, parse_mode=ParseMode.HTML)
+    # Интерактивные кнопки основных функций (v0.11.0 с задачами)
+    keyboard = [
+        [
+            InlineKeyboardButton("🎓 Учиться", callback_data="start_teach"),
+            InlineKeyboardButton("📚 Курсы", callback_data="start_learn")
+        ],
+        [
+            InlineKeyboardButton("📊 Статистика", callback_data="start_stats"),
+            InlineKeyboardButton("🏆 Лидерборд", callback_data="start_leaderboard")
+        ],
+        [
+            InlineKeyboardButton("📋 Задачи", callback_data="start_tasks"),
+            InlineKeyboardButton("❓ Помощь", callback_data="start_help")
+        ],
+        [
+            InlineKeyboardButton("📦 Дропы", callback_data="start_drops"),
+            InlineKeyboardButton("🔥 Активности", callback_data="start_activities")
+        ],
+        [
+            InlineKeyboardButton("📜 История", callback_data="start_history"),
+            InlineKeyboardButton("⚙️ Меню", callback_data="start_menu")
+        ]
+    ]
+    
+    await update.message.reply_text(
+        welcome_text,
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
 @log_command
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1056,15 +1704,21 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query if is_callback else None
     
     help_text = (
-        "📖 <b>ИНСТРУКЦИЯ ПО ИСПОЛЬЗОВАНИЮ</b>\n\n"
-        "<b>✨ Как работает:</b>\n"
-        "1️⃣ Отправь текст криптоновости\n"
-        "2️⃣ Получи понятное объяснение\n"
-        "3️⃣ Оцени ответ (👍/👎)\n\n"
-        "<b>⚙️ КОМАНДЫ:</b>\n"
-        "• /start — приветствие\n"
-        "• /help — эта справка\n"
-        "• /stats — статистика\n"
+        "📖 <b>ИНСТРУКЦИЯ RVX BOT v0.7.0</b>\n\n"
+        "<b>✨ ДВА ОСНОВНЫХ РЕЖИМА:</b>\n"
+        "<b>1. Анализ новостей:</b>\n"
+        "   • Отправь текст криптоновости\n"
+        "   • Получи объяснение и ключевые пункты\n"
+        "   • Оцени ответ (👍/👎)\n\n"
+        "<b>2. 🎓 Интерактивное обучение (НОВОЕ!):</b>\n"
+        "   • /teach &lt;тема&gt; [уровень]\n"
+        "   • 8 тем: crypto_basics, trading, web3, ai, defi, nft, security, tokenomics\n"
+        "   • 4 уровня: beginner 🌱, intermediate 📚, advanced 🚀, expert 💎\n\n"
+        "<b>📚 КОМАНДЫ:</b>\n"
+        "• /teach — интерактивный учитель по крипто, AI, Web3, трейдингу\n"
+        "• /learn — интерактивные курсы\n"
+        "• /lesson — продолжить урок\n"
+        "• /stats — твоя статистика (XP, бейджи, прогресс)\n"
         "• /history — последние 10 анализов\n"
         "• /search &lt;текст&gt; — поиск в истории\n"
         "• /export — экспорт истории\n"
@@ -1074,17 +1728,26 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"• {MAX_REQUESTS_PER_DAY} запросов в день\n"
         f"• {FLOOD_COOLDOWN_SECONDS}с между запросами\n"
         f"• Макс. длина текста: {MAX_INPUT_LENGTH} символов\n\n"
+        "🎓 <b>ПРИМЕРЫ /teach:</b>\n"
+        "• /teach crypto_basics — основы (новичок)\n"
+        "• /teach trading beginner — трейдинг для новичков\n"
+        "• /teach web3 advanced — Web3 продвинутый\n"
+        "• /teach defi expert — DeFi эксперт\n\n"
         "❓ <b>Проблемы?</b> Напиши администратору"
     )
     
     if MANDATORY_CHANNEL_ID:
         help_text += f"\n\n📢 <b>Официальный канал:</b>\n{MANDATORY_CHANNEL_LINK}"
     
+    keyboard = [
+        [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
+    ]
+    
     try:
         if is_callback and query:
-            await query.edit_message_text(help_text, parse_mode=ParseMode.HTML)
+            await query.edit_message_text(help_text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
         else:
-            await update.message.reply_text(help_text, parse_mode=ParseMode.HTML)
+            await update.message.reply_text(help_text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
     except Exception as e:
         logger.error(f"Ошибка при отправке справки: {e}")
 
@@ -1104,6 +1767,9 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [
             InlineKeyboardButton("❓ Помощь", callback_data="menu_help"),
             InlineKeyboardButton("⚙️ Статус", callback_data="menu_stats")
+        ],
+        [
+            InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")
         ]
     ]
 
@@ -1127,21 +1793,28 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT total_requests, daily_requests, created_at 
+            SELECT total_requests, daily_requests, created_at, xp, level 
             FROM users WHERE user_id = ?
         """, (user_id,))
         row = cursor.fetchone()
         user_requests = row[0] if row else 0
         daily_requests = row[1] if row else 0
         member_since = row[2] if row else "Неизвестно"
+        user_xp = row[3] if row else 0
+        user_level = row[4] if row else 1
+        
+        # NEW v0.14.0: Получаем информацию о лимитах
+        remaining, total_limit, tier_name = get_remaining_requests(cursor, user_id)
     
     stats = get_global_stats()
     
     stats_text = (
-        "📊 <b>СТАТИСТИКА RVX v0.5.0</b>\n\n"
+        "📊 <b>СТАТИСТИКА RVX v0.14.0</b>\n\n"
         "<b>👤 ТВОЯ СТАТИСТИКА:</b>\n"
         f"  • Всего запросов: <b>{user_requests}</b>\n"
-        f"  • Сегодня: <b>{daily_requests}/{MAX_REQUESTS_PER_DAY}</b>\n"
+        f"  • Сегодня: <b>{daily_requests}/{total_limit}</b> (осталось: {remaining})\n"
+        f"  • Уровень: <b>Лvl {user_level}</b> ({tier_name})\n"
+        f"  • XP: <b>{user_xp}</b>\n"
         f"  • Участник с: <b>{member_since[:10]}</b>\n\n"
         "<b>🌐 ГЛОБАЛЬНАЯ СТАТИСТИКА:</b>\n"
         f"  • 👥 Активных пользователей: <b>{stats['total_users']}</b>\n"
@@ -1155,16 +1828,29 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🏆 <b>ТОП-5 ПОЛЬЗОВАТЕЛЕЙ:</b>\n"
     )
     
-    for i, (username, first_name, requests) in enumerate(stats['top_users'], 1):
-        name = username or first_name or "Аноним"
-        medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}️⃣"
-        stats_text += f"  {medal} {name}: <b>{requests}</b> запросов\n"
+    # Обновленный TOP-10 по XP (v0.9.0)
+    for i, user_data in enumerate(stats['top_users'], 1):
+        if len(user_data) == 4:  # новый формат: (username, first_name, xp, level)
+            username, first_name, xp, level = user_data
+            name = username or first_name or "Аноним"
+            medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}️⃣"
+            stats_text += f"  {medal} {name}: <b>{xp} XP</b> (Level {level})\n"
+        else:  # старый формат для совместимости
+            username, first_name = user_data[:2]
+            requests = user_data[2] if len(user_data) > 2 else 0
+            name = username or first_name or "Аноним"
+            medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}️⃣"
+            stats_text += f"  {medal} {name}: <b>{requests}</b> запросов\n"
+    
+    keyboard = [
+        [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
+    ]
     
     try:
         if is_callback and query:
-            await query.edit_message_text(stats_text, parse_mode=ParseMode.HTML)
+            await query.edit_message_text(stats_text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
         else:
-            await update.message.reply_text(stats_text, parse_mode=ParseMode.HTML)
+            await update.message.reply_text(stats_text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
     except Exception as e:
         logger.error(f"Ошибка при отправке статистики: {e}")
 
@@ -1200,11 +1886,15 @@ async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"  {icon} | 🕐 {created_at[:16]} | ⏱️ {time_str}\n\n"
         )
     
+    keyboard = [
+        [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
+    ]
+    
     try:
         if is_callback and query:
-            await query.edit_message_text(response, parse_mode=ParseMode.HTML)
+            await query.edit_message_text(response, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
         else:
-            await update.message.reply_text(response, parse_mode=ParseMode.HTML)
+            await update.message.reply_text(response, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
     except Exception as e:
         logger.error(f"Ошибка при отправке истории: {e}")
 
@@ -1381,11 +2071,15 @@ async def learn_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Используйте <code>/lesson 1</code> чтобы начать первый урок."
     )
     
+    keyboard = [
+        [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
+    ]
+    
     try:
         if is_callback and query:
-            await query.edit_message_text(learn_text, parse_mode=ParseMode.HTML)
+            await query.edit_message_text(learn_text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
         else:
-            await update.message.reply_text(learn_text, parse_mode=ParseMode.HTML)
+            await update.message.reply_text(learn_text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
     except Exception as e:
         logger.error(f"Ошибка при отправке learn: {e}")
         # Fallback
@@ -1890,6 +2584,227 @@ async def ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+# =============================================================================
+# УЧИТЕЛЬСКИЙ МОДУЛЬ v0.7.0 - ИИ ПРЕПОДАЕТ КРИПТО, AI, WEB3, ТРЕЙДИНГ
+# =============================================================================
+
+async def _launch_teaching_lesson(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, topic: str, difficulty: str, query=None):
+    """Вспомогательная функция для запуска урока и показа результата с кнопками."""
+    try:
+        topic_info = TEACHING_TOPICS.get(topic, {})
+        level_info = DIFFICULTY_LEVELS.get(difficulty, {})
+        
+        # Определяем способ отправки сообщения
+        if query:
+            # Из callback - редактируем существующее сообщение
+            await query.edit_message_text(
+                f"📖 Подготавливаю урок: <b>{topic_info.get('name', topic)}</b>\n"
+                f"Уровень: {level_info.get('emoji', '📚')} {level_info.get('name', difficulty)}\n\n"
+                "⏳ Думаю над содержанием...",
+                parse_mode=ParseMode.HTML
+            )
+            status_msg = query.message
+        else:
+            # Из команды - отправляем новое сообщение
+            status_msg = await update.message.reply_text(
+                f"📖 Подготавливаю урок: <b>{topic_info.get('name', topic)}</b>\n"
+                f"Уровень: {level_info.get('emoji', '📚')} {level_info.get('name', difficulty)}\n\n"
+                "⏳ Думаю над содержанием...",
+                parse_mode=ParseMode.HTML
+            )
+        
+        # Получаем урок из ИИ
+        lesson = await teach_lesson(
+            topic=topic,
+            difficulty_level=difficulty,
+            user_knowledge_context=None
+        )
+        
+        if not lesson:
+            try:
+                await status_msg.edit_text(
+                    "❌ Не удалось создать урок. Попробуйте позже.",
+                    parse_mode=ParseMode.HTML
+                )
+            except:
+                await update.message.reply_text("❌ Не удалось создать урок. Попробуйте позже.")
+            return
+        
+        # Обновляем ежедневную задачу по обучению (v0.11.0)
+        update_task_progress(user_id, "lessons_2", 1)
+        
+        # Форматируем ответ
+        title = lesson.get('lesson_title', 'Урок')
+        content = lesson.get('content', '')[:1000]  # Сокращаем до 1000 символов
+        key_points = lesson.get('key_points', [])[:3]
+        example = lesson.get('real_world_example', '')[:300]
+        question = lesson.get('practice_question', '')[:200]
+        
+        # Строим сообщение
+        lines = [
+            f"🎓 <b>{title}</b>",
+            "",
+            "📚 <b>Содержание:</b>",
+            content,
+            "",
+            "🔑 <b>Ключевые моменты:</b>",
+        ]
+        
+        for point in key_points:
+            lines.append(f"• {point[:100]}")
+        
+        if example:
+            lines.extend(["", "💡 <b>Пример:</b>", example])
+        
+        if question:
+            lines.extend(["", "❓ <b>Вопрос для размышления:</b>", question])
+        
+        formatted_lesson = "\n".join(lines)
+        
+        # Кнопки действий под уроком
+        keyboard = [
+            [
+                InlineKeyboardButton("✅ Понял!", callback_data=f"teach_understood_{topic}"),
+                InlineKeyboardButton("❓ Еще вопрос", callback_data=f"teach_question_{topic}")
+            ],
+            [
+                InlineKeyboardButton("📚 Другая тема", callback_data="teach_menu"),
+                InlineKeyboardButton("🏠 Меню", callback_data="menu")
+            ]
+        ]
+        
+        await status_msg.edit_text(
+            formatted_lesson,
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        
+        # Даем XP за прохождение урока
+        with get_db() as conn:
+            cursor = conn.cursor()
+            add_xp_to_user(cursor, user_id, XP_REWARDS.get('lesson_completed', 50), "completed_teaching_lesson")
+        
+        if ENABLE_ANALYTICS:
+            log_analytics_event("teaching_lesson", user_id, {
+                "topic": topic,
+                "difficulty": difficulty
+            })
+        
+        logger.info(f"✅ Урок создан для {user_id}: {topic} ({difficulty})")
+        
+    except asyncio.TimeoutError:
+        try:
+            await status_msg.edit_text(
+                "⏱️ Истекло время ожидания. Попробуйте снова или выберите более простой уровень.",
+                parse_mode=ParseMode.HTML
+            )
+        except:
+            if query:
+                await query.answer("⏱️ Истекло время ожидания.", show_alert=True)
+            else:
+                await update.message.reply_text("⏱️ Истекло время ожидания.")
+    except Exception as e:
+        logger.error(f"❌ Ошибка в _launch_teaching_lesson: {e}")
+        try:
+            await status_msg.edit_text(
+                f"❌ Ошибка при создании урока.\n\nПопробуйте позже или выберите другую тему.",
+                parse_mode=ParseMode.HTML
+            )
+        except:
+            if query:
+                await query.answer(f"❌ Ошибка: {str(e)[:50]}", show_alert=True)
+            else:
+                await update.message.reply_text("❌ Ошибка при создании урока.")
+
+
+@log_command
+async def teach_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """🎓 Интерактивный учитель - показывает красивое меню с кнопками. v0.10.0 - Динамическая сложность."""
+    user_id = update.effective_user.id
+    is_callback = update.callback_query is not None
+    query = update.callback_query if is_callback else None
+    
+    # САМООБУЧЕНИЕ #2: Определяем рекомендуемую сложность автоматически
+    with get_db() as conn:
+        cursor = conn.cursor()
+        _, user_xp = calculate_user_level_and_xp(cursor, user_id)
+    
+    # Автоматическая рекомендация сложности по XP
+    if user_xp < 100:
+        recommended_difficulty = "beginner"
+        difficulty_hint = "🌱 Рекомендуем начать с основ"
+    elif user_xp < 300:
+        recommended_difficulty = "intermediate"
+        difficulty_hint = "📚 Вы готовы к промежуточному уровню"
+    elif user_xp < 600:
+        recommended_difficulty = "advanced"
+        difficulty_hint = "🚀 Пора учить продвинутые темы"
+    else:
+        recommended_difficulty = "expert"
+        difficulty_hint = "💎 Добро пожаловать на экспертный уровень!"
+    
+    # Если нет аргументов - показываем интерактивное меню
+    if not context.args:
+        # Создаем кнопки для выбора темы (2x4 сетка)
+        keyboard = []
+        topics_list = list(TEACHING_TOPICS.keys())
+        
+        # Разбиваем на пары для красивого отображения
+        for i in range(0, len(topics_list), 2):
+            row = []
+            if i < len(topics_list):
+                topic1 = topics_list[i]
+                row.append(InlineKeyboardButton(f"📚 {TEACHING_TOPICS[topic1]['name']}", callback_data=f"teach_topic_{topic1}"))
+            if i + 1 < len(topics_list):
+                topic2 = topics_list[i + 1]
+                row.append(InlineKeyboardButton(f"📖 {TEACHING_TOPICS[topic2]['name']}", callback_data=f"teach_topic_{topic2}"))
+            if row:
+                keyboard.append(row)
+        
+        # Добавляем кнопку "Назад"
+        keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")])
+        
+        menu_text = (
+            "🎓 <b>ИНТЕРАКТИВНЫЙ УЧИТЕЛЬ</b>\n\n"
+            "Выберите тему для обучения:\n\n"
+            f"💡 <i>{difficulty_hint}</i>"
+        )
+        
+        try:
+            if is_callback and query:
+                await query.edit_message_text(
+                    menu_text,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+            else:
+                await update.message.reply_text(
+                    menu_text,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+        except Exception as e:
+            logger.error(f"Ошибка в teach_command: {e}")
+        return
+    
+    # Если передан топик и уровень как аргументы - запускаем урок напрямую
+    topic = context.args[0].lower()
+    difficulty = context.args[1].lower() if len(context.args) > 1 else recommended_difficulty  # Используем автоматический уровень
+    
+    # Валидация
+    if topic not in TEACHING_TOPICS:
+        await update.message.reply_text(f"❌ Неизвестная тема: `{topic}`", parse_mode=ParseMode.MARKDOWN)
+        return
+    
+    if difficulty not in DIFFICULTY_LEVELS:
+        await update.message.reply_text(f"❌ Неизвестный уровень: `{difficulty}`", parse_mode=ParseMode.MARKDOWN)
+        return
+    
+    logger.info(f"📚 Автоматическая сложность для {user_id}: {difficulty} (XP: {user_xp})")
+    
+    # Запускаем урок
+    await _launch_teaching_lesson(update, context, user_id, topic, difficulty)
+
 
 # =============================================================================
 # ADMIN КОМАНДЫ
@@ -2091,6 +3006,199 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "message_length": len(message)
     })
 
+
+async def post_to_channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Отправляет пост в канал обновлений.
+    Использование: /post_to_channel <текст поста>
+    
+    Пример: /post_to_channel 🚀 <b>Новое обновление!</b>
+    Поддерживает HTML форматирование.
+    """
+    # Проверка прав админа
+    if update.effective_user.id not in ADMIN_USERS:
+        await update.message.reply_text("❌ Только админы могут отправлять посты в канал")
+        return
+    
+    # Проверка наличия текста
+    if not context.args:
+        await update.message.reply_text(
+            "❌ Формат: /post_to_channel <текст>\n\n"
+            "Пример: /post_to_channel 🚀 <b>Новое обновление!</b>\n"
+            "(Поддерживается HTML форматирование)"
+        )
+        return
+    
+    post_text = " ".join(context.args)
+    
+    # Проверка что канал установлен
+    if not UPDATE_CHANNEL_ID:
+        await update.message.reply_text("❌ UPDATE_CHANNEL_ID не установлен в .env")
+        return
+    
+    try:
+        # Отправляем пост
+        await context.bot.send_message(
+            chat_id=UPDATE_CHANNEL_ID,
+            text=post_text,
+            parse_mode=ParseMode.HTML,
+            disable_notification=True
+        )
+        
+        await update.message.reply_text(
+            f"✅ Пост успешно отправлен в канал!\n\n"
+            f"📍 Канал: {UPDATE_CHANNEL_ID}\n"
+            f"📏 Размер: {len(post_text)} символов"
+        )
+        
+        logger.info(f"📢 Админ {update.effective_user.id} отправил пост в канал")
+        
+        # Логируем событие
+        if ENABLE_ANALYTICS:
+            log_analytics_event("post_to_channel", update.effective_user.id, {
+                "text_length": len(post_text),
+                "channel_id": UPDATE_CHANNEL_ID
+            })
+    
+    except ValueError as e:
+        await update.message.reply_text(
+            f"❌ Ошибка форматирования HTML: {e}\n\n"
+            "Проверьте синтаксис HTML"
+        )
+    except TelegramError as e:
+        await update.message.reply_text(
+            f"❌ Ошибка при отправке в канал: {e}"
+        )
+        logger.error(f"❌ Ошибка отправки поста в канал: {e}")
+    except Exception as e:
+        await update.message.reply_text(
+            f"❌ Неожиданная ошибка: {e}"
+        )
+        logger.error(f"❌ Неожиданная ошибка при отправке поста: {e}")
+
+
+async def notify_version_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Отправляет уведомление об обновлении версии в канал.
+    Использование: /notify_version <версия> | <список улучшений через |>
+    
+    Пример: /notify_version 0.15.0 | Новая система квестов | Улучшена производительность
+    """
+    # Проверка прав админа
+    if update.effective_user.id not in ADMIN_USERS:
+        await update.message.reply_text("❌ Только админы могут отправлять уведомления об обновлениях")
+        return
+    
+    # Парсим аргументы
+    if not context.args or len(context.args) < 2:
+        await update.message.reply_text(
+            "❌ Формат: /notify_version <версия> | <улучшение1> | <улучшение2>\n\n"
+            "Пример: /notify_version 0.15.0 | Новые квесты | Лучше производительность"
+        )
+        return
+    
+    text = " ".join(context.args)
+    parts = text.split("|")
+    
+    if len(parts) < 2:
+        await update.message.reply_text(
+            "❌ Используйте | для разделения версии и улучшений\n"
+            "Пример: /notify_version 0.15.0 | Новые квесты | Лучше производительность"
+        )
+        return
+    
+    version = parts[0].strip()
+    changelog_items = [item.strip() for item in parts[1:] if item.strip()]
+    changelog = "\n".join([f"• {item}" for item in changelog_items])
+    
+    try:
+        await notify_version_update(context, version, changelog)
+        
+        await update.message.reply_text(
+            f"✅ Уведомление об обновлении отправлено!\n\n"
+            f"📌 Версия: {version}\n"
+            f"📝 Изменений: {len(changelog_items)}"
+        )
+        
+        logger.info(f"📢 Админ {update.effective_user.id} отправил уведомление об обновлении v{version}")
+        
+    except Exception as e:
+        await update.message.reply_text(f"❌ Ошибка: {e}")
+        logger.error(f"❌ Ошибка отправки уведомления: {e}")
+
+
+async def notify_quests_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Отправляет уведомление о новых квестах в канал."""
+    # Проверка прав админа
+    if update.effective_user.id not in ADMIN_USERS:
+        await update.message.reply_text("❌ Только админы могут отправлять уведомления о квестах")
+        return
+    
+    try:
+        await notify_new_quests(context)
+        
+        await update.message.reply_text(
+            "✅ Уведомление о новых квестах отправлено в канал!"
+        )
+        
+        logger.info(f"📢 Админ {update.effective_user.id} отправил уведомление о квестах")
+        
+    except Exception as e:
+        await update.message.reply_text(f"❌ Ошибка: {e}")
+        logger.error(f"❌ Ошибка отправки уведомления о квестах: {e}")
+
+
+async def notify_milestone_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Отправляет уведомление о вехе (например, 100 пользователей).
+    Использование: /notify_milestone <название вехи> | <количество>
+    
+    Пример: /notify_milestone 100 активных пользователей | 100
+    """
+    # Проверка прав админа
+    if update.effective_user.id not in ADMIN_USERS:
+        await update.message.reply_text("❌ Только админы могут отправлять уведомления о вехах")
+        return
+    
+    if not context.args or "|" not in " ".join(context.args):
+        await update.message.reply_text(
+            "❌ Формат: /notify_milestone <название> | <количество>\n\n"
+            "Пример: /notify_milestone 100 активных пользователей | 100"
+        )
+        return
+    
+    text = " ".join(context.args)
+    parts = text.split("|")
+    
+    if len(parts) != 2:
+        await update.message.reply_text(
+            "❌ Используйте | один раз для разделения названия и количества"
+        )
+        return
+    
+    milestone_name = parts[0].strip()
+    try:
+        count = int(parts[1].strip())
+    except ValueError:
+        await update.message.reply_text("❌ Количество должно быть числом")
+        return
+    
+    try:
+        await notify_milestone_reached(context, milestone_name, count)
+        
+        await update.message.reply_text(
+            f"✅ Уведомление о вехе отправлено!\n\n"
+            f"📌 Веха: {milestone_name}\n"
+            f"📊 Количество: {count}"
+        )
+        
+        logger.info(f"📢 Админ {update.effective_user.id} отправил уведомление о вехе")
+        
+    except Exception as e:
+        await update.message.reply_text(f"❌ Ошибка: {e}")
+        logger.error(f"❌ Ошибка отправки уведомления о вехе: {e}")
+
+
 # =============================================================================
 # CALLBACK ОБРАБОТЧИК
 # =============================================================================
@@ -2104,7 +3212,163 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = query.from_user
     
     # Парсинг callback_data
-    parts = data.split("_")
+    parts = data.split("_", 2)  # Ограничиваем разбор до 3 частей
+    
+    # ============ НОВЫЕ CALLBACKS ДЛЯ КВЕСТОВ v2 ============
+    
+    # Запуск квеста (показать материал)
+    if data.startswith("start_quest_"):
+        quest_id = data.replace("start_quest_", "")
+        if quest_id in DAILY_QUESTS:
+            await start_quest(update, context, quest_id)
+            return
+    
+    # Запуск теста (показать первый вопрос)
+    if data.startswith("start_test_"):
+        quest_id = data.replace("start_test_", "")
+        if quest_id in DAILY_QUESTS:
+            await start_test(update, context, quest_id)
+            return
+    
+    # Обработка ответа на вопрос
+    if data.startswith("answer_"):
+        try:
+            # Format: answer_quest_id_question_num_answer_idx
+            parts_answer = data.split("_")
+            answer_idx = int(parts_answer[-1])
+            question_num = int(parts_answer[-2])
+            quest_id = "_".join(parts_answer[1:-2])
+            
+            if quest_id in DAILY_QUESTS:
+                await handle_answer(update, context, quest_id, question_num, answer_idx)
+            return
+        except (ValueError, IndexError) as e:
+            logger.error(f"❌ Ошибка парсинга ответа: {e}")
+            await query.answer("❌ Ошибка", show_alert=True)
+            return
+    
+    # Переход к следующему вопросу
+    if data.startswith("next_q_"):
+        try:
+            parts_next = data.split("_")
+            question_num = int(parts_next[-1])
+            quest_id = "_".join(parts_next[2:-1])
+            
+            if quest_id in DAILY_QUESTS:
+                await show_question(update, context, quest_id, question_num)
+            return
+        except (ValueError, IndexError) as e:
+            logger.error(f"❌ Ошибка парсинга next_q: {e}")
+            await query.answer("❌ Ошибка", show_alert=True)
+            return
+    
+    # Показать результаты
+    if data.startswith("show_quests"):
+        await tasks_command(update, context)
+        return
+    
+    # ============ СТАРЫЕ CALLBACKS (совместимость) ============
+    if data.startswith("start_"):
+        action = "_".join(parts[1:])
+        
+        if action == "teach":
+            await teach_command(update, context)
+            return
+        elif action == "learn":
+            await learn_command(update, context)
+            return
+        elif action == "stats":
+            await stats_command(update, context)
+            return
+        elif action == "leaderboard":
+            await stats_command(update, context)
+            return
+        elif action == "drops":
+            await drops_command(update, context)
+            return
+        elif action == "activities":
+            await activities_command(update, context)
+            return
+            return
+        elif action == "tasks":
+            await tasks_command(update, context)
+            return
+        elif action == "help":
+            await help_command(update, context)
+            return
+        elif action == "history":
+            await history_command(update, context)
+            return
+        elif action == "menu":
+            keyboard = [
+                [
+                    InlineKeyboardButton("📚 Курсы", callback_data="menu_learn"),
+                    InlineKeyboardButton("🧰 Инструменты", callback_data="menu_tools")
+                ],
+                [
+                    InlineKeyboardButton("💬 Задать вопрос", callback_data="menu_ask"),
+                    InlineKeyboardButton("📜 История", callback_data="menu_history")
+                ],
+                [
+                    InlineKeyboardButton("❓ Помощь", callback_data="menu_help"),
+                    InlineKeyboardButton("⚙️ Статус", callback_data="menu_stats")
+                ]
+            ]
+            try:
+                await query.edit_message_text(
+                    "📋 <b>ГЛАВНОЕ МЕНЮ RVX</b>",
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                    parse_mode=ParseMode.HTML
+                )
+            except Exception:
+                await query.message.reply_text(
+                    "📋 <b>ГЛАВНОЕ МЕНЮ RVX</b>",
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                    parse_mode=ParseMode.HTML
+                )
+            return
+            return
+    
+    # Обновление задач (новое в v0.11.0)
+    if data == "refresh_tasks":
+        await tasks_command(update, context)
+        return
+    
+    # Кнопка "Назад" - возврат на стартовое меню
+    if data == "back_to_start":
+        keyboard = [
+            [
+                InlineKeyboardButton("🎓 Учиться", callback_data="start_teach"),
+                InlineKeyboardButton("📚 Курсы", callback_data="start_learn")
+            ],
+            [
+                InlineKeyboardButton("📊 Статистика", callback_data="start_stats"),
+                InlineKeyboardButton("🏆 Лидерборд", callback_data="start_leaderboard")
+            ],
+            [
+                InlineKeyboardButton("📋 Задачи", callback_data="start_tasks"),
+                InlineKeyboardButton("❓ Помощь", callback_data="start_help")
+            ],
+            [
+                InlineKeyboardButton("📜 История", callback_data="start_history"),
+                InlineKeyboardButton("⚙️ Меню", callback_data="start_menu")
+            ]
+        ]
+        try:
+            await query.edit_message_text(
+                "🏠 <b>RVX - КРИПТОАНАЛИТИЧЕСКИЙ БОТ</b>\n\n"
+                "Выберите действие из меню ниже:",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode=ParseMode.HTML
+            )
+        except Exception:
+            await query.message.reply_text(
+                "🏠 <b>RVX - КРИПТОАНАЛИТИЧЕСКИЙ БОТ</b>\n\n"
+                "Выберите действие из меню ниже:",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode=ParseMode.HTML
+            )
+        return
     
     # Быстрое меню (глобальная кнопка)
     if data == "menu":
@@ -2311,6 +3575,181 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         return
     
+    # ============ TEACH CALLBACKS v0.8.0 - ОБРАБАТЫВАЕМ ДО ОСТАЛЬНОГО ============
+    
+    # Меню выбора тем обучения
+    if data == "teach_menu":
+        keyboard = []
+        topics_list = list(TEACHING_TOPICS.keys())
+        
+        for i in range(0, len(topics_list), 2):
+            row = []
+            if i < len(topics_list):
+                topic1 = topics_list[i]
+                row.append(InlineKeyboardButton(f"📚 {TEACHING_TOPICS[topic1]['name']}", callback_data=f"teach_topic_{topic1}"))
+            if i + 1 < len(topics_list):
+                topic2 = topics_list[i + 1]
+                row.append(InlineKeyboardButton(f"📖 {TEACHING_TOPICS[topic2]['name']}", callback_data=f"teach_topic_{topic2}"))
+            if row:
+                keyboard.append(row)
+        
+        keyboard.append([InlineKeyboardButton("⬅️ Другие темы", callback_data="teach_menu")])
+        
+        try:
+            await query.edit_message_text(
+                "🎓 <b>ИНТЕРАКТИВНЫЙ УЧИТЕЛЬ</b>\n\n"
+                "Выберите тему для обучения:",
+                parse_mode=ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        except Exception as e:
+            logger.error(f"Ошибка в teach_menu: {e}")
+        return
+    
+    # Выбор темы обучения
+    if data.startswith("teach_topic_"):
+        topic = data.replace("teach_topic_", "")
+        if topic not in TEACHING_TOPICS:
+            await query.answer("❌ Неизвестная тема", show_alert=True)
+            return
+        
+        # Обновляем ежедневную задачу по исследованию тем (v0.11.0)
+        update_task_progress(user.id, "teach_explore", 1)
+        
+        # САМООБУЧЕНИЕ #3: Анализируем историю и выбираем рекомендуемый уровень
+        with get_db() as conn:
+            cursor = conn.cursor()
+            _, user_xp = calculate_user_level_and_xp(cursor, user.id)
+            
+            # Определяем рекомендуемый уровень
+            if user_xp < 100:
+                recommended = "beginner"
+                rec_emoji = "🌱"
+            elif user_xp < 300:
+                recommended = "intermediate"
+                rec_emoji = "📚"
+            elif user_xp < 600:
+                recommended = "advanced"
+                rec_emoji = "🚀"
+            else:
+                recommended = "expert"
+                rec_emoji = "💎"
+        
+        # Показываем выбор уровня сложности
+        topic_info = TEACHING_TOPICS.get(topic, {})
+        
+        keyboard = []
+        # Создаем 2x2 сетку для уровней
+        levels_list = list(DIFFICULTY_LEVELS.keys())
+        for i in range(0, len(levels_list), 2):
+            row = []
+            if i < len(levels_list):
+                level1 = levels_list[i]
+                level_info = DIFFICULTY_LEVELS[level1]
+                # Отмечаем рекомендуемый уровень звездой
+                level_label = f"{level_info['emoji']} {level_info['name']}"
+                if level1 == recommended:
+                    level_label = f"⭐ {level_label}"
+                row.append(InlineKeyboardButton(
+                    level_label, 
+                    callback_data=f"teach_start_{topic}_{level1}"
+                ))
+            if i + 1 < len(levels_list):
+                level2 = levels_list[i + 1]
+                level_info = DIFFICULTY_LEVELS[level2]
+                level_label = f"{level_info['emoji']} {level_info['name']}"
+                if level2 == recommended:
+                    level_label = f"⭐ {level_label}"
+                row.append(InlineKeyboardButton(
+                    level_label, 
+                    callback_data=f"teach_start_{topic}_{level2}"
+                ))
+            if row:
+                keyboard.append(row)
+        
+        keyboard.append([InlineKeyboardButton("◀️ Другая тема", callback_data="teach_menu")])
+        
+        try:
+            rec_text = f"\n\n💡 <i>Рекомендуем уровень: {rec_emoji} {DIFFICULTY_LEVELS[recommended]['name']}</i>"
+            await query.edit_message_text(
+                f"📚 <b>{topic_info.get('name', topic)}</b>\n\n"
+                f"{topic_info.get('description', 'Описание темы')}\n\n"
+                "<b>Выберите уровень сложности:</b>"
+                f"{rec_text}",
+                parse_mode=ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        except Exception as e:
+            logger.error(f"Ошибка в teach_topic_: {e}")
+        return
+    
+    # Запуск урока
+    if data.startswith("teach_start_"):
+        try:
+            parts_teach = data.replace("teach_start_", "").split("_")
+            # Последний элемент - уровень
+            difficulty = parts_teach[-1]
+            # Остальное - тема (может быть многословная)
+            topic = "_".join(parts_teach[:-1])
+            
+            if topic not in TEACHING_TOPICS or difficulty not in DIFFICULTY_LEVELS:
+                await query.answer("❌ Ошибка параметров", show_alert=True)
+                return
+            
+            await query.answer()  # Убираем loading состояние
+            
+            # Запускаем урок через helper функцию с передачей query
+            await _launch_teaching_lesson(
+                update,
+                context,
+                user.id,
+                topic,
+                difficulty,
+                query=query  # Передаем query для редактирования сообщения
+            )
+        except Exception as e:
+            logger.error(f"Ошибка в teach_start_: {e}")
+            await query.answer("❌ Ошибка при запуске урока", show_alert=True)
+        return
+    
+    # Действия после урока
+    if data.startswith("teach_understood_"):
+        topic = data.replace("teach_understood_", "")
+        await query.answer("✅ Отлично! Вы получили +50 XP!", show_alert=False)
+        
+        # Показываем красивое сообщение
+        keyboard = [
+            [InlineKeyboardButton("📚 Другая тема", callback_data="teach_menu")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
+        ]
+        
+        try:
+            await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+        except:
+            pass
+        return
+    
+    if data.startswith("teach_question_"):
+        topic = data.replace("teach_question_", "")
+        
+        keyboard = [
+            [InlineKeyboardButton("💬 Используй /ask для уточнений", url="https://t.me/dummy")],
+            [InlineKeyboardButton("📚 Другая тема", callback_data="teach_menu")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
+        ]
+        
+        try:
+            await query.edit_message_text(
+                "💬 <b>УТОЧНЯЮЩИЕ ВОПРОСЫ</b>\n\n"
+                "Используйте команду <code>/ask [ваш вопрос]</code> чтобы задать уточняющий вопрос!\n\n"
+                "<i>Пример:</i> <code>/ask Как это работает с другими блокчейнами?</code>",
+                parse_mode=ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        except:
+            pass
+        return
+    
     # ============ ОРИГИНАЛЬНЫЕ КНОПКИ ============
     
     try:
@@ -2324,6 +3763,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Обработка фидбека "Полезно"
     if action == "feedback_helpful":
         save_feedback(user.id, request_id, is_helpful=True)
+        
+        # Обновляем ежедневную задачу по рейтингу (v0.11.0)
+        update_task_progress(user.id, "voting_3", 1)
         
         await query.edit_message_reply_markup(reply_markup=None)
         await query.message.reply_text(
@@ -2454,6 +3896,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "Попробуйте отправить новость заново."
             )
 
+    # ============ TEACHING CALLBACKS v0.7.0 ============
+    
+    # Меню выбора тем обучения
+
 # =============================================================================
 # ГЛАВНЫЙ ОБРАБОТЧИК СООБЩЕНИЙ
 # =============================================================================
@@ -2551,13 +3997,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         increment_user_requests(user.id)
         user_last_news[user.id] = user_text
         
+        # Обновляем ежедневную задачу по анализу новостей (v0.11.0)
+        update_task_progress(user.id, "news_5", 1)
+        
         # Кнопки фидбека
         keyboard = [[
             InlineKeyboardButton("👍 Полезно", callback_data=f"feedback_helpful_{request_id}"),
             InlineKeyboardButton("👎 Не помогло", callback_data=f"feedback_not_helpful_{request_id}")
         ]]
-        # Добавляем кнопку меню
+        # Добавляем кнопки обучения и меню
         keyboard.append([
+            InlineKeyboardButton("📚 Узнать больше", callback_data="teach_menu"),
             InlineKeyboardButton("📋 Меню", callback_data="menu")
         ])
         
@@ -2611,35 +4061,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         increment_user_requests(user.id)
         user_last_news[user.id] = user_text
         
+        # Обновляем ежедневную задачу по анализу новостей (v0.11.0)
+        update_task_progress(user.id, "news_5", 1)
+        
         # Кнопки фидбека
         keyboard = [[
             InlineKeyboardButton("👍 Полезно", callback_data=f"feedback_helpful_{request_id}"),
             InlineKeyboardButton("👎 Не помогло", callback_data=f"feedback_not_helpful_{request_id}")
         ]]
         
-        # Рекомендуем связанные уроки и практические советы (v0.5.0)
-        educational_context, learn_callback, practical_tips = get_educational_context(simplified_text, user.id)
-        
-        # Улучшенное форматирование ответа
+        # Просто отправляем ответ от API как есть (он уже полностью отформатирован)
         full_response = f"<b>📰 RVX АНАЛИЗ</b>\n\n{simplified_text}"
         
-        # Добавляем практические советы
-        if practical_tips and any(t.strip() for t in practical_tips):
-            full_response += "\n\n💡 <b>ПРАКТИЧЕСКИЕ СОВЕТЫ:</b>"
-            for i, tip in enumerate(practical_tips[:3], 1):
-                if tip.strip():
-                    full_response += f"\n  {i}. {tip}"
-        
-        # Добавляем образовательные рекомендации если есть
-        if educational_context and educational_context.strip():
-            full_response += f"\n\n📚 <b>ОБРАЗОВАТЕЛЬНО:</b>\n{educational_context}"
-            keyboard.append([
-                InlineKeyboardButton("📚 Начать урок", callback_data=learn_callback),
-                InlineKeyboardButton("💬 Задать вопрос", callback_data=f"ask_related_{request_id}")
-            ])
-        
-        # Добавляем кнопку меню внизу
+        # Добавляем кнопки обучения и меню внизу
         keyboard.append([
+            InlineKeyboardButton("📚 Узнать больше", callback_data="teach_menu"),
             InlineKeyboardButton("📋 Меню", callback_data="menu")
         ])
 
@@ -2746,20 +4182,266 @@ def main():
     init_database()
     
     logger.info("=" * 70)
-    logger.info("🚀 RVX Telegram Bot v0.5.0 запускается...")
+    logger.info("🚀 RVX Telegram Bot v0.7.0 запускается...")
     logger.info("=" * 70)
     logger.info(f"📊 Конфигурация:")
     logger.info(f"  • API URL: {API_URL_NEWS}")
     logger.info(f"  • Max input: {MAX_INPUT_LENGTH} символов")
     logger.info(f"  • Daily limit: {MAX_REQUESTS_PER_DAY} запросов")
     logger.info(f"  • Flood control: {FLOOD_COOLDOWN_SECONDS}с")
-    logger.info(f"  • Admin users: {len(ADMIN_USERS)}")
+    logger.info(f"  • Admin users: {len(ADMIN_USERS)} (with limits)")
+    logger.info(f"  • Unlimited admins: {len(UNLIMITED_ADMIN_USERS)} (no limits) ⭐")
     logger.info(f"  • Mandatory channel: {'Да' if MANDATORY_CHANNEL_ID else 'Нет'}")
+    logger.info(f"  • Update channel: {'Да' if UPDATE_CHANNEL_ID else 'Нет'}")
+    logger.info(f"  • Bot version: {BOT_VERSION}")
     logger.info(f"  • Analytics: {'Включена' if ENABLE_ANALYTICS else 'Выключена'}")
     logger.info("=" * 70)
     
+    # =============================================================================
+    # КОМАНДЫ ДЛЯ ДРОПОВ И АКТИВНОСТЕЙ (v0.15.0)
+    # =============================================================================
+    
+    async def drops_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Показывает свежие NFT дропы."""
+        user_id = update.effective_user.id
+        
+        # Проверяем лимиты
+        can_proceed, limit_info = check_daily_limit(user_id)
+        if not can_proceed:
+            await update.message.reply_text(
+                f"⚠️ Ты исчерпал дневной лимит запросов: {limit_info}\n"
+                f"Попробуй завтра или используй /limits для подробности"
+            )
+            return
+        
+        # Отправляем сообщение о загрузке
+        status_msg = await update.message.reply_text("⏳ Загружаю свежие дропы...")
+        increment_daily_requests(user_id)
+        
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                response = await client.get(f"{API_URL_NEWS.replace('/explain_news', '')}/get_drops?limit=10")
+                response.raise_for_status()
+                data = response.json()
+                
+                drops = data.get("drops", [])
+                if not drops:
+                    await status_msg.edit_text("😔 Сейчас нет активных дропов. Проверь позже!")
+                    return
+                
+                text = "📦 <b>АКТУАЛЬНЫЕ NFT ДРОПЫ</b>\n\n"
+                for i, drop in enumerate(drops[:10], 1):
+                    text += (
+                        f"<b>{i}. {drop.get('name', 'Unknown')}</b> ({drop.get('symbol', '?')})\n"
+                        f"  ⛓️ Цепь: {drop.get('chain', 'Unknown')}\n"
+                        f"  💰 Цена: {drop.get('price', 'TBA')}\n"
+                        f"  ⏱️ Начало: {drop.get('time_until', 'TBA')}\n"
+                        f"  🔗 {drop.get('url', '#')}\n\n"
+                    )
+                
+                text += f"<i>Обновлено: {datetime.now().strftime('%H:%M:%S')}</i>"
+                
+                await status_msg.edit_text(text, parse_mode=ParseMode.HTML)
+                
+                # Сохраняем в историю
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    for drop in drops[:5]:
+                        cursor.execute(
+                            "INSERT INTO drops_history (user_id, drop_name, drop_type, chain) VALUES (?, ?, ?, ?)",
+                            (user_id, drop.get('name'), 'nft_drop', drop.get('chain'))
+                        )
+                    conn.commit()
+                        
+        except Exception as e:
+            logger.error(f"❌ Ошибка при получении дропов: {e}")
+            await status_msg.edit_text(f"❌ Ошибка при загрузке дропов: {str(e)[:100]}")
+    
+    async def activities_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Показывает активности в топ-проектах."""
+        user_id = update.effective_user.id
+        
+        can_proceed, limit_info = check_daily_limit(user_id)
+        if not can_proceed:
+            await update.message.reply_text(
+                f"⚠️ Ты исчерпал дневной лимит запросов: {limit_info}"
+            )
+            return
+        
+        status_msg = await update.message.reply_text("⏳ Загружаю активности...")
+        increment_daily_requests(user_id)
+        
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                response = await client.get(f"{API_URL_NEWS.replace('/explain_news', '')}/get_activities")
+                response.raise_for_status()
+                data = response.json()
+                
+                text = "🔥 <b>АКТИВНОСТИ В ТОП-ПРОЕКТАХ</b>\n\n"
+                
+                # Стейкинг
+                staking = data.get("staking_updates", [])
+                if staking:
+                    text += "<b>📊 Обновления стейкинга:</b>\n"
+                    for item in staking[:3]:
+                        text += f"  • <b>{item.get('project')}</b>: {item.get('activity')}\n"
+                    text += "\n"
+                
+                # Новые ланчи
+                launches = data.get("new_launches", [])
+                if launches:
+                    text += "<b>🚀 Новые ланчи:</b>\n"
+                    for item in launches[:3]:
+                        text += f"  • <b>{item.get('project')}</b>: {item.get('change')} ({item.get('volume')})\n"
+                    text += "\n"
+                
+                # Гавернанс
+                governance = data.get("governance", [])
+                if governance:
+                    text += "<b>🗳️ Гавернанс:</b>\n"
+                    for item in governance[:3]:
+                        text += f"  • <b>{item.get('project')}</b>: {item.get('proposal', 'Новое предложение')}\n"
+                    text += "\n"
+                
+                text += f"<i>Обновлено: {datetime.now().strftime('%H:%M:%S')}</i>"
+                
+                await status_msg.edit_text(text, parse_mode=ParseMode.HTML)
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка при получении активностей: {e}")
+            await status_msg.edit_text(f"❌ Ошибка: {str(e)[:100]}")
+    
+    async def trending_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Показывает трендовые (вирусные) токены."""
+        user_id = update.effective_user.id
+        
+        can_proceed, limit_info = check_daily_limit(user_id)
+        if not can_proceed:
+            await update.message.reply_text(f"⚠️ Лимит исчерпан: {limit_info}")
+            return
+        
+        status_msg = await update.message.reply_text("⏳ Загружаю трендовые токены...")
+        increment_daily_requests(user_id)
+        
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                response = await client.get(f"{API_URL_NEWS.replace('/explain_news', '')}/get_trending?limit=10")
+                response.raise_for_status()
+                data = response.json()
+                
+                drops = data.get("drops", [])
+                if not drops:
+                    await status_msg.edit_text("😔 Сейчас нет трендовых токенов")
+                    return
+                
+                text = "📈 <b>ВИРУСНЫЕ ТОКЕНЫ (TRENDING)</b>\n\n"
+                for i, token in enumerate(drops[:10], 1):
+                    text += (
+                        f"<b>{i}. {token.get('name')}</b> (${token.get('symbol', '?')})\n"
+                        f"  Ранг: #{token.get('market_cap_rank', 'N/A')}\n"
+                        f"  Скор: {token.get('score', 0)}\n\n"
+                    )
+                
+                await status_msg.edit_text(text, parse_mode=ParseMode.HTML)
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка при получении трендов: {e}")
+            await status_msg.edit_text(f"❌ Ошибка: {str(e)[:100]}")
+    
+    async def subscribe_drops_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Подписаться на уведомления о дропах."""
+        user_id = update.effective_user.id
+        
+        keyboard = [
+            [
+                InlineKeyboardButton("Arbitrum 🔷", callback_data="sub_arbitrum"),
+                InlineKeyboardButton("Solana ◎", callback_data="sub_solana"),
+            ],
+            [
+                InlineKeyboardButton("Polygon 🟣", callback_data="sub_polygon"),
+                InlineKeyboardButton("Ethereum 🔹", callback_data="sub_ethereum"),
+            ],
+            [
+                InlineKeyboardButton("Все цепи 🌐", callback_data="sub_all"),
+                InlineKeyboardButton("Отписаться ❌", callback_data="unsub_all"),
+            ],
+        ]
+        
+        await update.message.reply_text(
+            "📢 <b>Подписаться на уведомления о дропах</b>\n\n"
+            "Выбери цепь(и) для получения уведомлений:",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.HTML
+        )
+    
+    async def my_subscriptions_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Показывает текущие подписки."""
+        user_id = update.effective_user.id
+        
+        try:
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT chain, enabled FROM user_drop_subscriptions WHERE user_id = ? AND enabled = 1",
+                    (user_id,)
+                )
+                subs = cursor.fetchall()
+            
+            if not subs:
+                await update.message.reply_text(
+                    "📭 У тебя нет активных подписок на дропы\n"
+                    "Используй /subscribe_drops для подписки"
+                )
+                return
+            
+            text = "📋 <b>Твои подписки на дропы:</b>\n\n"
+            for chain, _ in subs:
+                emoji = {
+                    "arbitrum": "🔷",
+                    "solana": "◎",
+                    "polygon": "🟣",
+                    "ethereum": "🔹",
+                    "all": "🌐"
+                }.get(chain, "•")
+                text += f"{emoji} {chain.capitalize()}\n"
+            
+            text += f"\n✅ Всего подписок: {len(subs)}"
+            
+            await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка при получении подписок: {e}")
+            await update.message.reply_text("❌ Ошибка при получении подписок")
+    
     # Создание приложения
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    
+    # Установка списка команд (показывается при вводе / в Telegram) - v0.11.0
+    async def set_commands_on_start(context: ContextTypes.DEFAULT_TYPE):
+        """Устанавливает список команд в Telegram при запуске бота."""
+        try:
+            await context.bot.set_my_commands([
+                BotCommand("start", "🏠 Главное меню"),
+                BotCommand("help", "❓ Помощь и инструкция"),
+                BotCommand("teach", "🎓 Интерактивный учитель"),
+                BotCommand("learn", "📚 Интерактивные курсы"),
+                BotCommand("drops", "📦 Свежие NFT дропы"),
+                BotCommand("activities", "🔥 Активности в проектах"),
+                BotCommand("trending", "📈 Вирусные токены"),
+                BotCommand("subscribe_drops", "📢 Подписка на дропы"),
+                BotCommand("stats", "📊 Твоя статистика и достижения"),
+                BotCommand("tasks", "📋 Ежедневные задачи"),
+                BotCommand("history", "📜 История анализов"),
+                BotCommand("limits", "⚡ Твои лимиты"),
+                BotCommand("search", "🔍 Поиск в истории"),
+                BotCommand("bookmark", "📌 Сохранить анализ"),
+                BotCommand("bookmarks", "📎 Мои закладки"),
+                BotCommand("export", "📥 Экспорт истории"),
+                BotCommand("menu", "⚙️ Быстрое меню"),
+            ])
+            logger.info("✅ Список команд установлен в Telegram")
+        except Exception as e:
+            logger.error(f"❌ Ошибка при установке команд: {e}")
     
     # Регистрация команд
     application.add_handler(CommandHandler("start", start_command))
@@ -2779,6 +4461,17 @@ def main():
     application.add_handler(CommandHandler("bookmarks", bookmarks_command))
     application.add_handler(CommandHandler("ask", ask_command))
     
+    # НОВАЯ КОМАНДА v0.7.0 - Интерактивный учитель по крипто, AI, Web3, трейдингу
+    application.add_handler(CommandHandler("teach", teach_command))
+    
+    # НОВАЯ КОМАНДА v0.11.0 - Ежедневные задачи
+    application.add_handler(CommandHandler("tasks", tasks_command))
+    
+    # НОВАЯ КОМАНДА v0.12.0 - Динамические команды квестов (quest_what_is_dex, quest_what_is_staking и т.д.)
+    quest_ids = list(DAILY_QUESTS.keys())
+    quest_commands = [f"quest_{qid}" for qid in quest_ids]
+    application.add_handler(CommandHandler(quest_commands, quest_command))
+    
     # Динамические команды для запуска курсов (start_blockchain_basics, start_defi_contracts, etc.)
     application.add_handler(CommandHandler(["start_blockchain_basics", "start_defi_contracts", "start_scaling_dao"], start_course_command))
     
@@ -2789,6 +4482,19 @@ def main():
     application.add_handler(CommandHandler("clear_cache", clear_cache_command))
     application.add_handler(CommandHandler("broadcast", broadcast_command))
     
+    # НОВЫЕ КОМАНДЫ ДЛЯ ПУБЛИКАЦИИ В КАНАЛ (v0.15.0)
+    application.add_handler(CommandHandler("post_to_channel", post_to_channel_command))
+    application.add_handler(CommandHandler("notify_version", notify_version_command))
+    application.add_handler(CommandHandler("notify_quests", notify_quests_command))
+    application.add_handler(CommandHandler("notify_milestone", notify_milestone_command))
+    
+    # НОВЫЕ КОМАНДЫ ДЛЯ ДРОПОВ И АКТИВНОСТЕЙ (v0.15.0)
+    application.add_handler(CommandHandler("drops", drops_command))
+    application.add_handler(CommandHandler("activities", activities_command))
+    application.add_handler(CommandHandler("trending", trending_command))
+    application.add_handler(CommandHandler("subscribe_drops", subscribe_drops_command))
+    application.add_handler(CommandHandler("my_subscriptions", my_subscriptions_command))
+    
     # Обработчики
     application.add_handler(CallbackQueryHandler(button_callback))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
@@ -2797,8 +4503,9 @@ def main():
     application.add_error_handler(error_handler)
     
     # Фоновые задачи
+    job_queue = application.job_queue
+    
     if ENABLE_AUTO_CACHE_CLEANUP:
-        job_queue = application.job_queue
         # Очистка кэша каждые 6 часов
         job_queue.run_repeating(
             periodic_cache_cleanup,
@@ -2806,6 +4513,9 @@ def main():
             first=10  # Первый запуск через 10 секунд
         )
         logger.info("✅ Автоматическая очистка кэша настроена (каждые 6ч)")
+    
+    # Установка списка команд при запуске бота
+    job_queue.run_once(set_commands_on_start, when=1)  # Запускаем через 1 секунду после старта
     
     # Запуск
     logger.info("🟢 Бот запущен и готов к работе!")

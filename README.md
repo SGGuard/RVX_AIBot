@@ -1,10 +1,11 @@
 # 🤖 RVX AI Crypto News Bot
 
-> **Telegram-бот для анализа криптоновостей с помощью Gemini AI**  
-> Создан специально для быстрого понимания сложных новостей из мира криптовалют
+> **Telegram-бот для анализа криптоновостей и интерактивного обучения**  
+> Версия: v0.7.0 | ИИ анализирует новости И преподает крипто, AI, Web3, трейдинг
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green.svg)](https://fastapi.tiangolo.com)
+[![Telegram](https://img.shields.io/badge/Telegram--Bot-7.0+-blue.svg)](https://python-telegram-bot.org)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
@@ -139,6 +140,11 @@ rvx-bot/
 - `/start` — приветствие и инструкции
 - `/help` — помощь по использованию
 - `/stats` — статистика API (опционально)
+- `/learn` — начать интерактивный курс
+- `/teach <topic> [level]` — **НОВОЕ в v0.7.0** - интерактивный учитель по крипто, AI, Web3, трейдингу
+  - Темы: `crypto_basics`, `trading`, `web3`, `ai`, `defi`, `nft`, `security`, `tokenomics`
+  - Уровни: `beginner` 🌱, `intermediate` 📚, `advanced` 🚀, `expert` 💎
+  - Примеры: `/teach crypto_basics`, `/teach trading intermediate`, `/teach defi advanced`
 
 ---
 
