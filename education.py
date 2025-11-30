@@ -678,12 +678,14 @@ def build_user_context_prompt(cursor, user_id: int, base_prompt: str) -> str:
         row = cursor.fetchone()
         knowledge_level = row[0] if row else "beginner"
         
-        # Получаем прогресс пользователя по курсам
+        # Получаем прогресс пользователя по курсам (через JOIN)
         cursor.execute("""
-            SELECT course_name, COUNT(*) as completed_lessons
-            FROM user_progress 
-            WHERE user_id = ? AND completed = 1
-            GROUP BY course_name
+            SELECT c.name, COUNT(DISTINCT l.id) as completed_lessons
+            FROM user_progress up
+            JOIN lessons l ON up.lesson_id = l.id
+            JOIN courses c ON l.course_id = c.id
+            WHERE up.user_id = ? AND (up.completed_at IS NOT NULL OR up.quiz_score > 0)
+            GROUP BY c.name
         """, (user_id,))
         
         course_progress = cursor.fetchall()
@@ -733,10 +735,15 @@ def get_user_course_summary(cursor, user_id: int) -> str:
         summary_parts = []
         
         for course_name, course_data in COURSES_DATA.items():
+            # Подсчитываем завершенные уроки в этом курсе
+            # (у которых есть quiz_score или completed_at)
             cursor.execute("""
-                SELECT COUNT(*) as completed
-                FROM user_progress 
-                WHERE user_id = ? AND course_name = ? AND completed = 1
+                SELECT COUNT(DISTINCT l.id) as completed
+                FROM user_progress up
+                JOIN lessons l ON up.lesson_id = l.id
+                JOIN courses c ON l.course_id = c.id
+                WHERE up.user_id = ? AND c.name = ? 
+                  AND (up.completed_at IS NOT NULL OR up.quiz_score > 0)
             """, (user_id, course_name))
             
             row = cursor.fetchone()

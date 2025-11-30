@@ -728,19 +728,20 @@ async def explain_news(payload: NewsPayload):
         )
     
     except APIError as e:
-        logger.error(f"❌ Gemini API Error (код {e.status_code}): {e.message}")
+        logger.error(f"❌ Gemini API Error: {str(e)}")
         request_counter["errors"] += 1
         
-        if e.status_code == 429:  # Rate limit
-            detail = "🚦 Превышен лимит запросов к AI. Попробуйте через минуту."
-        elif e.status_code >= 500:
-            detail = "🔧 Сервис AI временно недоступен."
-        else:
-            detail = "⚠️ Ошибка при обращении к AI."
+        # Gemini APIError может не иметь status_code, поэтому обрабатываем обобщенно
+        detail = "🔧 Сервис AI временно недоступен. Используется режим fallback."
         
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=detail
+        # Возвращаем fallback анализ вместо ошибки
+        request_counter["fallback"] += 1
+        duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
+        
+        return SimplifiedResponse(
+            simplified_text=fallback_analysis(news_text),
+            cached=False,
+            processing_time_ms=round(duration_ms, 2)
         )
     
     except ValueError as e:
@@ -803,12 +804,12 @@ if __name__ == "__main__":
     import uvicorn
     
     port = int(os.getenv("PORT", "8000"))
-    logger.info(f"🚀 Запуск development сервера на порту {port}")
+    logger.info(f"🚀 Запуск сервера на порту {port}")
     
     uvicorn.run(
         "api_server:app",
         host="0.0.0.0",
         port=port,
-        reload=True,
+        reload=False,
         log_level="info"
     )
