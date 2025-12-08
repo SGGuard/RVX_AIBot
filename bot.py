@@ -307,6 +307,104 @@ async def send_html_message(
         )
 
 
+async def send_educational_message(
+    update: Update,
+    topic: str,
+    explanation: str,
+    tips: Optional[List[str]] = None,
+    example: Optional[str] = None
+) -> None:
+    """
+    Отправляет обучающее сообщение с объяснением, советами и примерами.
+    
+    Args:
+        update: Telegram Update объект
+        topic: Тема сообщения (заголовок)
+        explanation: Основное объяснение
+        tips: Список советов/ключевых моментов
+        example: Практический пример
+        
+    Returns:
+        None
+    """
+    message = f"<b>📚 {topic}</b>\n\n"
+    message += f"{explanation}\n"
+    
+    if tips:
+        message += "\n<b>💡 Ключевые моменты:</b>\n"
+        for i, tip in enumerate(tips, 1):
+            message += f"  {i}. {tip}\n"
+    
+    if example:
+        message += f"\n<b>📝 Пример:</b>\n<code>{example}</code>"
+    
+    await send_html_message(update, message)
+
+
+async def send_error_with_tips(
+    update: Update,
+    error: str,
+    tips: Optional[List[str]] = None,
+    command_help: Optional[str] = None
+) -> None:
+    """
+    Отправляет сообщение об ошибке с полезными советами.
+    
+    Args:
+        update: Telegram Update объект
+        error: Описание ошибки
+        tips: Список советов как исправить
+        command_help: Пример правильного использования команды
+        
+    Returns:
+        None
+    """
+    message = f"❌ <b>Ошибка:</b> {error}\n"
+    
+    if tips:
+        message += "\n<b>🔧 Как исправить:</b>\n"
+        for i, tip in enumerate(tips, 1):
+            message += f"  {i}. {tip}\n"
+    
+    if command_help:
+        message += f"\n<b>📖 Пример:</b>\n<code>{command_help}</code>"
+    
+    message += "\n\n💬 <i>Если нужна помощь, используй /help</i>"
+    
+    await send_html_message(update, message)
+
+
+async def send_success_with_next_steps(
+    update: Update,
+    success_message: str,
+    next_steps: Optional[List[str]] = None,
+    action_tip: Optional[str] = None
+) -> None:
+    """
+    Отправляет сообщение об успехе с советами что дальше.
+    
+    Args:
+        update: Telegram Update объект
+        success_message: Основное сообщение об успехе
+        next_steps: Список рекомендуемых действий
+        action_tip: Совет для дальнейшего обучения
+        
+    Returns:
+        None
+    """
+    message = f"✅ <b>Готово!</b> {success_message}\n"
+    
+    if next_steps:
+        message += "\n<b>🚀 Что дальше:</b>\n"
+        for i, step in enumerate(next_steps, 1):
+            message += f"  {i}. {step}\n"
+    
+    if action_tip:
+        message += f"\n<b>💭 Полезно знать:</b>\n{action_tip}"
+    
+    await send_html_message(update, message)
+
+
 # =============================================================================
 
 # БАЗА ДАННЫХ
@@ -2285,14 +2383,31 @@ async def quest_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     # Получаем quest_id из команды
     # Например: /quest_what_is_dex → quest_id = "what_is_dex"
     if not context.args or len(context.args) == 0:
-        await update.message.reply_text("❌ Укажи ID квеста", parse_mode=ParseMode.HTML)
+        await send_error_with_tips(
+            update,
+            "Не указан ID квеста",
+            tips=[
+                "Используй одну из команд: /quest_what_is_dex, /quest_what_is_staking и т.д.",
+                "Или перейди в меню /tasks для выбора квеста"
+            ],
+            command_help="/quest_what_is_dex"
+        )
         return
     
     quest_id = "_".join(context.args)  # На случай, если ID содержит подчеркивания
     
     # Проверяем, существует ли такой квест
     if quest_id not in DAILY_QUESTS:
-        await update.message.reply_text(f"❌ Квест '{quest_id}' не найден", parse_mode=ParseMode.HTML)
+        available_quests = ", ".join(list(DAILY_QUESTS.keys())[:5])
+        await send_error_with_tips(
+            update,
+            f"Квест '{quest_id}' не найден",
+            tips=[
+                f"Доступные квесты: {available_quests}",
+                "Используй /tasks для просмотра всех квестов"
+            ],
+            command_help="/quest_what_is_dex"
+        )
         return
     
     # Запускаем квест
@@ -2710,7 +2825,12 @@ async def bookmarks_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             [InlineKeyboardButton("« Назад в меню", callback_data="back_to_start")]
         ]
         text = "📌 <b>Твои закладки пусты</b>\n\n" \
-               "💡 Совет: Нажимай кнопку 📌 на любом анализе, чтобы сохранить его в закладки!"
+               "💡 <b>Как использовать закладки:</b>\n" \
+               "  1️⃣ Отправь текст новости или вопроса\n" \
+               "  2️⃣ Получи анализ от ИИ\n" \
+               "  3️⃣ Нажми кнопку 📌 чтобы сохранить\n" \
+               "  4️⃣ Вернись сюда позже через /bookmarks\n\n" \
+               "📚 <i>Закладки помогают отслеживать интересные анализы и материалы для обучения!</i>"
     else:
         # Группируем по типам
         bookmark_types = {
@@ -3312,9 +3432,17 @@ async def limits_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         f"  • Осталось: <b>{remaining}</b> запросов\n"
         f"  • Сброс: <b>{reset_str}</b>\n\n"
         f"<b>⏱️ FLOOD CONTROL:</b>\n"
-        f"  • Минимум: <b>{FLOOD_COOLDOWN_SECONDS}с</b> между запросами\n\n"
+        f"  • Минимум: <b>{FLOOD_COOLDOWN_SECONDS}с</b> между запросами\n"
+        f"  • Защищает сервер от перегрузки\n\n"
         f"<b>📏 ОГРАНИЧЕНИЯ ТЕКСТА:</b>\n"
-        f"  • Максимум: <b>{MAX_INPUT_LENGTH}</b> символов\n\n"
+        f"  • Максимум: <b>{MAX_INPUT_LENGTH}</b> символов\n"
+        f"  • Оптимально: 100-500 символов для анализа\n\n"
+        f"<b>💡 СОВЕТЫ:</b>\n"
+        f"  • Используй лимиты эффективно - анализируй самые интересные материалы\n"
+        f"  • Изучай /learn курсы - они не требуют запросов\n"
+        f"  • Задавай конкретные вопросы - получишь лучше ответы\n"
+        f"  • Проверь /teach для интерактивных уроков\n\n"
+        f"📈 <i>Уровень прокачки даёт больше лимитов!</i>"
     )
     
     if not can_request:
