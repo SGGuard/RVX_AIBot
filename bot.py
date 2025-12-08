@@ -1730,6 +1730,95 @@ def format_list_items(items: List[str], numbered: bool = False) -> str:
             formatted += f"\n• {item}"
     return formatted
 
+def split_long_message(message: str, max_length: int = 3500) -> List[str]:
+    """
+    Разбивает длинное сообщение на части для отправки в Telegram.
+    
+    Telegram имеет лимит ~4096 символов на сообщение.
+    Используем безопасный лимит 3500 символов с запасом.
+    
+    Разбиение происходит по абзацам (символ новой строки '\n'),
+    чтобы сохранить целостность форматирования.
+    
+    Args:
+        message: Текст сообщения для разбиения
+        max_length: Максимальная длина одной части (по умолчанию 3500)
+        
+    Returns:
+        List[str]: Список частей сообщения
+        
+    Example:
+        >>> text = "Часть 1\\n" * 200  # Очень длинный текст
+        >>> parts = split_long_message(text)
+        >>> len(parts) > 1
+        True
+        >>> all(len(part) <= 3500 for part in parts)
+        True
+    """
+    # Если сообщение короткое, возвращаем как есть
+    if len(message) <= max_length:
+        return [message]
+    
+    # Разбиваем на части по абзацам
+    paragraphs = message.split('\n')
+    parts = []
+    current_part = ""
+    
+    for paragraph in paragraphs:
+        # Проверяем, поместится ли параграф в текущую часть
+        # +1 для символа новой строки
+        if len(current_part) + len(paragraph) + 1 > max_length:
+            # Если текущая часть не пустая, сохраняем её
+            if current_part.strip():
+                parts.append(current_part.strip())
+            
+            # Если один параграф длиннее max_length, разбиваем его
+            if len(paragraph) > max_length:
+                # Сначала пробуем разбить по предложениям
+                sentences = paragraph.split('. ')
+                temp_part = ""
+                
+                for sentence in sentences:
+                    # Если даже одно предложение длиннее max_length, разбиваем по символам
+                    if len(sentence) > max_length:
+                        # Добавляем накопленную часть
+                        if temp_part.strip():
+                            parts.append(temp_part.strip())
+                            temp_part = ""
+                        
+                        # Разбиваем длинное предложение на части по max_length
+                        for i in range(0, len(sentence), max_length):
+                            chunk = sentence[i:i+max_length]
+                            if chunk.strip():
+                                parts.append(chunk.strip())
+                    else:
+                        # Предложение нормальной длины
+                        if len(temp_part) + len(sentence) + 2 > max_length:
+                            if temp_part.strip():
+                                parts.append(temp_part.strip())
+                            temp_part = sentence + '. '
+                        else:
+                            if temp_part:
+                                temp_part += sentence + '. '
+                            else:
+                                temp_part = sentence + '. '
+                
+                current_part = temp_part
+            else:
+                current_part = paragraph
+        else:
+            # Добавляем параграф к текущей части
+            if current_part:
+                current_part += "\n" + paragraph
+            else:
+                current_part = paragraph
+    
+    # Добавляем последнюю часть
+    if current_part.strip():
+        parts.append(current_part.strip())
+    
+    return parts
+
 def format_lesson_for_telegram(lesson_content: str, course_title: str, lesson_num: int, 
                                course_level: str, completed: int, total: int) -> Tuple[str, str]:
     """
@@ -7826,38 +7915,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             
             if ai_response:
                 # Telegram имеет лимит на длину сообщения (~4096 символов)
-                # Разбиваем длинные ответы на части
-                MAX_MESSAGE_LENGTH = 3500  # Безопасный лимит с запасом
+                # Разбиваем длинные ответы на части используя утилиту
+                message_parts = split_long_message(ai_response, max_length=3500)
                 
-                if len(ai_response) > MAX_MESSAGE_LENGTH:
-                    # Разбиваем на части по абзацам
-                    paragraphs = ai_response.split('\n')
-                    current_message = ""
-                    
-                    for para in paragraphs:
-                        if len(current_message) + len(para) + 1 > MAX_MESSAGE_LENGTH:
-                            # Отправляем текущее сообщение
-                            if current_message.strip():
-                                await update.message.reply_text(
-                                    current_message.strip(),
-                                    parse_mode=ParseMode.HTML
-                                )
-                            current_message = para
-                        else:
-                            if current_message:
-                                current_message += "\n" + para
-                            else:
-                                current_message = para
-                    
-                    # Отправляем последнее сообщение
-                    if current_message.strip():
-                        await update.message.reply_text(
-                            current_message.strip(),
-                            parse_mode=ParseMode.HTML
-                        )
-                else:
-                    # Короткий ответ - отправляем как есть
-                    await update.message.reply_text(ai_response, parse_mode=ParseMode.HTML)
+                # Отправляем каждую часть отдельным сообщением
+                for part in message_parts:
+                    await update.message.reply_text(
+                        part,
+                        parse_mode=ParseMode.HTML
+                    )
+                
+                # Логируем количество частей для мониторинга
+                if len(message_parts) > 1:
+                    logger.info(f"📨 Длинный ответ разбит на {len(message_parts)} частей ({len(ai_response)} символов)")
                 
                 # Сохраняем ответ в историю диалога
                 save_conversation(user.id, "bot", ai_response, intent)
