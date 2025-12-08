@@ -2816,7 +2816,8 @@ async def send_smart_feedback_message(
         if tips:
             message_text = tips
     
-    if message_text:
+    # Не отправляем бесполезные сообщения
+    if message_text and message_text.strip():
         try:
             if update.callback_query:
                 await update.callback_query.answer(message_text, show_alert=False)
