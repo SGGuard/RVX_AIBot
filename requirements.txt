@@ -14,6 +14,15 @@ python-telegram-bot[job-queue]==21.9
 # Google Gemini AI
 google-genai==1.52.0
 
+# Groq AI (PRIMARY)
+groq==0.9.0
+
+# Mistral AI (FALLBACK 1)
+mistralai==0.4.2
+
+# DeepSeek AI (OpenAI compatible)
+openai==1.52.0
+
 # HTTP & Networking
 httpx==0.28.1
 aiohttp==3.11.10

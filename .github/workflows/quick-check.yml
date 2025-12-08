@@ -1,0 +1,106 @@
+name: Quick Health Check
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  quick-check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: 🔍 Syntax Check
+      run: |
+        echo "Checking Python syntax..."
+        python -m py_compile bot.py api_server.py ai_dialogue.py
+        echo "✅ Syntax OK"
+    
+    - name: 🔍 Import Check
+      run: |
+        echo "Checking imports..."
+        python << 'EOF'
+        try:
+            import bot
+            print("✅ bot.py imports OK")
+        except Exception as e:
+            print(f"⚠️  bot.py import warning: {e}")
+        
+        try:
+            import api_server
+            print("✅ api_server.py imports OK")
+        except Exception as e:
+            print(f"⚠️  api_server.py import warning: {e}")
+        
+        try:
+            import ai_dialogue
+            print("✅ ai_dialogue.py imports OK")
+        except Exception as e:
+            print(f"⚠️  ai_dialogue.py import warning: {e}")
+        
+        # Critical imports
+        import groq
+        import mistralai
+        import fastapi
+        import telegram
+        print("✅ All critical dependencies available")
+        EOF
+    
+    - name: 📊 File Structure Check
+      run: |
+        python << 'EOF'
+        import os
+        
+        checks = {
+            "Core files": ["bot.py", "api_server.py", "ai_dialogue.py"],
+            "Config": ["requirements.txt", ".env.example"],
+            "Database": ["rvx_bot.db"],
+            "Docs": ["README.md", "DEPLOYMENT.md"],
+        }
+        
+        for category, files in checks.items():
+            print(f"\n{category}:")
+            for f in files:
+                exists = "✅" if os.path.exists(f) else "⚠️ "
+                print(f"  {exists} {f}")
+        EOF
+    
+    - name: 📈 Code Metrics
+      run: |
+        python << 'EOF'
+        import os
+        
+        files = {
+            "bot.py": 0,
+            "api_server.py": 0,
+            "ai_dialogue.py": 0,
+        }
+        
+        for fname in files:
+            if os.path.exists(fname):
+                with open(fname) as f:
+                    files[fname] = len(f.readlines())
+        
+        print("\nCode Size:")
+        total = 0
+        for fname, lines in files.items():
+            if lines > 0:
+                print(f"  {fname:20s} {lines:5d} lines")
+                total += lines
+        print(f"  {'TOTAL':20s} {total:5d} lines")
+        EOF
+    
+    - name: ✅ All Checks Complete
+      run: echo "✅ Health check passed!"

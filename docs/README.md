@@ -1,12 +1,7 @@
-# 🤖 RVX AI Crypto News Bot
+# 📚 RVX Backend - Documentation Hub
 
-> **Telegram-бот для анализа криптоновостей и интерактивного обучения**  
-> Версия: v0.18.0 | ИИ анализирует новости, преподает крипто, Web3, трейдинг, + закладки & рейтинги
-
-[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green.svg)](https://fastapi.tiangolo.com)
-[![Telegram](https://img.shields.io/badge/Telegram--Bot-7.0+-blue.svg)](https://python-telegram-bot.org)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+**Last Updated:** 8 декабря 2025  
+**Current Version:** v0.25.1
 
 ---
 
@@ -302,7 +297,8 @@ Contributions are welcome! Пожалуйста:
 - Telegram: [@RVX_AIBot](https://t.me/RVX_AIBot))
 - GitHub: [@SGGuard](https://github.com/SGGuard))
 =======
-- Telegram: [@SV4096](https://t.me/SV4096)
+- Telegram: [@your_username](https://t.me/your_username)
+- GitHub: [@your_github](https://github.com/your_github)
 >>>>>>> 0f7d810 (feat: Обновление API до v0.5.0, добавление тестов и кэширования)
 
 ---

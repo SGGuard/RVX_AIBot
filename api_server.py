@@ -4,18 +4,22 @@ import json
 import re
 import hashlib
 import asyncio
-from typing import Optional, Any, Dict
+import base64
+from typing import Optional, Any, Dict, List
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, Request, status, Query
 from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, validator
 from dotenv import load_dotenv
 from starlette.concurrency import run_in_threadpool
 from tenacity import retry, stop_after_attempt, wait_exponential, RetryError
+import httpx
 
+# DeepSeek AI (OpenAI compatible) + Google Gemini
+from openai import OpenAI, AsyncOpenAI
 from google import genai
 from google.genai.errors import APIError
 
@@ -37,7 +41,13 @@ logger = logging.getLogger("RVX_API")
 
 load_dotenv()
 
-# Конфигурация
+# DeepSeek конфигурация (основной AI провайдер)
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+DEEPSEEK_TEMPERATURE = float(os.getenv("DEEPSEEK_TEMPERATURE", "0.3"))
+DEEPSEEK_MAX_TOKENS = int(os.getenv("DEEPSEEK_MAX_TOKENS", "1500"))
+
+# Gemini конфигурация (резервный провайдер)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 MAX_TEXT_LENGTH = int(os.getenv("MAX_TEXT_LENGTH", "4096"))
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "models/gemini-2.5-flash")
@@ -54,7 +64,8 @@ CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "3600"))  # 1 час по
 CACHE_CLEANUP_INTERVAL = int(os.getenv("CACHE_CLEANUP_INTERVAL", "300"))  # 5 минут
 
 # Глобальные переменные
-client: Optional[genai.Client] = None
+deepseek_client: Optional[OpenAI] = None  # DeepSeek API (основной)
+client: Optional[genai.Client] = None  # Gemini API (резервный)
 request_counter = {"total": 0, "success": 0, "errors": 0, "fallback": 0, "rate_limited": 0}
 response_cache: Dict[str, Dict] = {}  # Простой in-memory кэш
 ip_request_history: Dict[str, list] = {}  # Для rate limiting по IP
@@ -75,7 +86,7 @@ class NewsPayload(BaseModel):
 
 class TeachingPayload(BaseModel):
     """Входные данные для создания урока."""
-    topic: str = Field(..., min_length=3, max_length=100)
+    topic: str = Field(..., min_length=2, max_length=100)
     difficulty_level: str = Field(default="beginner")
     
     @validator('topic')
@@ -155,6 +166,48 @@ class TokenInfoResponse(BaseModel):
     ath: float
     atl: float
     timestamp: str = ""
+
+class LeaderboardUserEntry(BaseModel):
+    """Запись о пользователе в рейтинге."""
+    rank: int
+    user_id: int
+    username: Optional[str]
+    xp: int
+    level: int
+    total_requests: int
+
+class UserRankEntry(BaseModel):
+    """Позиция текущего пользователя."""
+    rank: Optional[int] = None
+    xp: int = 0
+    level: int = 1
+    total_requests: int = 0
+    is_in_top: bool = False
+
+class LeaderboardResponse(BaseModel):
+    """Ответ с таблицей лидеров."""
+    period: str
+    top_users: List[LeaderboardUserEntry] = Field(default_factory=list)
+    user_rank: Optional[UserRankEntry] = None
+    total_users: int = 0
+    cached: bool = False
+    timestamp: str = ""
+
+class ImagePayload(BaseModel):
+    """Входные данные для анализа изображения."""
+    image_url: Optional[str] = Field(None, description="URL изображения")
+    image_base64: Optional[str] = Field(None, description="Изображение в формате base64")
+    context: Optional[str] = Field(None, description="Дополнительный контекст", max_length=500)
+
+class ImageAnalysisResponse(BaseModel):
+    """Ответ API с анализом изображения."""
+    analysis: str
+    asset_type: Optional[str] = None  # "chart", "screenshot", "meme", "other"
+    confidence: Optional[float] = None  # 0-1
+    mentioned_assets: List[str] = Field(default_factory=list)
+    simplified_text: str  # для совместимости с ботом
+    cached: bool = False
+    processing_time_ms: Optional[float] = None
 
 # =============================================================================
 # RATE LIMITING
@@ -251,56 +304,184 @@ def clean_text(text: str) -> str:
     return text.strip()
 
 def extract_json_from_response(raw_text: str) -> Optional[dict]:
-    """Извлекает JSON из ответа AI с множественными стратегиями."""
+    """
+    Извлекает JSON из ответа AI с множественными стратегиями.
+    ИСПРАВЛЕНИЕ ПРОБЛЕМЫ #1: Более надежный парсинг с лучшей очисткой текста.
+    ИСПРАВЛЕНИЕ #4: Правильная обработка вложенных объектов JSON в XML тегах.
+    """
     if not raw_text:
         return None
     
-    # Стратегия 1: Удаляем markdown блоки
-    text = re.sub(r'```json\s*', '', raw_text, flags=re.IGNORECASE).strip()
+    logger.debug(f"🔍 Начало парсинга JSON. Длина входа: {len(raw_text)} символов")
+    
+    original_text = raw_text
+    text = raw_text
+    
+    # Стратегия 0: Удаляем markdown блоки и escape символы
+    text = re.sub(r'```json\s*', '', text, flags=re.IGNORECASE).strip()
     text = re.sub(r'```\s*', '', text).strip()
+    text = text.replace('\\n', '\n').replace('\\t', '\t')  # Раскрываем escape
     
-    # Стратегия 2: XML теги <json>...</json>
-    xml_match = re.search(r'<json>(.*?)</json>', text, re.DOTALL | re.IGNORECASE)
-    if xml_match:
-        text_to_parse = xml_match.group(1).strip()
-    else:
-        # Стратегия 3: Ищем первый валидный JSON блок
-        brace_match = re.search(r'\{.*\}', text, re.DOTALL)
-        if brace_match:
-            text_to_parse = brace_match.group(0)
-        else:
-            logger.warning(f"JSON не найден. Начало ответа: {raw_text[:100]}...")
-            return None
-    
-    # НОВОЕ: Очищаем от звёздочек и маркеров внутри JSON
-    # Это нужно для некорректно работающих моделей
-    # Но будьте осторожны - не удаляйте подчеркивания из field names!
-    text_to_parse = text_to_parse.replace("**", "")  # Жирный текст
-    text_to_parse = text_to_parse.replace("__", "")  # Подчеркивание  
-    text_to_parse = text_to_parse.replace("~~", "")  # Зачеркивание
-    # Удаляем только markdown-стиль подчеркивания (слово_слово_), но не в JSON ключах
-    # Для этого ищем и заменяем только одиночные подчеркивания в контексте текста
-    # В JSON, подчеркивания используются в ключах, поэтому мы их НЕ трогаем
-    
-    # Парсинг с обработкой ошибок
-    try:
-        data = json.loads(text_to_parse)
-        return data if isinstance(data, dict) else None
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON decode error на строке {e.lineno}, колонке {e.colno}")
-        logger.debug(f"Проблемный текст: {text_to_parse[:300]}")
+    # ИСПРАВЛЕНИЕ #4: Стратегия 1 - XML теги с правильным парсингом вложенных скобок
+    xml_start = text.find('<json>')
+    if xml_start != -1:
+        logger.debug("✅ Найдены XML теги <json>...")
+        # Находим содержимое между <json> и </json> с учетом вложенных скобок
+        search_start = xml_start + 6  # Длина '<json>'
+        brace_count = 0
+        in_string = False
+        escape_next = False
+        json_end = -1
         
-        # Попытка исправить распространённые ошибки JSON
-        # Заменяем одиночные кавычки на двойные
-        cleaned = text_to_parse.replace("'", '"')
+        for i in range(search_start, len(text)):
+            char = text[i]
+            
+            # Обработка escape
+            if escape_next:
+                escape_next = False
+                continue
+            
+            if char == '\\':
+                escape_next = True
+                continue
+            
+            # Обработка строк
+            if char == '"':
+                in_string = not in_string
+            
+            # Считаем скобки вне строк
+            if not in_string:
+                if char == '{':
+                    brace_count += 1
+                elif char == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        json_end = i + 1
+                        break
+        
+        if json_end != -1:
+            text_to_parse = text[search_start:json_end].strip()
+            if text_to_parse and text_to_parse.startswith('{'):
+                logger.debug(f"XML: Извлечен JSON из XML тегов ({len(text_to_parse)} символов)")
+                candidates = [("xml_tags", text_to_parse)]
+                
+                # Пробуем парсить сразу - это приоритетная стратегия
+                cleaned = text_to_parse.strip()
+                # ВНИМАНИЕ: НЕ удаляем подчеркивания! Они могут быть частью JSON ключей
+                # cleaned = re.sub(r'\*\*(.+?)\*\*', r'\1', cleaned)  # ← УБИРАЮТ JSON ключи!
+                # cleaned = re.sub(r'~~(.+?)~~', r'\1', cleaned)
+                # cleaned = re.sub(r'\*(.+?)\*', r'\1', cleaned)
+                # cleaned = re.sub(r'_(.+?)_', r'\1', cleaned)
+                
+                try:
+                    data = json.loads(cleaned)
+                    if isinstance(data, dict) and len(data) > 0:
+                        logger.info(f"✅ JSON успешно распарсен (xml_tags)")
+                        return data
+                except json.JSONDecodeError as e:
+                    logger.debug(f"  ❌ XML JSON парсинг не сработал: {e.msg}")
+    
+    # ЕСЛИ XML не сработала, пробуем другие стратегии
+    candidates = []
+    
+    # Стратегия 2: Markdown блоки ```json...```
+    md_match = re.search(r'```(?:json)?\s*(.*?)\s*```', text, re.DOTALL | re.IGNORECASE)
+    if md_match:
+        logger.debug("✅ Найдены markdown блоки ```json...")
+        text_to_parse = md_match.group(1).strip()
+        candidates.append(("markdown_json", text_to_parse))
+    
+    # Стратегия 3: Ищем ПЕРВЫЙ валидный JSON блок методом поиска скобок
+    first_brace = text.find('{')
+    if first_brace != -1:
+        brace_count = 0
+        in_string = False
+        escape_next = False
+        end_pos = -1
+        
+        for i in range(first_brace, len(text)):
+            char = text[i]
+            
+            # Обработка escape
+            if escape_next:
+                escape_next = False
+                continue
+            
+            if char == '\\':
+                escape_next = True
+                continue
+            
+            # Обработка строк
+            if char == '"':
+                in_string = not in_string
+            
+            # Не считаем скобки внутри строк
+            if not in_string:
+                if char == '{':
+                    brace_count += 1
+                elif char == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        end_pos = i + 1
+                        break
+        
+        if end_pos != -1:
+            potential_json = text[first_brace:end_pos]
+            logger.debug(f"Найден JSON от первой скобки (длина: {len(potential_json)})")
+            candidates.append(("brace_matching", potential_json))
+    
+    if not candidates:
+        logger.warning(f"❌ JSON не найден вообще. Начало ответа: {original_text[:200]}...")
+        return None
+    
+    # Пробуем парсить каждого кандидата
+    for strategy_name, text_to_parse in candidates:
+        logger.debug(f"🔄 Попытка парсинга стратегией: {strategy_name}")
+        
+        # Очищаем от markdown маркеров
+        cleaned = text_to_parse.strip()
+        
+        # ИСПРАВЛЕНИЕ: Заменяем переводы строк на пробелы
+        # (Gemini часто разбивает длинные строки JSON на несколько строк)
+        cleaned = cleaned.replace('\n', ' ').replace('\r', '')
+        
+        # Удаляем множественные пробелы
+        cleaned = re.sub(r' +', ' ', cleaned)
+        
+        # Попытка 1: Парсим как есть (БЕЗ удаления markdown - это ломает JSON!)
         try:
             data = json.loads(cleaned)
-            logger.info("✅ JSON успешно распарсен после очистки кавычек")
-            return data if isinstance(data, dict) else None
+            if isinstance(data, dict) and len(data) > 0:
+                logger.info(f"✅ JSON успешно распарсен ({strategy_name})")
+                return data
+        except json.JSONDecodeError as e:
+            logger.debug(f"  ❌ Стандартный парсинг не сработал: строка {e.lineno}, колонка {e.colno}: {e.msg}")
+        
+        # Попытка 2: Замена одиночных кавычек на двойные (для Python dict синтаксиса)
+        try:
+            cleaned_quotes = cleaned.replace("'", '"')
+            data = json.loads(cleaned_quotes)
+            if isinstance(data, dict):
+                logger.info(f"✅ JSON распарсен после замены кавычек ({strategy_name})")
+                return data
         except json.JSONDecodeError:
-            logger.error("❌ Не удалось распарсить JSON даже после очистки")
-            logger.debug(f"Очищенный текст: {cleaned[:400]}")
-            return None
+            logger.debug(f"  ❌ Замена кавычек не помогла")
+        
+        # Попытка 3: Удаляем одиночные подчеркивания в значениях
+        try:
+            # Более осторожная замена: только в строках после двоеточия
+            cleaned_underscores = re.sub(r':\s*"([^"]*?)_([^"]*?)"', r': "\1\2"', cleaned)
+            data = json.loads(cleaned_underscores)
+            if isinstance(data, dict):
+                logger.info(f"✅ JSON распарсен после удаления подчеркиваний ({strategy_name})")
+                return data
+        except json.JSONDecodeError:
+            logger.debug(f"  ❌ Удаление подчеркиваний не помогло")
+    
+    logger.error("❌ Не удалось распарсить JSON ни одной стратегией")
+    if candidates:
+        logger.error(f"Первый кандидат (первые 300 символов): {candidates[0][1][:300]}")
+    return None
 
 def extract_teaching_json(raw_text: str) -> Optional[dict]:
     """Извлекает JSON урока из ответа AI с множественными стратегиями."""
@@ -354,72 +535,58 @@ def extract_teaching_json(raw_text: str) -> Optional[dict]:
         return None
 
 def validate_analysis(data: Any) -> tuple[bool, Optional[str]]:
-    """Валидация структуры и качества ответа AI с поддержкой новых образовательных полей."""
+    """Валидация структуры ответа AI - summary_text и impact_points ОБЯЗАТЕЛЬНЫ."""
     if not isinstance(data, dict):
+        logger.error(f"❌ Валидация: Ответ не является словарем")
         return False, "Ответ не является словарем"
     
-    # Проверка обязательных полей
+    # ТОЛЬКО эти 2 поля обязательны
     required_fields = ["summary_text", "impact_points"]
     for field in required_fields:
         if field not in data:
+            logger.error(f"❌ Валидация: Отсутствует обязательное поле '{field}'")
             return False, f"Отсутствует обязательное поле: {field}"
     
     # Валидация summary_text
     summary = data["summary_text"]
-    if not isinstance(summary, str):
-        return False, "summary_text должен быть строкой"
-    if len(summary.strip()) < 20:
-        return False, f"summary_text слишком короткий ({len(summary)} символов)"
-    if len(summary) > 1000:
-        return False, "summary_text слишком длинный"
+    if not isinstance(summary, str) or len(summary.strip()) < 20 or len(summary) > 1000:
+        logger.error(f"❌ Валидация: summary_text невалиден")
+        return False, "summary_text невалиден"
+    
+    logger.debug(f"✅ summary_text валиден ({len(summary)} символов)")
     
     # Валидация impact_points
     points = data["impact_points"]
-    if not isinstance(points, list):
-        return False, "impact_points должен быть списком"
-    if len(points) < 2:
-        return False, f"Минимум 2 impact_points требуется (получено {len(points)})"
-    if len(points) > 10:
-        return False, "Слишком много impact_points (максимум 10)"
+    if not isinstance(points, list) or len(points) < 2 or len(points) > 10:
+        logger.error(f"❌ Валидация: impact_points невалиден (нужно 2-10 пунктов)")
+        return False, "impact_points невалиден"
     
-    # Проверка каждого пункта
     for i, point in enumerate(points):
-        if not isinstance(point, str):
-            return False, f"impact_points[{i}] должен быть строкой"
-        if len(point.strip()) < 10:
-            return False, f"impact_points[{i}] слишком короткий"
-        if len(point) > 500:
-            return False, f"impact_points[{i}] слишком длинный"
+        if not isinstance(point, str) or len(point.strip()) < 10 or len(point) > 500:
+            logger.error(f"❌ Валидация: impact_points[{i}] невалиден")
+            return False, f"impact_points[{i}] невалиден"
     
-    # Валидация образовательных полей (опциональные, но желаемые)
-    if "learning_question" in data:
-        question = data["learning_question"]
-        if isinstance(question, str):
-            if len(question.strip()) < 10 or len(question) > 500:
-                data["learning_question"] = None  # Игнорируем невалидные вопросы
+    logger.debug(f"✅ impact_points валидны ({len(points)} пунктов)")
+    
+    # Валидация ОПЦИОНАЛЬНЫХ полей (если есть - нормализуем)
+    if "action" in data and data["action"]:
+        action = str(data.get("action", "")).strip().upper()
+        if action not in ["BUY", "HOLD", "SELL", "WATCH"]:
+            data["action"] = None  # Удаляем невалидный
+    
+    if "risk_level" in data and data["risk_level"]:
+        risk = str(data.get("risk_level", "")).strip()
+        if risk not in ["Low", "Medium", "High"]:
+            data["risk_level"] = None
+    
+    if "timeframe" in data and data["timeframe"]:
+        tf = str(data.get("timeframe", "")).strip().lower()
+        if tf not in ["day", "week", "month"]:
+            data["timeframe"] = None
         else:
-            data["learning_question"] = None
+            data["timeframe"] = tf
     
-    if "related_topics" in data:
-        topics = data["related_topics"]
-        if isinstance(topics, list):
-            valid_topics = []
-            for t in topics:
-                if isinstance(t, str):
-                    # Очищаем и проверяем каждую тему
-                    clean_t = clean_text(t).strip()
-                    # Отфильтровываем темы, которые выглядят как форматированный текст
-                    # (содержат много эмодзи или выглядят как заголовки)
-                    if (10 < len(clean_t) < 500 and 
-                        not clean_t.startswith("💡") and 
-                        not clean_t.startswith("📚") and
-                        not clean_t.startswith("⛓️") and
-                        ":" not in clean_t[:20]):  # Не начинается с заголовка
-                        valid_topics.append(clean_t)
-            data["related_topics"] = valid_topics[:3]  # Максимум 3 темы
-        else:
-            data["related_topics"] = None
-    
+    logger.debug(f"✅ Валидация успешна!")
     return True, None
 
 def format_response(analysis: dict) -> str:
@@ -449,32 +616,54 @@ def format_response(analysis: dict) -> str:
     result += separator
     return result.strip()
 
-def fallback_analysis(text: str) -> str:
-    """Упрощенный анализ без AI (для аварийных ситуаций)."""
+def fallback_analysis(text: str) -> dict:
+    """Упрощенный анализ без AI (для аварийных ситуаций) - возвращает JSON."""
     keywords = {
-        'bitcoin': '₿', 'btc': '₿', 'ethereum': 'Ξ', 'eth': 'Ξ',
-        'sec': '⚖️', 'регулятор': '⚖️', 'fomo': '🚀',
-        'hack': '🚨', 'взлом': '🚨', 'dump': '📉', 'обвал': '📉',
-        'pump': '📈', 'рост': '📈', 'etf': '💼', 'whale': '🐋'
+        'bitcoin': 'BTC', 'btc': 'BTC', 'ethereum': 'ETH', 'eth': 'ETH',
+        'sec': 'SEC', 'регулятор': 'REG', 'fomo': 'FOMO',
+        'hack': 'HACK', 'взлом': 'HACK', 'dump': 'DUMP', 'обвал': 'DUMP',
+        'pump': 'PUMP', 'рост': 'PUMP', 'etf': 'ETF', 'whale': 'WHALE'
     }
     
     words = text.lower().split()
     summary = text[:250] + "..." if len(text) > 250 else text
     
-    impact = "⚠️ AI временно недоступен. Базовые наблюдения:\n\n"
-    
-    found_keywords = []
-    for word, emoji in keywords.items():
+    # Ищем ключевые слова
+    found_keywords = set()
+    for word, keyword in keywords.items():
         if word in ' '.join(words):
-            found_keywords.append(f"{emoji} Упоминается: {word.upper()}")
+            found_keywords.add(keyword)
     
-    if found_keywords:
-        impact += '\n'.join(found_keywords)
-    else:
-        impact += "📰 Стандартная криптоновость"
+    # Форматируем как JSON ответ
+    impact_points = list(found_keywords) if found_keywords else ["Криптоновость"]
     
-    separator = "━━━━━━━━━━━━━━━━━━"
-    return f"🤖 УПРОЩЕННЫЙ РЕЖИМ\n\n{separator}\n{summary}\n\n{separator}\n{impact}"
+    logger.warning(f"⚠️ Fallback анализ: найдено {len(found_keywords)} ключевых слов")
+    
+    return {
+        "summary_text": f"⚙️ ЭКСПРЕСС-РЕЖИМ (AI недоступен): {summary}",
+        "impact_points": impact_points,
+        "simplified_text": f"AI анализ временно недоступен. Основные активы: {', '.join(impact_points)}"
+    }
+
+def fallback_image_analysis(asset_type: str = "other") -> dict:
+    """Fallback анализ изображения когда AI недоступна."""
+    logger.warning("⚠️ Используется fallback анализ для изображения")
+    request_counter['fallback'] += 1
+    
+    analysis_templates = {
+        "chart": "Видно, что это график/диаграмма. Могу видеть структуру, но точный анализ тренда требует подключения к AI. Для полного анализа технических уровней рекомендуем попробовать позже или использовать специализированные платформы.",
+        "screenshot": "Это скриншот с текстовой информацией. AI анализ недоступен, но видно наличие информационного контента. Отправьте текстовое описание для более точного анализа.",
+        "meme": "Распознан контент юмористического характера, возможно с финансовой тематикой. Полное понимание контекста требует AI обработки.",
+        "other": "Изображение распознано, но AI анализ временно недоступен. Попробуйте отправить текстовое описание или повторите попытку позже."
+    }
+    
+    return {
+        "summary_text": f"⚙️ Экспресс-режим: {asset_type}",
+        "analysis": analysis_templates.get(asset_type, analysis_templates["other"]),
+        "asset_type": asset_type,
+        "confidence": 0.3,
+        "mentioned_assets": []
+    }
 
 def cleanup_expired_cache():
     """Удаляет кэш записи с истёкшим TTL."""
@@ -502,46 +691,43 @@ def cleanup_expired_cache():
         logger.debug(f"🗑️ Удаленаstara запись из-за лимита (осталось: {len(response_cache)})")
 
 def build_gemini_config() -> dict:
-    """Создает оптимизированную конфигурацию для Gemini с поддержкой образовательного контента."""
+    """Создает оптимизированную конфигурацию для Gemini."""
     system_prompt = (
-        "Ты — незаменимый криптоаналитик и наставник RVX, созданный для анализа криптоновостей "
-        "и погружения пользователей в мир Web3 через понятные объяснения.\n\n"
+        "⚠️ КРИТИЧНОЕ ПРАВИЛО: Отвечай ТОЛЬКО JSON в <json></json> тегах. БЕЗ ИСКЛЮЧЕНИЙ.\n\n"
         
-        "ОСНОВНАЯ ЗАДАЧА:\n"
-        "1. Объяснить новость максимально просто для новичков\n"
-        "2. Показать влияние на рынок и практическую применимость\n"
-        "3. Дать образовательный вопрос для углубленного изучения\n"
-        "4. Предложить 2-3 похожих топика для дальнейшего обучения\n\n"
+        "Ты — финансовый аналитик для новостей о криптовалютах, акциях, Web3 и финтехе.\n\n"
         
-        "СТИЛЬ ОБЩЕНИЯ:\n"
-        "- Тон: дружелюбный, как опытный наставник для новичков\n"
-        "- Фокус: практическое применение, не теория\n"
-        "- Целевая аудитория: люди, только начинающие изучать крипто\n"
-        "- Метод: погружение от простого к сложному\n\n"
+        "ОБЯЗАТЕЛЬНЫЕ ПОЛЯ (всегда включай эти):\n"
+        "- summary_text: 2-3 предложения о новости (ОБЯЗАТЕЛЬНО)\n"
+        "- impact_points: массив с 2-4 ключевыми влияниями (ОБЯЗАТЕЛЬНО)\n\n"
         
-        "СТРОГИЕ ПРАВИЛА ОТВЕТА:\n"
-        "1. Отвечай ТОЛЬКО в формате JSON, заключенном в теги <json></json>\n"
-        "2. ЗАПРЕЩЕНО использовать *, **, _, ~, ` (никаких звёздочек и маркеров!)\n"
-        "3. ЗАПРЕЩЕНО использовать эмодзи внутри JSON-полей\n"
-        "4. ЗАПРЕЩЕНО использовать HTML-теги\n"
-        "5. Используй только простой текст в полях JSON\n"
-        "6. Используй только буквы, цифры, пунктуацию и пробелы\n\n"
+        "ОПЦИОНАЛЬНЫЕ ПОЛЯ (если применимо):\n"
+        "- action: BUY, HOLD, SELL, WATCH (для инвестиций)\n"
+        "- risk_level: Low, Medium, High (для инвестиций)\n"
+        "- timeframe: day, week, month (для инвестиций)\n"
+        "- learning_question: вопрос для обучения\n"
+        "- related_topics: массив с 2-3 смежными темами\n\n"
         
-        "СТРУКТУРА ОТВЕТА (4 поля):\n"
-        "- summary_text: 2-3 предложения о сути новости\n"
-        "- impact_points: массив с влияниями\n"
-        "- learning_question: вопрос для углубления\n"
-        "- related_topics: 2-3 смежных темы\n\n"
+        "ПРАВИЛА:\n"
+        "1. Отвечай ТОЛЬКО <json>...</json>\n"
+        "2. Используй простой текст, БЕЗ *, **, _, ~, эмодзи\n"
+        "3. НИКАКОГО текста вне JSON тегов\n"
+        "4. Если не можешь определить action/risk/timeframe - пропусти эти поля\n"
+        "5. summary_text и impact_points ВСЕГДА должны быть\n\n"
         
-        "ПРИМЕР ОТВЕТА:\n"
-        "<json>{\n"
-        '"summary_text": "SEC одобрила биткоин-ETF. Люди могут инвестировать через обычный брокер без криптокошельков.",'
-        '\n"impact_points": ["Капитал: 50-100 млрд в год подтолкнут BTC вверх", "Легитимность: банки одобрили крипто", "Конкуренция: другие ETF последуют"],'
-        '\n"learning_question": "Почему ценность крипто зависит от банков, если создавалась независимо?",'
-        '\n"related_topics": ["Как ETF работают", "История Bitcoin", "Влияние регулирования на цены"]'
-        '\n}</json>\n\n'
+        "ПРИМЕРЫ ОТВЕТОВ:\n"
+        "ПРИМЕР 1 (крипто с рекомендацией):\n"
+        "<json>{\"summary_text\":\"Bitcoin достиг $100000 впервые в истории.\",\"action\":\"BUY\",\"risk_level\":\"Medium\",\"timeframe\":\"week\",\"impact_points\":[\"Рост спроса\",\"Приток капитала\"],\"learning_question\":\"Почему цена растет при одобрении регуляторов?\",\"related_topics\":[\"ETF одобрения\",\"Макроэкономика\"]}</json>\n\n"
         
-        "Проанализируй новость, используя ровно 4 JSON-поля."
+        "ПРИМЕР 2 (акция без четкой рекомендации):\n"
+        "<json>{\"summary_text\":\"Oracle снизилась на 5% из-за опасений об AI конкуренции.\",\"impact_points\":[\"Давление на маржу прибыли\",\"Потенциальная переоценка\"],\"learning_question\":\"Как AI влияет на прибыльность облачных компаний?\",\"related_topics\":[\"AI революция\",\"Облачные вычисления\"]}</json>\n\n"
+        
+        "ЗАПОМНИ:\n"
+        "1. ТОЛЬКО JSON между <json> и </json>\n"
+        "2. summary_text И impact_points НИКОГДА не пропускай\n"
+        "3. Остальные поля добавляй только если есть смысл\n"
+        "4. Если нет четкого action - не придумывай\n"
+        "5. Будь честен о неопределенности"
     )
     
     return {
@@ -552,69 +738,199 @@ def build_gemini_config() -> dict:
         "top_k": 40
     }
 
+# ==================== ДИАЛОГОВАЯ СИСТЕМА v0.21.0 ====================
+
+def build_conversation_context(user_id: int) -> str:
+    """Получает контекст диалогов пользователя для инъекции в промпт."""
+    try:
+        # Подключаемся к боту БД для получения контекста
+        import sqlite3
+        db_path = os.path.join(os.path.dirname(__file__), "rvx_bot.db")
+        
+        if not os.path.exists(db_path):
+            return ""
+        
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Получаем последние 5 сообщений из истории
+        cursor.execute("""
+            SELECT message_type, content, intent 
+            FROM conversation_history 
+            WHERE user_id = ? 
+            ORDER BY created_at DESC 
+            LIMIT 5
+        """, (user_id,))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        if not rows:
+            return ""
+        
+        # Формируем контекст
+        context_lines = ["КОНТЕКСТ ПРЕДЫДУЩИХ СООБЩЕНИЙ:"]
+        for msg_type, content, intent in reversed(rows):
+            role = "ПОЛЬЗОВАТЕЛЬ" if msg_type == "user" else "БОТ"
+            context_lines.append(f"{role} ({intent}): {content[:100]}...")  # Первые 100 символов
+        
+        context_lines.append("END CONTEXT\n")
+        return "\n".join(context_lines)
+    
+    except Exception as e:
+        logger.warning(f"⚠️ Не удалось получить контекст диалога для {user_id}: {e}")
+        return ""
+
+# ===================================================================
+
 def build_teaching_config() -> dict:
-    """Создает конфигурацию для Gemini специально для создания уроков."""
+    """Создает улучшенную конфигурацию для Gemini для создания качественных уроков."""
     system_prompt = (
-        "Ты — опытный преподаватель криптографии и блокчейна, создающий ясные и доступные уроки.\n\n"
+        "Ты — опытный преподаватель криптографии и Web3, создающий ясные, структурированные и практичные уроки для новичков и продвинутых пользователей.\n\n"
         
-        "ТВОЯ ЗАДАЧА:\n"
-        "1. Создать учебный урок по запрошенной теме\n"
-        "2. Адаптировать сложность под уровень ученика\n"
-        "3. Предоставить практические примеры\n"
-        "4. Дать вопрос для проверки понимания\n\n"
+        "ТВОЯ РОЛЬ И ОТВЕТСТВЕННОСТЬ:\n"
+        "- Создавать уроки, которые реально помогают людям понять сложные концепции\n"
+        "- Адаптировать контент под уровень сложности (beginner, intermediate, advanced, expert)\n"
+        "- Использовать аналогии из реальной жизни для объяснения абстрактных идей\n"
+        "- Предоставлять практические примеры, которые применимы в реальном мире\n"
+        "- Проверять понимание через эффективные вопросы и упражнения\n\n"
         
-        "УРОВНИ СЛОЖНОСТИ:\n"
-        "- beginner: основные концепции, простой язык, нет технических деталей\n"
-        "- intermediate: промежуточные детали, немного формальности, кейсы\n"
-        "- advanced: технические детали, математика, архитектура\n"
-        "- expert: глубокий анализ, стандарты, исследовательские ссылки\n\n"
+        "УРОВНИ СЛОЖНОСТИ И ТРЕБОВАНИЯ:\n"
+        "Beginner (новичок):\n"
+        "  - Простой язык без технических терминов\n"
+        "  - Реальные аналогии из повседневной жизни\n"
+        "  - 250-350 слов, структурированный текст\n"
+        "  - Много примеров и иллюстраций идей\n"
+        "\n"
+        "Intermediate (промежуточный):\n"
+        "  - Технические детали с объяснениями\n"
+        "  - Кейсы из реальной индустрии\n"
+        "  - 350-450 слов с глубиной\n"
+        "  - Несколько примеров разной сложности\n"
+        "\n"
+        "Advanced (продвинутый):\n"
+        "  - Архитектура, стандарты, лучшие практики\n"
+        "  - Математические основы и детали реализации\n"
+        "  - 400-500 слов с высокой степенью детализации\n"
+        "  - Ссылки на стандарты (BIP, EIP) где применимо\n"
+        "\n"
+        "Expert (эксперт):\n"
+        "  - Исследовательский уровень анализа\n"
+        "  - Последние тренды и инновации\n"
+        "  - 450-600 слов с критическим анализом\n"
+        "  - Сравнение разных подходов и их преимуществ\n\n"
         
-        "СТРОГИЕ ПРАВИЛА ОТВЕТА:\n"
-        "1. Отвечай ТОЛЬКО валидным JSON без никаких других текстов\n"
-        "2. JSON должен быть в формате: { \"lesson_title\": \"...\", \"content\": \"...\", ... }\n"
-        "3. ЗАПРЕЩЕНО использовать markdown: никаких *, **, _, ~, ` символов\n"
-        "4. ЗАПРЕЩЕНО использовать эмодзи\n"
-        "5. ЗАПРЕЩЕНО использовать HTML теги\n"
-        "6. Используй только простой текст\n"
-        "7. Используй только основные пунктуационные знаки: точка, запятая, двоеточие\n\n"
+        "МЕТОДОЛОГИЯ ОБУЧЕНИЯ:\n"
+        "1. Открытие: Начни с вопроса или проблемы, которую решает тема\n"
+        "2. Объяснение: Развернуто объясни основные концепции с примерами\n"
+        "3. Применение: Покажи как использовать эту информацию в реальности\n"
+        "4. Закрепление: Три ключевых пункта для запоминания\n"
+        "5. Проверка: Проблемный вопрос для размышления\n"
+        "6. Продолжение: Логичные следующие шаги в обучении\n\n"
+        
+        "СТРОГИЕ ФОРМАТНЫЕ ПРАВИЛА:\n"
+        "1. Отвечай ТОЛЬКО валидным JSON, завернутым в теги <json></json>\n"
+        "2. ЗАПРЕЩЕНО использовать markdown символы: *, **, _, ~, `, #\n"
+        "3. ЗАПРЕЩЕНО использовать эмодзи (😊, 📚, и т.д.)\n"
+        "4. ЗАПРЕЩЕНО использовать HTML теги\n"
+        "5. Используй только простой текст и базовую пунктуацию\n"
+        "6. Все строки в JSON должны быть валидными (экранируй кавычки как \")\n"
+        "7. Не добавляй комментарии или текст вне JSON\n\n"
         
         "ОБЯЗАТЕЛЬНАЯ СТРУКТУРА JSON:\n"
         "{\n"
-        '  "lesson_title": "Название урока",\n'
-        '  "content": "Основное объяснение (200-300 слов)",\n'
-        '  "key_points": ["пункт1", "пункт2", "пункт3"],\n'
-        '  "real_world_example": "Практический пример применения",\n'
-        '  "practice_question": "Вопрос для проверки понимания",\n'
-        '  "next_topics": ["тема1", "тема2"]\n'
+        '  "lesson_title": "4-8 слов, ясная и описательная",\n'
+        '  "intro": "1-2 предложения о значимости темы",\n'
+        '  "content": "Основное объяснение (200-300 слов в зависимости от уровня)",\n'
+        '  "key_points": ["Первый важный момент", "Второй важный момент", "Третий важный момент"],\n'
+        '  "real_world_example": "Конкретный практический пример в 2-3 предложениях",\n'
+        '  "common_mistakes": "Частая ошибка новичков и как её избежать",\n'
+        '  "practice_question": "Проблемный вопрос для критического размышления",\n'
+        '  "next_topics": ["Логичное продолжение 1", "Логичное продолжение 2"]\n'
         "}\n\n"
         
-        "ПРАВИЛА ДЛЯ КАЖДОГО ПОЛЯ:\n"
-        "- lesson_title: 4-8 слов, ясное и информативное\n"
-        "- content: 200-300 слов, адаптировано под уровень сложности\n"
-        "- key_points: ровно 3 пункта, 1-2 предложения каждый\n"
-        "- real_world_example: конкретный, понятный пример (1-2 предложения)\n"
-        "- practice_question: открытый вопрос для размышления (1 предложение)\n"
-        "- next_topics: 2 логических продолжения темы\n\n"
+        "ТРЕБОВАНИЯ К КАЧЕСТВУ КОНТЕНТА:\n"
+        "- content: должен быть структурирован с параграфами (разделены точками)\n"
+        "- key_points: ровно 3 пункта, каждый 1-2 предложения, не повторяющиеся\n"
+        "- real_world_example: конкретный, не абстрактный, легко визуализируется\n"
+        "- common_mistakes: типичная ошибка и сразу объяснение как избежать\n"
+        "- practice_question: открытый вопрос, требующий размышления, не \"да/нет\"\n"
+        "- next_topics: логичная прогрессия обучения, слегка сложнее\n\n"
         
-        "ПРИМЕР ХОРОШЕГО ОТВЕТА:\n"
-        '{\n'
-        '  "lesson_title": "Что такое приватный ключ",\n'
-        '  "content": "Приватный ключ это длинная последовательность символов, которая дает полный контроль над вашим криптоактивом. Думайте о нем как о пароле от вашего банковского счета, но намного более важном. Если кто-то получит ваш приватный ключ, он может взять все ваши деньги. Вот почему нужно хранить приватный ключ в безопасности. Существуют разные способы хранения: в железных кошельках, на листе бумаги в сейфе, или в специальных приложениях.",\n'
-        '  "key_points": ["Приватный ключ это доступ к вашим средствам", "Если потеряете ключ, потеряете деньги", "Никогда не делитесь ключом"],\n'
-        '  "real_world_example": "Представьте приватный ключ как комбинацию от замка. Только у вас есть комбинация. Если дать комбинацию другому, он может открыть замок и взять ваши вещи.",\n'
-        '  "practice_question": "Почему важнее хранить приватный ключ, чем пароль от обычного банка?",\n'
-        '  "next_topics": ["Типы кошельков", "Как создать кошелек"]\n'
-        '}\n\n'
+        "ПРИМЕР ОТЛИЧНОГО ОТВЕТА:\n"
+        "<json>{\n"
+        '  "lesson_title": "Как работает публичная криптография в блокчейне",\n'
+        '  "intro": "Публичная криптография это математическое чудо, которое позволяет отправить деньги незнакомцу без посредника. Это сердце блокчейна.",\n'
+        '  "content": "Представьте, что у вас есть два ключа: публичный и приватный. Публичный ключ это как номер вашего банковского счета, который вы можете дать всем. Приватный ключ это пароль, который знаете только вы. Математически, они связаны таким образом, что сообщение подписанное приватным ключом может быть проверено используя публичный ключ. В блокчейне это работает так: вы подписываете транзакцию своим приватным ключом. Все могут проверить подпись используя ваш публичный ключ и убедиться что это именно вы отправили деньги. Невозможно подделать подпись без приватного ключа, даже если у вас есть публичный ключ и все остальное.",\n'
+        '  "key_points": ["Публичный ключ как номер счета, приватный как пароль", "Подпись приватным ключом доказывает что это именно вы", "Проверка подписи публичным ключом невозможно подделать без приватного"],\n'
+        '  "real_world_example": "Представьте почтовый ящик с замком. Ваш публичный ключ это адрес ящика которым вы делитесь. Ваш приватный ключ это единственный ключ от замка. Письмо которое вы положили в ящик можно прочитать только если у вас есть ключ.",\n'
+        '  "common_mistakes": "Новички думают что если знают публичный ключ то могут подделать подпись. Нет! Математически невозможно создать подпись без приватного ключа, даже зная публичный.",\n'
+        '  "practice_question": "Если я дам вам мой публичный ключ, сможете ли вы создать действительную подпись от моего имени? Почему или почему нет?",\n'
+        '  "next_topics": ["Типы криптографических алгоритмов ECDSA и RSA", "Как приватный ключ генерируется и где его хранить"]\n'
+        '}</json>\n\n'
         
-        "СОЗДАЙ УРОК ПО ЗАПРОСУ, СЛЕДУЯ ВСЕМ ПРАВИЛАМ."
+        "СОЗДАЙ ВЫСОКАЧЕСТВЕННЫЙ УРОК ПО ЗАПРОСУ, СЛЕДУЯ ВСЕМ ТРЕБОВАНИЯМ ВЫШЕ."
     )
     
     return {
         "system_instruction": system_prompt,
-        "temperature": 0.3,  # Более консервативная температура для структурированного вывода
-        "max_output_tokens": 2000,  # Достаточно для полного урока
-        "top_p": 0.9,
-        "top_k": 30
+        "temperature": 0.5,  # Баланс между структурированностью и креативностью
+        "max_output_tokens": 2500,  # Достаточно для подробного урока
+        "top_p": 0.85,
+        "top_k": 35
+    }
+
+def build_image_analysis_config(context: Optional[str] = None) -> dict:
+    """Создает конфигурацию для анализа изображений (графиков, скриншотов)."""
+    system_prompt = (
+        "⚠️ КРИТИЧНОЕ ПРАВИЛО: Отвечай ТОЛЬКО JSON в <json></json> тегах. БЕЗ ИСКЛЮЧЕНИЙ.\n\n"
+        
+        "Ты — профессиональный финансовый аналитик, специализирующийся на анализе графиков, скриншотов и визуальной информации о криптовалютах, акциях и финансовых инструментах.\n\n"
+        
+        "ТВОИ ЗАДАЧИ:\n"
+        "1. Определить тип изображения: графики цены, скриншоты новостей, мемы, диаграммы или другое\n"
+        "2. Идентифицировать упомянутые активы (монеты, акции, тикеры)\n"
+        "3. Предоставить анализ с выводами и рекомендациями\n"
+        "4. Указать уровень уверенности в анализе\n\n"
+        
+        "ОБЯЗАТЕЛЬНЫЕ ПОЛЯ ОТВЕТА:\n"
+        "- summary_text: 2-3 предложения о изображении (ОБЯЗАТЕЛЬНО)\n"
+        "- analysis: подробный анализ того что видишь (ОБЯЗАТЕЛЬНО)\n"
+        "- asset_type: 'chart', 'screenshot', 'meme', 'other' (ОБЯЗАТЕЛЬНО)\n"
+        "- confidence: число от 0 до 1 для уверенности в анализе (ОБЯЗАТЕЛЬНО)\n"
+        "- mentioned_assets: массив с найденными активами/тикерами (ОБЯЗАТЕЛЬНО)\n\n"
+        
+        "ОПЦИОНАЛЬНЫЕ ПОЛЯ:\n"
+        "- action: BUY, HOLD, SELL, WATCH если это применимо к графику\n"
+        "- risk_level: Low, Medium, High если это применимо\n"
+        "- timeframe: day, week, month, year если указано на графике\n\n"
+        
+        "ПРАВИЛА:\n"
+        "1. Отвечай ТОЛЬКО <json>...</json>\n"
+        "2. Используй простой текст, БЕЗ *, **, _, ~, эмодзи\n"
+        "3. НИКАКОГО текста вне JSON тегов\n"
+        "4. Если не можешь определить asset_type - используй 'other'\n"
+        "5. Будь честен о том что видишь, не галлюцинируй\n"
+        "6. Если это мем или шутка - скажи об этом в анализе\n\n"
+        
+        "ПРИМЕРЫ ОТВЕТОВ:\n"
+        "ПРИМЕР 1 (график BTC):\n"
+        "<json>{\"summary_text\":\"График BTC/USDT показывает восходящий тренд с поддержкой на уровне 95000.\",\"analysis\":\"На часовом графике видно образование восходящего треугольника. Объем торговли выше среднего. Линия тренда поддерживает бычий сценарий. При пробое выше 102000 ожидается рост к 110000.\",\"asset_type\":\"chart\",\"confidence\":0.85,\"mentioned_assets\":[\"BTC\",\"USDT\"],\"action\":\"BUY\",\"timeframe\":\"week\"}</json>\n\n"
+        
+        "ПРИМЕР 2 (скриншот новости):\n"
+        "<json>{\"summary_text\":\"Скриншот сообщения о одобрении Bitcoin ETF одного из регуляторов.\",\"analysis\":\"В скриншоте видна новость о ожидаемом одобрении. Дата и источник указаны. Это может быть прайсированный событием но стоит следить за официальными объявлениями.\",\"asset_type\":\"screenshot\",\"confidence\":0.7,\"mentioned_assets\":[\"BTC\",\"ETF\"],\"action\":\"WATCH\"}</json>\n\n"
+        
+        f"ДОПОЛНИТЕЛЬНЫЙ КОНТЕКСТ ОТ ПОЛЬЗОВАТЕЛЯ:\n{context if context else 'Нет дополнительного контекста'}\n\n"
+        
+        "АНАЛИЗИРУЙ ИЗОБРАЖЕНИЕ И ПРЕДОСТАВЬ ПОЛНЫЙ JSON ОТВЕТ."
+    )
+    
+    return {
+        "system_instruction": system_prompt,
+        "temperature": 0.4,
+        "max_output_tokens": 1200,
+        "top_p": 0.90,
+        "top_k": 40
     }
 
 # =============================================================================
@@ -626,24 +942,93 @@ def build_teaching_config() -> dict:
     wait=wait_exponential(multiplier=1, min=2, max=10),
     reraise=True
 )
+async def call_deepseek_with_retry(
+    system_prompt: str,
+    user_message: str,
+    max_retries: int = 3
+) -> Optional[str]:
+    """Вызов DeepSeek API с автоматическими повторами."""
+    
+    if not deepseek_client:
+        logger.error("❌ DeepSeek клиент не инициализирован")
+        return None
+    
+    for attempt in range(max_retries):
+        try:
+            logger.debug(f"🔄 Попытка вызова DeepSeek #{attempt + 1}/{max_retries}")
+            
+            response = deepseek_client.chat.completions.create(
+                model=DEEPSEEK_MODEL,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message}
+                ],
+                temperature=DEEPSEEK_TEMPERATURE,
+                max_tokens=DEEPSEEK_MAX_TOKENS
+            )
+            
+            if response and response.choices and len(response.choices) > 0:
+                text = response.choices[0].message.content
+                logger.info(f"✅ DeepSeek ответил успешно (попытка {attempt + 1})")
+                logger.debug(f"📝 Ответ (первые 200 символов): {text[:200]}")
+                return text
+            else:
+                logger.warning(f"⚠️ DeepSeek вернул пустой ответ (попытка {attempt + 1})")
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка DeepSeek (попытка {attempt + 1}/{max_retries}): {type(e).__name__}: {str(e)[:200]}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(2 ** attempt)  # Экспоненциальная задержка
+            continue
+    
+    logger.error(f"❌ Все {max_retries} попытки вызова DeepSeek исчерпаны")
+    return None
+
 async def call_gemini_with_retry(
     client: genai.Client,
     model: str,
     contents: list,
-    config: dict
+    config: dict,
+    max_retries: int = 3
 ) -> Any:
-    """Вызов Gemini с автоматическими повторами при ошибках."""
-    def sync_call():
-        return client.models.generate_content(
-            model=model,
-            contents=contents,
-            config=config
-        )
+    """Вызов Gemini с автоматическими повторами при ошибках (резервный)."""
     
-    return await asyncio.wait_for(
-        run_in_threadpool(sync_call),
-        timeout=GEMINI_TIMEOUT
-    )
+    for attempt in range(max_retries):
+        try:
+            def sync_call():
+                logger.debug(f"🔄 Попытка вызова Gemini #{attempt + 1}/{max_retries}")
+                return client.models.generate_content(
+                    model=model,
+                    contents=contents,
+                    config=config
+                )
+            
+            response = await asyncio.wait_for(
+                run_in_threadpool(sync_call),
+                timeout=GEMINI_TIMEOUT
+            )
+            
+            if response:
+                logger.info(f"✅ Gemini ответил успешно (попытка {attempt + 1})")
+                logger.debug(f"📝 Ответ (первые 200 символов): {str(response.text)[:200]}")
+                return response
+            else:
+                logger.warning(f"⚠️ Gemini вернул None (попытка {attempt + 1})")
+                
+        except asyncio.TimeoutError:
+            logger.error(f"⏱️ Timeout {GEMINI_TIMEOUT}s на попытке {attempt + 1}/{max_retries}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(2 ** attempt)  # Экспоненциальная задержка
+            continue
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка Gemini (попытка {attempt + 1}/{max_retries}): {type(e).__name__}: {str(e)[:200]}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(2 ** attempt)  # Экспоненциальная задержка
+            continue
+    
+    logger.error(f"❌ Все {max_retries} попытки вызова Gemini исчерпаны")
+    return None
 
 # =============================================================================
 # LIFECYCLE MANAGEMENT
@@ -654,28 +1039,43 @@ start_time = datetime.utcnow()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Управление жизненным циклом приложения."""
-    global client
+    global client, deepseek_client
     
     # Startup
     logger.info("=" * 70)
-    logger.info("🚀 Запуск RVX AI Backend API v3.0")
+    logger.info("🚀 Запуск RVX AI Backend API v3.1 (с DeepSeek)")
     logger.info("=" * 70)
     
-    if not GEMINI_API_KEY:
-        logger.critical("❌ GEMINI_API_KEY не найден в .env файле!")
+    # Инициализируем DeepSeek (основной провайдер)
+    if DEEPSEEK_API_KEY:
+        try:
+            deepseek_client = OpenAI(
+                api_key=DEEPSEEK_API_KEY,
+                base_url="https://api.deepseek.com"
+            )
+            logger.info("✅ Клиент DeepSeek успешно инициализирован")
+        except Exception as e:
+            logger.error(f"❌ Ошибка инициализации DeepSeek: {e}")
+            deepseek_client = None
     else:
+        logger.warning("⚠️ DEEPSEEK_API_KEY не найден, используем Gemini")
+    
+    # Инициализируем Gemini (резервный провайдер)
+    if GEMINI_API_KEY:
         try:
             client = genai.Client(api_key=GEMINI_API_KEY)
-            logger.info("✅ Клиент Gemini успешно инициализирован")
+            logger.info("✅ Клиент Gemini успешно инициализирован (резервный)")
         except Exception as e:
             logger.error(f"❌ Ошибка инициализации Gemini: {e}")
             client = None
+    else:
+        logger.warning("⚠️ GEMINI_API_KEY не найден")
     
     logger.info("📋 Конфигурация:")
-    logger.info(f"  • MAX_TEXT_LENGTH: {MAX_TEXT_LENGTH}")
+    logger.info(f"  • DEEPSEEK_MODEL: {DEEPSEEK_MODEL}")
     logger.info(f"  • GEMINI_MODEL: {GEMINI_MODEL}")
-    logger.info(f"  • TEMPERATURE: {GEMINI_TEMPERATURE}")
-    logger.info(f"  • MAX_TOKENS: {GEMINI_MAX_TOKENS}")
+    logger.info(f"  • TEMPERATURE: {DEEPSEEK_TEMPERATURE}")
+    logger.info(f"  • MAX_TOKENS: {DEEPSEEK_MAX_TOKENS}")
     logger.info(f"  • TIMEOUT: {GEMINI_TIMEOUT}s")
     logger.info(f"  • CACHE_ENABLED: {CACHE_ENABLED}")
     
@@ -818,74 +1218,35 @@ async def health_check():
 @app.post("/explain_news", response_model=SimplifiedResponse)
 async def explain_news(payload: NewsPayload, request: Request):
     """
-    Анализирует криптоновость с помощью AI.
+    🚀 v0.24: НОВАЯ РЕАЛИЗАЦИЯ - Используем GROQ вместо DeepSeek!
     
-    Возвращает структурированный анализ с кратким изложением и ключевыми влияниями на рынок.
+    Анализирует криптоновость с помощью Groq → Mistral → Gemini
+    Ответ возвращается в формате упрощённого текста.
+    
+    УЛУЧШЕНИЯ v0.24:
+    - Использует Groq (бесплатный, быстрый, работает!)
+    - 3-tier fallback система (Groq → Mistral → Gemini)
+    - Гарантировано будет ответ или правильная ошибка
+    - Улучшенное логирование
     """
     start_time_request = datetime.utcnow()
     news_text = payload.text_content
     text_hash = hash_text(news_text)
     
-    # Получаем user_id из заголовков (отправляет bot)
-    user_id = request.headers.get("X-User-ID", "anonymous")
+    # Получаем user_id из заголовков
+    user_id_header = request.headers.get("X-User-ID", "anonymous")
+    try:
+        user_id = int(user_id_header)
+    except (ValueError, TypeError):
+        user_id = "anonymous"
     
-    logger.info(f"📥 Новый запрос от {user_id}: {len(news_text)} символов | Hash: {text_hash[:8]}...")
-    
-    # NEW v0.14.0: Проверка лимита запросов (если есть user_id)
-    if user_id != "anonymous":
-        try:
-            # Импортируем функции проверки лимитов
-            from education import check_daily_limit, increment_daily_requests, reset_daily_requests
-            import sqlite3
-            from datetime import datetime as dt
-            
-            # Подключаемся к БД бота
-            bot_db_path = os.getenv("DB_PATH", "rvx_bot.db")
-            if os.path.exists(bot_db_path):
-                conn = sqlite3.connect(bot_db_path)
-                cursor = conn.cursor()
-                
-                # Проверяем дату последнего запроса
-                cursor.execute(
-                    "SELECT last_request_date FROM users WHERE user_id = ?",
-                    (int(user_id),)
-                )
-                row = cursor.fetchone()
-                today = dt.now().strftime('%Y-%m-%d')
-                
-                # Если день изменился, обнуляем счетчик
-                if row and row[0] != today:
-                    reset_daily_requests(cursor, int(user_id))
-                    conn.commit()
-                
-                # Проверяем лимит
-                allowed, limit_message = check_daily_limit(cursor, int(user_id))
-                
-                if not allowed:
-                    conn.close()
-                    logger.warning(f"⚠️ Лимит запросов исчерпан для {user_id}")
-                    
-                    return SimplifiedResponse(
-                        simplified_text=limit_message,
-                        cached=False,
-                        processing_time_ms=0
-                    )
-                
-                conn.close()
-        except Exception as e:
-            logger.warning(f"⚠️ Ошибка проверки лимита: {e}")
-            # Продолжаем обработку, даже если ошибка
-    
-    # Очистка кэша от истёкших записей
-    if CACHE_ENABLED:
-        cleanup_expired_cache()
+    logger.info(f"📰 Запрос анализа новости от {user_id}: {len(news_text)} символов | Hash: {text_hash[:8]}...")
     
     # Проверка кэша
     if CACHE_ENABLED and text_hash in response_cache:
         cached = response_cache[text_hash]
         duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
-        
-        logger.info(f"💾 Кэш HIT для {text_hash[:8]}")
+        logger.info(f"💾 Кэш HIT для {text_hash[:8]} ({duration_ms:.0f}ms)")
         request_counter["success"] += 1
         
         return SimplifiedResponse(
@@ -894,167 +1255,264 @@ async def explain_news(payload: NewsPayload, request: Request):
             processing_time_ms=round(duration_ms, 2)
         )
     
-    # Если Gemini недоступен, используем fallback
-    if not client:
-        logger.warning("⚠️ Gemini недоступен, использую fallback режим")
-        request_counter["fallback"] += 1
-        
-        fallback_text = fallback_analysis(news_text)
-        duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
-        
-        return SimplifiedResponse(
-            simplified_text=fallback_text,
-            cached=False,
-            processing_time_ms=round(duration_ms, 2)
-        )
-    
-    # Вызов AI
+    # ==================== НОВАЯ v0.24: ИСПОЛЬЗУЕМ AI_DIALOGUE ====================
     try:
-        gemini_config = build_gemini_config()
-        user_prompt = f"Проанализируй следующую криптоновость:\n\n{news_text}"
+        # Импортируем новую систему ИИ
+        from ai_dialogue import get_ai_response_sync
         
-        logger.info("🤖 Отправка запроса к Gemini API...")
+        # Формируем промпт для анализа новости
+        analysis_prompt = f"""Проанализируй эту криптоновость КРАТКО и ясно:
+
+📰 НОВОСТЬ:
+{news_text}
+
+Ответь одним-двумя предложениями:
+1. ЧТО произошло?
+2. Почему это ВАЖНО для крипторынка?
+
+Будь кратким и понятным, только ФАКТЫ."""
         
-        response = await call_gemini_with_retry(
-            client=client,
-            model=GEMINI_MODEL,
-            contents=[user_prompt],
-            config=gemini_config
+        logger.info(f"🔄 Вызываем ai_dialogue для анализа...")
+        
+        # Получаем ответ через Groq → Mistral → Gemini
+        ai_response = get_ai_response_sync(
+            user_message=analysis_prompt,
+            context_history=[],  # Анализ новостей - не нужен контекст
+            timeout=15.0
         )
         
-        # Проверка response object
-        if not response:
-            logger.error("❌ Пустой ответ от Gemini (response is None)")
-            raise ValueError("AI вернул пустой ответ")
-        
-        # Попытка получить текст разными способами
-        raw_text = None
-        if hasattr(response, 'text') and response.text:
-            raw_text = response.text
-        elif hasattr(response, 'candidates') and response.candidates:
-            # Fallback: попробуем получить из candidates
-            found = False
-            for candidate in response.candidates:
-                if hasattr(candidate, 'content') and candidate.content is not None:
-                    if hasattr(candidate.content, 'parts') and candidate.content.parts is not None:
-                        for part in candidate.content.parts:
-                            if hasattr(part, 'text') and part.text:
-                                raw_text = part.text
-                                found = True
-                                break
-                if found:
-                    break
-        
-        if not raw_text or len(raw_text.strip()) < 10:
-            logger.error(f"❌ Получен пустой/короткий ответ от AI. Response type: {type(response)}")
-            if hasattr(response, 'candidates'):
-                logger.error(f"Candidates: {response.candidates}")
-            raise ValueError("AI вернул пустой ответ")
-        
-        logger.info(f"📤 Получен ответ от AI: {len(raw_text)} символов")
-        logger.info(f"📝 Начало ответа: {raw_text[:300]}")
-        logger.info(f"📝 Конец ответа: {raw_text[-300:]}")
-        
-        # Парсинг и валидация
-        data = extract_json_from_response(raw_text)
-        
-        if not data:
-            logger.error("❌ Не удалось извлечь JSON из ответа AI")
-            raise ValueError("Некорректный формат ответа AI")
-        
-        is_valid, error_msg = validate_analysis(data)
-        
-        if not is_valid:
-            logger.error(f"❌ Валидация провалена: {error_msg}")
-            logger.debug(f"Данные: {json.dumps(data, ensure_ascii=False, indent=2)}")
-            raise ValueError(f"Невалидный анализ: {error_msg}")
-        
-        # Форматирование
-        formatted_text = format_response(data)
-        duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
-        
-        # Сохранение в кэш
-        if CACHE_ENABLED:
-            response_cache[text_hash] = {
-                "text": formatted_text,
-                "timestamp": datetime.now().isoformat()
-            }
+        if ai_response:
+            logger.info(f"✅ Анализ получен: {len(ai_response)} символов ({(datetime.utcnow() - start_time_request).total_seconds():.2f}s)")
             
-            # Ограничение размера кэша (простая LRU стратегия)
-            if len(response_cache) > 100:
-                oldest_key = min(response_cache.keys(), 
-                               key=lambda k: response_cache[k]["timestamp"])
-                del response_cache[oldest_key]
-        
-        logger.info(f"✅ Анализ завершен за {duration_ms:.0f}ms")
-        request_counter["success"] += 1
-        
-        return SimplifiedResponse(
-            simplified_text=formatted_text,
-            cached=False,
-            processing_time_ms=round(duration_ms, 2)
-        )
+            # Кэшируем результат
+            if CACHE_ENABLED:
+                response_cache[text_hash] = {
+                    "text": ai_response,
+                    "timestamp": datetime.utcnow()
+                }
+            
+            request_counter["success"] += 1
+            duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
+            
+            return SimplifiedResponse(
+                simplified_text=ai_response,
+                cached=False,
+                processing_time_ms=round(duration_ms, 2)
+            )
+        else:
+            # Fallback если ai_dialogue не ответил
+            logger.warning(f"⚠️ ai_dialogue не вернул ответ, используем fallback...")
+            request_counter["fallback"] += 1
+            
+            fallback_data = fallback_analysis(news_text)
+            duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
+            
+            return SimplifiedResponse(
+                simplified_text=fallback_data["simplified_text"],
+                cached=False,
+                processing_time_ms=round(duration_ms, 2)
+            )
     
-    except asyncio.TimeoutError:
-        logger.error(f"⏱️ Timeout ({GEMINI_TIMEOUT}s) при запросе к Gemini")
-        request_counter["errors"] += 1
-        request_counter["fallback"] += 1
-        
-        duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
-        
-        return SimplifiedResponse(
-            simplified_text=fallback_analysis(news_text),
-            cached=False,
-            processing_time_ms=round(duration_ms, 2)
-        )
-    
-    except RetryError as e:
-        logger.error(f"❌ Все попытки retry исчерпаны: {e}")
-        request_counter["errors"] += 1
-        request_counter["fallback"] += 1
-        
-        duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
-        
-        return SimplifiedResponse(
-            simplified_text=fallback_analysis(news_text),
-            cached=False,
-            processing_time_ms=round(duration_ms, 2)
-        )
-    
-    except APIError as e:
-        logger.error(f"❌ Gemini API Error: {str(e)}")
+    except Exception as e:
+        logger.error(f"❌ Ошибка в ai_dialogue: {type(e).__name__}: {str(e)}")
         request_counter["errors"] += 1
         
-        # Gemini APIError может не иметь status_code, поэтому обрабатываем обобщенно
-        detail = "🔧 Сервис AI временно недоступен. Используется режим fallback."
-        
-        # Возвращаем fallback анализ вместо ошибки
-        request_counter["fallback"] += 1
-        duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
-        
-        return SimplifiedResponse(
-            simplified_text=fallback_analysis(news_text),
-            cached=False,
-            processing_time_ms=round(duration_ms, 2)
-        )
+        # Финальный fallback
+        logger.warning(f"⚠️ Переходим на финальный fallback...")
+        try:
+            fallback_data = fallback_analysis(news_text)
+            duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
+            
+            return SimplifiedResponse(
+                simplified_text=fallback_data["simplified_text"],
+                cached=False,
+                processing_time_ms=round(duration_ms, 2)
+            )
+        except Exception as fallback_err:
+            logger.error(f"❌ Даже fallback не сработал: {fallback_err}")
+            
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Система анализа временно недоступна. Попробуйте позже."
+            )
     
-    except ValueError as e:
-        logger.error(f"❌ Ошибка валидации: {e}")
-        request_counter["errors"] += 1
-        request_counter["fallback"] += 1
-        
-        duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
-        
-        return SimplifiedResponse(
-            simplified_text=fallback_analysis(news_text),
-            cached=False,
-            processing_time_ms=round(duration_ms, 2)
-        )
+    # Вызов AI (сначала пробуем DeepSeek, потом Gemini)
+
+
+# =============================================================================
+# ENDPOINT: IMAGE ANALYSIS (v0.24 - updated)
+# =============================================================================
+
+@app.post("/analyze_image", response_model=ImageAnalysisResponse)
+async def analyze_image(payload: ImagePayload, request: Request):
+    """
+    Анализирует изображение (график, скриншот, мем) с помощью Gemini Vision.
     
+    Поддерживает:
+    - image_url: прямой URL на изображение
+    - image_base64: изображение в формате base64 (PNG, JPEG, GIF, WebP)
+    - context: дополнительный контекст для анализа
+    """
+    start_time_request = datetime.utcnow()
+    request_counter["total"] += 1
+    
+    # Получаем user_id из заголовков
+    user_id_header = request.headers.get("X-User-ID", "anonymous")
+    try:
+        user_id = int(user_id_header)
+    except (ValueError, TypeError):
+        user_id = 0
+    
+    try:
+        # Проверяем rate limit
+        client_ip = request.client.host if request.client else "unknown"
+        if not rate_limiter.is_allowed(client_ip):
+            logger.warning(f"⚠️ Rate limit exceeded for IP: {client_ip}")
+            request_counter["rate_limited"] += 1
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Слишком много запросов. Попробуйте позже."
+            )
+        
+        # Формируем контент для Gemini Vision API
+        if payload.image_url:
+            logger.info(f"📸 Анализирую изображение по URL: {payload.image_url[:50]}...")
+            
+            async with httpx.AsyncClient() as http_client:
+                try:
+                    img_response = await http_client.get(payload.image_url, timeout=10.0)
+                    img_response.raise_for_status()
+                    image_data = img_response.content
+                    
+                    # Определяем MIME тип
+                    mime_type = img_response.headers.get("content-type", "image/jpeg")
+                except Exception as e:
+                    logger.error(f"❌ Ошибка при загрузке изображения по URL: {e}")
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Не удалось загрузить изображение по URL"
+                    )
+        
+        elif payload.image_base64:
+            logger.info(f"📸 Анализирую изображение из base64 ({len(payload.image_base64)//1024}KB)...")
+            try:
+                image_data = base64.b64decode(payload.image_base64)
+                mime_type = "image/jpeg"  # по умолчанию JPEG
+            except Exception as e:
+                logger.error(f"❌ Ошибка при декодировании base64: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Некорректный base64 формат"
+                )
+        
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Необходимо предоставить image_url или image_base64"
+            )
+        
+        # Конвертируем в base64 если загружали по URL
+        image_b64 = base64.b64encode(image_data).decode()
+        
+        # Формируем запрос к Gemini с изображением
+        config = build_image_analysis_config(payload.context)
+        
+        # Содержимое для Gemini (поддерживает изображения)
+        contents = [
+            {
+                "role": "user",
+                "parts": [
+                    {
+                        "inline_data": {
+                            "mime_type": mime_type,
+                            "data": image_b64
+                        }
+                    },
+                    {
+                        "text": "Проанализируй это изображение и предоставь полный анализ согласно инструкциям."
+                    }
+                ]
+            }
+        ]
+        
+        # Вызываем Gemini
+        logger.info("🤖 Отправляю изображение Gemini для анализа...")
+        try:
+            response = await call_gemini_with_retry(
+                client=client,
+                model=GEMINI_MODEL,
+                contents=contents,
+                config=config
+            )
+            
+            response_text = response.text if response and response.text else ""
+            
+            # Парсим JSON ответ
+            json_match = re.search(r'<json>(.*?)</json>', response_text, re.DOTALL)
+            if json_match:
+                try:
+                    analysis_data = json.loads(json_match.group(1))
+                    logger.info("✅ Успешно распарсен JSON от Gemini")
+                except json.JSONDecodeError as e:
+                    logger.error(f"❌ Ошибка парсинга JSON: {e}")
+                    raise ValueError("Ошибка при парсинге JSON")
+            else:
+                logger.error(f"❌ JSON не найден в ответе Gemini: {response_text[:200]}")
+                raise ValueError("JSON не найден в ответе")
+            
+            # Проверяем обязательные поля
+            required_fields = ["summary_text", "analysis", "asset_type", "confidence", "mentioned_assets"]
+            missing_fields = [f for f in required_fields if f not in analysis_data]
+            
+            if missing_fields:
+                logger.warning(f"⚠️ Пропущены поля в ответе: {missing_fields}")
+                raise ValueError(f"Пропущены поля: {missing_fields}")
+            
+            # Подготавливаем ответ
+            duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
+            request_counter["success"] += 1
+            
+            return ImageAnalysisResponse(
+                analysis=analysis_data.get("analysis", ""),
+                asset_type=analysis_data.get("asset_type", "other"),
+                confidence=float(analysis_data.get("confidence", 0.5)),
+                mentioned_assets=analysis_data.get("mentioned_assets", []),
+                simplified_text=analysis_data.get("summary_text", ""),
+                cached=False,
+                processing_time_ms=round(duration_ms, 2)
+            )
+        
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"❌ Ошибка при вызове Gemini: {e}", exc_info=True)
+            # Используем fallback анализ вместо ошибки
+            try:
+                fallback_data = fallback_image_analysis("other")
+                duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
+                
+                return ImageAnalysisResponse(
+                    analysis=fallback_data["analysis"],
+                    asset_type=fallback_data["asset_type"],
+                    confidence=fallback_data["confidence"],
+                    mentioned_assets=fallback_data["mentioned_assets"],
+                    simplified_text=fallback_data["summary_text"],
+                    cached=False,
+                    processing_time_ms=round(duration_ms, 2)
+                )
+            except Exception as fallback_error:
+                logger.error(f"❌ Fallback также не сработал: {fallback_error}")
+                request_counter["errors"] += 1
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Ошибка при анализе изображения"
+                )
+    
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Неожиданная ошибка: {e}", exc_info=True)
         request_counter["errors"] += 1
-        
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Внутренняя ошибка сервера"
@@ -1178,6 +1636,12 @@ async def teach_lesson(payload: TeachingPayload):
         
         if not raw_text or len(raw_text.strip()) < 10:
             logger.error(f"❌ Получен пустой ответ от AI (raw_text={repr(raw_text)})")
+            logger.warning(f"⚠️ Topic: {topic}, Difficulty: {difficulty}")
+            # Логируем тип и атрибуты для отладки
+            logger.debug(f"Response structure: {type(response)}")
+            if hasattr(response, 'candidates'):
+                for i, cand in enumerate(response.candidates):
+                    logger.debug(f"  Candidate {i}: {cand}")
             raise ValueError("AI вернул пустой ответ")
         
         logger.info(f"📤 Получен ответ от AI: {len(raw_text)} символов")
@@ -1413,6 +1877,104 @@ async def get_token_info_endpoint(token_id: str):
             status_code=404,
             detail=f"Токен не найден: {str(e)}"
         )
+
+# =============================================================================
+# LEADERBOARD ENDPOINT (v0.17.0)
+# =============================================================================
+
+@app.get("/get_leaderboard", response_model=LeaderboardResponse, tags=["Leaderboard"])
+async def get_leaderboard_endpoint(
+    period: str = Query("all", regex="^(week|month|all)$"),
+    limit: int = Query(10, ge=1, le=50),
+    user_id: Optional[int] = Query(None)
+):
+    """
+    Получить таблицу лидеров.
+    
+    Args:
+        period: Временной период ("week" - неделя, "month" - месяц, "all" - всё время)
+        limit: Количество топ пользователей (1-50, по умолчанию 10)
+        user_id: ID пользователя для получения его позиции
+    
+    Returns:
+        LeaderboardResponse с таблицей лидеров
+    """
+    try:
+        request_counter["total"] += 1
+        start_time = datetime.utcnow()
+        
+        # Получаем базовые данные рейтинга
+        leaderboard_data = []
+        total_users = 0
+        
+        # Читаем из кэша (хотя бы одного из периодов)
+        # В реальном приложении это должно быть в БД
+        # Для демо используем простую логику
+        
+        # Получаем временной период
+        now = datetime.now()
+        if period == "week":
+            start_date = now - timedelta(days=7)
+        elif period == "month":
+            start_date = now - timedelta(days=30)
+        else:  # "all"
+            start_date = datetime(1970, 1, 1)
+        
+        # Форматируем отчёт
+        leaderboard_response = LeaderboardResponse(
+            period=period,
+            top_users=[],
+            user_rank=None,
+            total_users=0,
+            cached=True,
+            timestamp=datetime.now().isoformat()
+        )
+        
+        request_counter["success"] += 1
+        
+        logger.info(f"📊 Leaderboard запрос: period={period}, limit={limit}, user_id={user_id}")
+        
+        return leaderboard_response
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка при получении рейтинга: {e}")
+        request_counter["errors"] += 1
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка получения рейтинга: {str(e)}"
+        )
+
+# =============================================================================
+# ENDPOINT: AI DIALOGUE METRICS v0.24
+# =============================================================================
+
+@app.get("/dialogue_metrics")
+async def get_dialogue_metrics():
+    """
+    📊 Получить метрики системы ИИ диалога.
+    
+    Показывает:
+    - Общее количество запросов
+    - Процент успехов
+    - Статистику по каждому провайдеру (Groq, Mistral, Gemini)
+    - Среднее время ответа
+    """
+    try:
+        from ai_dialogue import get_metrics_summary
+        metrics = get_metrics_summary()
+        
+        logger.info(f"📊 Запрос метрик диалога: {metrics['total_requests']} запросов, {metrics['success_rate']} успешно")
+        
+        return {
+            "status": "ok",
+            "data": metrics
+        }
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения метрик: {e}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
 
 # =============================================================================
 # ОБРАБОТЧИКИ ОШИБОК
