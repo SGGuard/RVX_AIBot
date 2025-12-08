@@ -275,7 +275,7 @@ async def notify_stats_milestone(context: ContextTypes.DEFAULT_TYPE, stat_name: 
 # =============================================================================
 
 @contextmanager
-def get_db():
+def get_db() -> contextmanager:
     """Context manager для работы с БД с правильной обработкой ошибок и освобождением ресурсов.
     
     ИСПРАВЛЕНИЕ КРИТИЧЕСКОЙ ОШИБКИ #1: Гарантирует закрытие соединения даже при исключениях.
@@ -319,7 +319,7 @@ def check_column_exists(cursor, table: str, column: str) -> bool:
     columns = [row[1] for row in cursor.fetchall()]
     return column in columns
 
-def migrate_database():
+def migrate_database() -> None:
     """Миграция базы данных к новой схеме v0.5.0."""
     logger.info("🔄 Проверка необходимости миграции...")
     
@@ -494,7 +494,7 @@ def migrate_database():
         else:
             logger.info("✅ Миграция не требуется, схема актуальна")
 
-def init_database():
+def init_database() -> None:
     """Инициализация базы данных с расширенной схемой v0.5.0."""
     with get_db() as conn:
         cursor = conn.cursor()
@@ -1104,7 +1104,7 @@ def markdown_to_html_for_telegram(text: str) -> str:
 
 # --- Функции работы с пользователями ---
 
-def save_user(user_id: int, username: str, first_name: str):
+def save_user(user_id: int, username: str, first_name: str) -> None:
     """Сохраняет или обновляет информацию о пользователе."""
     with get_db() as conn:
         cursor = conn.cursor()
@@ -1230,7 +1230,7 @@ def get_request_by_id(request_id: int) -> Optional[Dict[str, str]]:
             "created_at": row[4]
         }
 
-def save_feedback(user_id: int, request_id: int, is_helpful: bool, comment: Optional[str] = None):
+def save_feedback(user_id: int, request_id: int, is_helpful: bool, comment: Optional[str] = None) -> None:
     """Сохраняет фидбек с опциональным комментарием."""
     with get_db() as conn:
         cursor = conn.cursor()
@@ -1988,7 +1988,7 @@ async def call_api_with_retry(news_text: str, user_id: Optional[int] = None) -> 
 def admin_only(func):
     """Декоратор для команд, доступных только администраторам."""
     @wraps(func)
-    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user_id = update.effective_user.id
         if user_id not in ADMIN_USERS:
             await update.message.reply_text("⛔ Только для администраторов")
@@ -1999,7 +1999,7 @@ def admin_only(func):
 def log_command(func):
     """Декоратор для логирования использования команд."""
     @wraps(func)
-    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user = update.effective_user
         command = update.message.text.split()[0] if update.message else "unknown"
         logger.info(f"📝 Команда {command} от {user.id} (@{user.username})")
@@ -2173,7 +2173,7 @@ async def get_smart_next_recommendation(user_id: int) -> Optional[str]:
 # =============================================================================
 
 @log_command
-async def tasks_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def tasks_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показывает адаптивные ежедневные задания по уровню пользователя."""
     user = update.effective_user
     user_id = user.id
@@ -2240,7 +2240,7 @@ XP: {user_xp}
 
 
 @log_command
-async def quest_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def quest_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик команд /quest_* для запуска конкретного квеста."""
     user_id = update.effective_user.id
     
@@ -2411,7 +2411,7 @@ def get_user_rank(user_id: int, period: str = "all") -> Optional[Tuple[int, int,
 
 
 @log_command
-async def leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показывает рейтинг пользователей."""
     user_id = update.effective_user.id
     query = update.callback_query if update.callback_query else None
@@ -2659,7 +2659,7 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE, p
 
 
 @log_command
-async def bookmarks_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def bookmarks_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показывает закладки пользователя с интерактивным интерфейсом."""
     user_id = update.effective_user.id
     is_callback = update.callback_query is not None
@@ -2733,7 +2733,7 @@ async def bookmarks_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 @log_command
-async def add_bookmark_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def add_bookmark_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Добавляет текущий контент в закладки."""
     user_id = update.effective_user.id
     
@@ -2770,8 +2770,23 @@ async def add_bookmark_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 @log_command
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Приветственное сообщение с адаптивными интерактивными кнопками (v0.21.0 + Daily Quests)."""
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Приветственное сообщение с адаптивными кнопками.
+    
+    Функция:
+    - Сохраняет пользователя в БД
+    - Проверяет бан
+    - Анализирует уровень знаний
+    - Показывает адаптивное меню
+    
+    Args:
+        update: Telegram Update объект
+        context: Telegram Context объект
+        
+    Returns:
+        None
+    """
     user = update.effective_user
     user_id = user.id
     
@@ -2920,8 +2935,23 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 @log_command
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Помощь по использованию."""
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Показывает справку по всем доступным командам.
+    
+    Выводит:
+    - Список основных команд
+    - Описание каждой команды
+    - Советы по использованию
+    - Примеры
+    
+    Args:
+        update: Telegram Update объект (command или callback)
+        context: Telegram Context объект
+        
+    Returns:
+        None
+    """
     is_callback = update.callback_query is not None
     query = update.callback_query if is_callback else None
     
@@ -2975,7 +3005,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 @log_command
-async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показывает главное меню с быстрыми действиями (команда /menu)."""
     keyboard = [
         [
@@ -3006,7 +3036,7 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("📋 Главное меню RVX")
 
 @log_command
-async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показывает статистику."""
     user_id = update.effective_user.id
     is_callback = update.callback_query is not None
@@ -3077,7 +3107,7 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Ошибка при отправке статистики: {e}")
 
 @log_command
-async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показывает историю запросов."""
     user_id = update.effective_user.id
     is_callback = update.callback_query is not None
@@ -3121,7 +3151,7 @@ async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Ошибка при отправке истории: {e}")
 
 @log_command
-async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Поиск по истории запросов."""
     user_id = update.effective_user.id
     
@@ -3156,7 +3186,7 @@ async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(response, parse_mode=ParseMode.HTML)
 
 @log_command
-async def export_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def export_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Экспорт истории в файл."""
     user_id = update.effective_user.id
     history = get_user_history(user_id, limit=100)
@@ -3202,7 +3232,7 @@ async def export_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         log_analytics_event("export_history", user_id, {"records": len(history)})
 
 @log_command
-async def limits_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def limits_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показывает лимиты пользователя."""
     user_id = update.effective_user.id
     
@@ -3257,7 +3287,7 @@ async def limits_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ============= НОВЫЕ КОМАНДЫ v0.5.0 - ОБУЧЕНИЕ =============
 
 @log_command
-async def learn_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def learn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показывает список доступных курсов для обучения."""
     user = update.effective_user
     user_id = user.id
@@ -3314,7 +3344,7 @@ async def learn_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 @log_command
-async def lesson_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def lesson_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показывает конкретный урок. Используется так: /lesson 1"""
     user_id = update.effective_user.id
     user = update.effective_user
@@ -3488,7 +3518,7 @@ async def handle_start_course_callback(update: Update, context: ContextTypes.DEF
 
 
 @log_command
-async def start_course_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start_course_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Запускает конкретный курс по команде /start_<course_name>"""
     user_id = update.effective_user.id
     user = update.effective_user
@@ -3568,7 +3598,7 @@ async def start_course_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 @log_command
-async def tools_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def tools_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показывает интерактивный справочник инструментов."""
     user_id = update.effective_user.id
     is_callback = update.callback_query is not None
@@ -3648,7 +3678,7 @@ async def tools_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 @log_command
-async def bookmark_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def bookmark_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Добавляет инструмент в закладки. Использование: /bookmark Etherscan"""
     user_id = update.effective_user.id
     
@@ -3719,7 +3749,7 @@ async def bookmark_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 @log_command
-async def show_bookmarks_by_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def show_bookmarks_by_type(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показывает закладки определённого типа с интерактивными кнопками."""
     query = update.callback_query
     user_id = query.from_user.id
@@ -3925,13 +3955,13 @@ async def show_resources_category(update: Update, context: ContextTypes.DEFAULT_
 
 
 @log_command
-async def resources_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def resources_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показывает бесплатные ресурсы по крипто, AI и Web3."""
     await show_resources_menu(update)
 
 
 @log_command
-async def ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Задать вопрос про крипто (/ask какой вопрос?)"""
     user_id = update.effective_user.id
     
@@ -4157,7 +4187,7 @@ async def _launch_teaching_lesson(update: Update, context: ContextTypes.DEFAULT_
 
 
 @log_command
-async def teach_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def teach_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """🎓 Интерактивный учитель с передовой системой обучения (v0.21.0)
     
     Функции:
@@ -4275,7 +4305,7 @@ async def teach_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @admin_only
 @log_command
-async def admin_stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def admin_stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Детальная статистика для администраторов."""
     stats = get_global_stats()
     
@@ -4326,7 +4356,7 @@ async def admin_stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 @admin_only
 @log_command
-async def ban_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def ban_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Блокировка пользователя."""
     if len(context.args) < 1:
         await update.message.reply_text(
@@ -4364,7 +4394,7 @@ async def ban_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @admin_only
 @log_command
-async def unban_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def unban_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Разблокировка пользователя."""
     if len(context.args) < 1:
         await update.message.reply_text("❌ Формат: /unban <user_id>")
@@ -4397,7 +4427,7 @@ async def unban_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 @admin_only
 @log_command
-async def clear_cache_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def clear_cache_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Очистка кэша."""
     with get_db() as conn:
         cursor = conn.cursor()
@@ -4416,7 +4446,7 @@ async def clear_cache_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 @admin_only
 @log_command
-async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Рассылка сообщения всем пользователям."""
     if not context.args:
         await update.message.reply_text(
@@ -4470,7 +4500,7 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     })
 
 
-async def post_to_channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def post_to_channel_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Отправляет пост в канал обновлений.
     Использование: /post_to_channel <текст поста>
@@ -4540,7 +4570,7 @@ async def post_to_channel_command(update: Update, context: ContextTypes.DEFAULT_
         logger.error(f"❌ Неожиданная ошибка при отправке поста: {e}")
 
 
-async def notify_version_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def notify_version_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Отправляет уведомление об обновлении версии в канал.
     Использование: /notify_version <версия> | <список улучшений через |>
@@ -4590,7 +4620,7 @@ async def notify_version_command(update: Update, context: ContextTypes.DEFAULT_T
         logger.error(f"❌ Ошибка отправки уведомления: {e}")
 
 
-async def notify_quests_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def notify_quests_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Отправляет уведомление о новых квестах в канал."""
     # Проверка прав админа
     if update.effective_user.id not in ADMIN_USERS:
@@ -4611,7 +4641,7 @@ async def notify_quests_command(update: Update, context: ContextTypes.DEFAULT_TY
         logger.error(f"❌ Ошибка отправки уведомления о квестах: {e}")
 
 
-async def notify_milestone_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def notify_milestone_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Отправляет уведомление о вехе (например, 100 пользователей).
     Использование: /notify_milestone <название вехи> | <количество>
@@ -4666,7 +4696,7 @@ async def notify_milestone_command(update: Update, context: ContextTypes.DEFAULT
 # КОМАНДЫ ДРОПОВ И АКТИВНОСТЕЙ
 # =============================================================================
 
-async def drops_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def drops_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Получить свежие NFT дропы"""
     is_callback = update.callback_query is not None
     query = update.callback_query if is_callback else None
@@ -4754,7 +4784,7 @@ async def drops_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"❌ Ошибка при отправке ошибки: {e}")
 
 
-async def activities_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def activities_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Получить активности в крипто"""
     is_callback = update.callback_query is not None
     query = update.callback_query if is_callback else None
@@ -4925,7 +4955,7 @@ async def show_quiz_for_lesson(update: Update, context: ContextTypes.DEFAULT_TYP
         await query.answer(f"❌ Ошибка: {str(e)}", show_alert=True)
 
 
-async def show_quiz_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def show_quiz_question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показывает текущий вопрос квиза."""
     query = update.callback_query
     user = query.from_user
@@ -5043,7 +5073,7 @@ async def handle_quiz_answer(update: Update, context: ContextTypes.DEFAULT_TYPE,
     )
 
 
-async def show_quiz_results(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def show_quiz_results(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показывает итоговые результаты квиза."""
     query = update.callback_query
     user = query.from_user
@@ -5146,8 +5176,25 @@ async def show_quiz_results(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # CALLBACK ОБРАБОТЧИК
 # =============================================================================
 
-async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка inline кнопок."""
+async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Обрабатывает нажатие inline-кнопок.
+    
+    Поддерживаемые действия:
+    - Выбор меню
+    - Ответы на квесты
+    - Выбор уровня
+    - Управление подписками
+    - Лайки/дизлайки
+    - Регенерация ответов
+    
+    Args:
+        update: Telegram Update объект с данными кнопки
+        context: Telegram Context объект
+        
+    Returns:
+        None
+    """
     query = update.callback_query
     await query.answer()
     
@@ -6694,7 +6741,7 @@ async def get_smart_response(user_id: int, text: str, msg_type: str) -> str:
     return None
 
 
-async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик изображений (графики, скриншоты) для анализа."""
     user = update.effective_user
     
@@ -6910,8 +6957,29 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Ошибка при обработке изображения")
 
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Основной обработчик текстовых сообщений - с реальным ИИ диалогом!"""
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Обрабатывает текстовые сообщения пользователей.
+    
+    Функция:
+    - Проверяет бан и лимиты
+    - Анализирует тип контента
+    - Вызывает AI анализ
+    - Сохраняет результаты
+    - Отправляет ответ
+    
+    Поддерживаемые типы:
+    - Новости
+    - Вопросы
+    - Общие диалоги
+    
+    Args:
+        update: Telegram Update объект с текстом
+        context: Telegram Context объект
+        
+    Returns:
+        None
+    """
     user = update.effective_user
     user_text = update.message.text
     
@@ -7298,7 +7366,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
 # =============================================================================
 
 @log_command
-async def show_daily_quests_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def show_daily_quests_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показать меню с ежедневными задачами (v0.21.0)."""
     query = update.callback_query
     if query:
@@ -7440,7 +7508,7 @@ def main():
     # КОМАНДЫ ДЛЯ ДРОПОВ И АКТИВНОСТЕЙ (v0.15.0)
     # =============================================================================
     
-    async def drops_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def drops_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Показывает свежие NFT дропы."""
         user_id = update.effective_user.id
         
@@ -7496,7 +7564,7 @@ def main():
             logger.error(f"❌ Ошибка при получении дропов: {e}")
             await status_msg.edit_text(f"❌ Ошибка при загрузке дропов: {str(e)[:100]}")
     
-    async def activities_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def activities_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Показывает активности в топ-проектах."""
         user_id = update.effective_user.id
         
@@ -7550,7 +7618,7 @@ def main():
             logger.error(f"❌ Ошибка при получении активностей: {e}")
             await status_msg.edit_text(f"❌ Ошибка: {str(e)[:100]}")
     
-    async def trending_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def trending_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Показывает трендовые (вирусные) токены."""
         user_id = update.effective_user.id
         
@@ -7587,7 +7655,7 @@ def main():
             logger.error(f"❌ Ошибка при получении трендов: {e}")
             await status_msg.edit_text(f"❌ Ошибка: {str(e)[:100]}")
     
-    async def subscribe_drops_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def subscribe_drops_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Подписаться на уведомления о дропах."""
         user_id = update.effective_user.id
         
@@ -7613,7 +7681,7 @@ def main():
             parse_mode=ParseMode.HTML
         )
     
-    async def my_subscriptions_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def my_subscriptions_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Показывает текущие подписки."""
         user_id = update.effective_user.id
         
