@@ -7825,10 +7825,43 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             )
             
             if ai_response:
-                await update.message.reply_text(ai_response, parse_mode=ParseMode.HTML)
+                # Telegram имеет лимит на длину сообщения (~4096 символов)
+                # Разбиваем длинные ответы на части
+                MAX_MESSAGE_LENGTH = 3500  # Безопасный лимит с запасом
+                
+                if len(ai_response) > MAX_MESSAGE_LENGTH:
+                    # Разбиваем на части по абзацам
+                    paragraphs = ai_response.split('\n')
+                    current_message = ""
+                    
+                    for para in paragraphs:
+                        if len(current_message) + len(para) + 1 > MAX_MESSAGE_LENGTH:
+                            # Отправляем текущее сообщение
+                            if current_message.strip():
+                                await update.message.reply_text(
+                                    current_message.strip(),
+                                    parse_mode=ParseMode.HTML
+                                )
+                            current_message = para
+                        else:
+                            if current_message:
+                                current_message += "\n" + para
+                            else:
+                                current_message = para
+                    
+                    # Отправляем последнее сообщение
+                    if current_message.strip():
+                        await update.message.reply_text(
+                            current_message.strip(),
+                            parse_mode=ParseMode.HTML
+                        )
+                else:
+                    # Короткий ответ - отправляем как есть
+                    await update.message.reply_text(ai_response, parse_mode=ParseMode.HTML)
+                
                 # Сохраняем ответ в историю диалога
                 save_conversation(user.id, "bot", ai_response, intent)
-                logger.info(f"✅ AI Dialogue для {user.id}: '{user_text[:40]}...' → ИИ ответ")
+                logger.info(f"✅ AI Dialogue для {user.id}: '{user_text[:40]}...' → ИИ ответ ({len(ai_response)} символов)")
                 return
             else:
                 # Fallback - если ИИ не ответил
