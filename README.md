@@ -1,7 +1,7 @@
 # 🤖 RVX AI Crypto News Bot
 
 > **Telegram-бот для анализа криптоновостей и интерактивного обучения**  
-> Версия: v0.7.0 | ИИ анализирует новости И преподает крипто, AI, Web3, трейдинг
+> Версия: v0.18.0 | ИИ анализирует новости, преподает крипто, Web3, трейдинг, + закладки & рейтинги
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green.svg)](https://fastapi.tiangolo.com)

@@ -174,8 +174,14 @@ def add_badge_to_user(cursor, user_id: int, badge_key: str) -> bool:
     return False
 
 
-def get_lesson_content(course_name: str, lesson_num: int) -> Optional[str]:
-    """Получает контент урока из markdown файла."""
+def get_lesson_content(course_name: str, lesson_num: int, include_tests: bool = False) -> Optional[str]:
+    """Получает контент урока из markdown файла.
+    
+    Параметры:
+    - course_name: название курса
+    - lesson_num: номер урока
+    - include_tests: если True, включает раздел "ТЕСТЫ К КУРСУ" в конец контента
+    """
     if course_name not in COURSES_DATA:
         return None
     
@@ -190,10 +196,24 @@ def get_lesson_content(course_name: str, lesson_num: int) -> Optional[str]:
     pattern = rf'## Lesson {lesson_num}:(.*?)(?=## Lesson|\Z)'
     match = re.search(pattern, content, re.DOTALL)
     
-    if match:
-        return match.group(1).strip()
+    if not match:
+        return None
     
-    return None
+    lesson_text = match.group(1).strip()
+    
+    # Если нужны тесты, добавляем раздел "ТЕСТЫ К КУРСУ" в конец
+    if include_tests:
+        # Ищем раздел ТЕСТЫ К КУРСУ
+        tests_pattern = r'# ТЕСТЫ К КУРСУ(.*?)## Тест к Уроку.*?(?=## Тест к Уроку|\Z)'
+        tests_match = re.search(tests_pattern, content, re.DOTALL)
+        
+        if tests_match:
+            # Добавляем весь раздел тестов в конец контента
+            tests_section = re.search(r'# ТЕСТЫ К КУРСУ(.*)(?:\Z)', content, re.DOTALL)
+            if tests_section:
+                lesson_text += '\n\n' + tests_section.group(0)
+    
+    return lesson_text
 
 
 def clean_lesson_content(content: str) -> str:
@@ -210,8 +230,13 @@ def clean_lesson_content(content: str) -> str:
 
 def split_lesson_content(content: str) -> Tuple[str, str]:
     """Разделяет контент урока на основной текст и quiz.
-    Возвращает (lesson_text, quiz_text)."""
-    # Ищем раздел с quiz
+    Возвращает (lesson_text, quiz_text).
+    
+    Функция ищет раздел quiz двумя способами:
+    1. Внутри урока (старый формат: ### ❓ Quiz)
+    2. В разделе "ТЕСТЫ К КУРСУ" (новый формат: по номеру урока)
+    """
+    # Сначала пытаемся найти quiz внутри урока (старый формат)
     quiz_match = re.search(r'### ❓ Quiz(.*?)(?:---|\Z)', content, re.DOTALL)
     
     if quiz_match:
@@ -221,14 +246,34 @@ def split_lesson_content(content: str) -> Tuple[str, str]:
         quiz_text = quiz_match.group(0)
         return lesson_text, quiz_text
     
-    # Если нет quiz, вернуть весь контент как lesson
+    # Если нет quiz внутри урока, вернуть весь контент как lesson
     return content, ""
 
 
-def extract_quiz_from_lesson(lesson_content: str) -> List[Dict]:
-    """Извлекает вопросы quiz из контента урока."""
+def extract_quiz_from_lesson(lesson_content: str, lesson_number: Optional[int] = None, 
+                             full_course_content: Optional[str] = None) -> List[Dict]:
+    """Извлекает вопросы quiz из контента урока.
+    
+    Параметры:
+    - lesson_content: содержимое урока (может содержать quiz или быть пустым)
+    - lesson_number: номер урока для поиска в разделе "ТЕСТЫ К КУРСУ"
+    - full_course_content: полный контент курса для поиска тестов в конце
+    """
+    # Сначала пытаемся найти quiz внутри самого lesson_content
+    quiz_content = lesson_content
+    
+    # Если указаны номер урока и полный контент, ищем тест в разделе "ТЕСТЫ К КУРСУ"
+    if lesson_number and full_course_content:
+        # Ищем раздел "## Тест к Уроку N"
+        test_pattern = rf'## Тест к Уроку {lesson_number}(.*?)(?:## Тест к Уроку|\Z)'
+        test_match = re.search(test_pattern, full_course_content, re.DOTALL)
+        
+        if test_match:
+            quiz_content = test_match.group(0)
+    
+    # Теперь извлекаем вопросы из найденного контента
     quiz_pattern = r'\*\*Q(\d+):(.*?)\*\*\s*\n((?:- [^-].*\n)*)'
-    matches = re.findall(quiz_pattern, lesson_content)
+    matches = re.findall(quiz_pattern, quiz_content)
     
     questions = []
     for q_num, question, answers in matches:
@@ -241,10 +286,19 @@ def extract_quiz_from_lesson(lesson_content: str) -> List[Dict]:
                 correct_answer = i
                 break
         
+        # Очищаем ответы от "- A)", "- B)" и т.д.
+        cleaned_answers = []
+        for a in answer_lines:
+            # Удаляем ✅ и очищаем текст
+            text = a.replace('✅', '').strip()
+            # Удаляем "- A)", "- B)", "- C)", "- D)" в начале
+            text = re.sub(r'^-\s*[A-D]\)\s*', '', text).strip()
+            cleaned_answers.append(text)
+        
         questions.append({
             'number': int(q_num),
             'text': question.strip(),
-            'answers': [a.replace('✅', '').strip() for a in answer_lines],
+            'answers': cleaned_answers,
             'correct': correct_answer
         })
     

@@ -501,3 +501,65 @@ DAILY_QUESTS = {}
 for level_quests in DAILY_QUESTS_BY_LEVEL.values():
     for quest in level_quests:
         DAILY_QUESTS[quest['id']] = quest
+
+
+# ============================================================================
+# ФУНКЦИИ ДЛЯ ОТСЛЕЖИВАНИЯ ВЫПОЛНЕННЫХ КВЕСТОВ
+# ============================================================================
+
+def is_quest_completed_today(user_id: int, quest_id: str, db_conn) -> bool:
+    """
+    Проверить, выполнена ли задача сегодня (v0.21.0)
+    Требуется открытое соединение с БД
+    Примечание: Используем lesson_id вместо quest_id (они соответствуют друг другу)
+    """
+    from datetime import datetime, date
+    
+    cursor = db_conn.cursor()
+    today = date.today().isoformat()
+    
+    # lesson_id соответствует quest_id в нашей системе
+    cursor.execute("""
+        SELECT COUNT(*) FROM user_quiz_responses 
+        WHERE user_id = ? AND lesson_id = ? AND DATE(answered_at) = ?
+    """, (user_id, quest_id, today))
+    
+    result = cursor.fetchone()
+    return result[0] > 0 if result else False
+
+
+def get_completed_quests_today(user_id: int, db_conn):
+    """
+    Получить список всех выполненных заданий за сегодня (v0.21.0)
+    """
+    from datetime import date
+    
+    cursor = db_conn.cursor()
+    today = date.today().isoformat()
+    
+    # Возвращаем distinct lesson_id (которые используются как quest_id)
+    cursor.execute("""
+        SELECT DISTINCT lesson_id FROM user_quiz_responses 
+        WHERE user_id = ? AND DATE(answered_at) = ?
+    """, (user_id, today))
+    
+    results = cursor.fetchall()
+    return [str(row[0]) for row in results] if results else []
+
+
+def get_daily_quest_xp_earned(user_id: int, db_conn) -> int:
+    """
+    Получить заработанный XP за выполненные задачи сегодня (v0.21.0)
+    """
+    from datetime import date
+    
+    cursor = db_conn.cursor()
+    today = date.today().isoformat()
+    
+    cursor.execute("""
+        SELECT SUM(xp_earned) FROM user_quiz_responses 
+        WHERE user_id = ? AND DATE(answered_at) = ? AND xp_earned > 0
+    """, (user_id, today))
+    
+    result = cursor.fetchone()
+    return result[0] if result and result[0] else 0
