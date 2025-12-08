@@ -269,6 +269,44 @@ async def notify_stats_milestone(context: ContextTypes.DEFAULT_TYPE, stat_name: 
     
     await send_channel_post(context, post)
 
+
+# =============================================================================
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (HELPER FUNCTIONS)
+# =============================================================================
+
+async def send_html_message(
+    update: Update,
+    text: str,
+    reply_markup: Optional[InlineKeyboardMarkup] = None,
+    edit: bool = False
+) -> None:
+    """
+    Отправляет HTML сообщение (减少дублирования).
+    
+    Args:
+        update: Telegram Update объект
+        text: HTML текст
+        reply_markup: Клавиатура (опционально)
+        edit: Если True, редактирует сообщение (для callback)
+        
+    Returns:
+        None
+    """
+    if edit and update.callback_query:
+        query = update.callback_query
+        await query.edit_message_text(
+            text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=reply_markup
+        )
+    elif update.message:
+        await update.message.reply_text(
+            text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=reply_markup
+        )
+
+
 # =============================================================================
 
 # БАЗА ДАННЫХ
