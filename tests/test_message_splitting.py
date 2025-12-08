@@ -1,4 +1,9 @@
-"""Tests for message splitting functionality."""
+"""Tests for message splitting functionality.
+
+NOTE: This file contains a standalone copy of the split_long_message function.
+This is intentional to make tests runnable without requiring all bot dependencies
+(httpx, telegram, fastapi, etc.). This ensures CI/CD can run these tests independently.
+"""
 import pytest
 from typing import List
 
