@@ -2606,7 +2606,9 @@ def save_conversation(user_id: int, message_type: str, content: str, intent: Opt
             if 'created_at' not in columns:
                 logger.warning("⚠️ Adding missing created_at column to conversation_history...")
                 try:
-                    cursor.execute("ALTER TABLE conversation_history ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+                    # SQLite doesn't support CURRENT_TIMESTAMP in ALTER TABLE
+                    # Add column without default, we'll set time on INSERT
+                    cursor.execute("ALTER TABLE conversation_history ADD COLUMN created_at TIMESTAMP")
                     conn.commit()
                     logger.info("✅ Column created_at added successfully")
                 except sqlite3.OperationalError as e:
