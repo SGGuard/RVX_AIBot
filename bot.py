@@ -138,7 +138,23 @@ load_dotenv()
 
 # Основные настройки
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-API_URL_NEWS = os.getenv("API_URL_NEWS", "http://localhost:8000/explain_news")
+
+# Определяем API URL - с поддержкой Railway environment
+# На Railway используем переменную окружения или URL текущего хоста
+_api_url_env = os.getenv("API_URL_NEWS")
+if _api_url_env:
+    API_URL_NEWS = _api_url_env
+elif os.getenv("RAILWAY_ENVIRONMENT"):
+    # На Railway можем использовать interno服务 communication (если API в отдельном сервисе)
+    # или localhost если оба сервиса в одном контейнере
+    API_URL_NEWS = os.getenv("API_URL_BASE", "http://localhost:8000/explain_news")
+else:
+    # Локальная разработка
+    API_URL_NEWS = "http://localhost:8000/explain_news"
+
+logger_init = logging.getLogger("config_loader")
+logger_init.info(f"🔗 API_URL_NEWS configured: {API_URL_NEWS}")
+
 BOT_API_KEY = os.getenv("BOT_API_KEY", "")  # ✅ API key for authentication
 MAX_INPUT_LENGTH = int(os.getenv("MAX_INPUT_LENGTH", "4096"))
 API_TIMEOUT = float(os.getenv("API_TIMEOUT", "30.0"))
@@ -2489,6 +2505,7 @@ def ensure_conversation_history_columns() -> None:
     
     ⚠️ ВАЖНО: Вызывается ПЕРЕД основной инициализацией!
     TIER 1 v0.23.0: Enhanced with default values and data consistency fixes.
+    TIER 1 v0.24.0: More aggressive migration to fix Railway deployment issues.
     """
     import sqlite3
     try:
@@ -2496,6 +2513,7 @@ def ensure_conversation_history_columns() -> None:
         db_path = os.getenv("DB_PATH", "rvx_bot.db")
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
+        conn.execute("PRAGMA foreign_keys=OFF")  # Отключаем внешние ключи во время миграции
         
         # Проверяем существует ли таблица
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='conversation_history'")
@@ -2504,39 +2522,54 @@ def ensure_conversation_history_columns() -> None:
             conn.close()
             return
         
-        # Получаем информацию о столбцах
+        # Получаем информацию о столбцах ДО миграции
         cursor.execute("PRAGMA table_info(conversation_history)")
-        columns = {col[1] for col in cursor.fetchall()}
-        logger.debug(f"📋 Текущие столбцы conversation_history: {columns}")
+        columns_before = {col[1] for col in cursor.fetchall()}
+        logger.info(f"📋 Столбцы ДО миграции: {sorted(columns_before)}")
         
         # Проверяем и добавляем недостающие столбцы
-        if 'message_type' not in columns:
-            logger.info("  • Добавляем столбец message_type в conversation_history...")
+        needs_migration = False
+        
+        if 'message_type' not in columns_before:
+            logger.info("  ⚡ Добавляем столбец message_type в conversation_history...")
             try:
                 cursor.execute("ALTER TABLE conversation_history ADD COLUMN message_type TEXT DEFAULT 'user'")
                 conn.commit()
                 logger.info("✅ Столбец message_type добавлен успешно")
+                needs_migration = True
             except sqlite3.OperationalError as e:
-                logger.warning(f"⚠️  Не удалось добавить message_type: {e}")
+                if "duplicate column name" not in str(e).lower():
+                    logger.error(f"❌ Не удалось добавить message_type: {e}")
                 
-        if 'intent' not in columns:
-            logger.info("  • Добавляем столбец intent в conversation_history...")
+        if 'intent' not in columns_before:
+            logger.info("  ⚡ Добавляем столбец intent в conversation_history...")
             try:
-                cursor.execute("ALTER TABLE conversation_history ADD COLUMN intent TEXT")
+                cursor.execute("ALTER TABLE conversation_history ADD COLUMN intent TEXT DEFAULT 'general'")
                 conn.commit()
                 logger.info("✅ Столбец intent добавлен успешно")
+                needs_migration = True
             except sqlite3.OperationalError as e:
-                logger.warning(f"⚠️  Не удалось добавить intent: {e}")
+                if "duplicate column name" not in str(e).lower():
+                    logger.error(f"❌ Не удалось добавить intent: {e}")
         
         # Финальная проверка
         cursor.execute("PRAGMA table_info(conversation_history)")
-        final_columns = {col[1] for col in cursor.fetchall()}
-        logger.info(f"✅ Финальные столбцы conversation_history: {final_columns}")
+        columns_after = {col[1] for col in cursor.fetchall()}
+        logger.info(f"✅ Столбцы ПОСЛЕ миграции: {sorted(columns_after)}")
         
+        # Проверяем что все нужные столбцы есть
+        required_columns = {'id', 'user_id', 'message_type', 'content', 'intent', 'created_at'}
+        missing = required_columns - columns_after
+        if missing:
+            logger.error(f"🚨 КРИТИЧНО: Отсутствуют столбцы: {missing}")
+        else:
+            logger.info(f"✅ УСПЕШНО: Все необходимые столбцы присутствуют")
+        
+        conn.execute("PRAGMA foreign_keys=ON")  # Включаем внешние ключи обратно
         conn.close()
+        
     except Exception as e:
         logger.error(f"❌ Критическая ошибка при миграции БД: {e}", exc_info=True)
-        # Продолжаем работу несмотря на ошибку
 
 def save_conversation(user_id: int, message_type: str, content: str, intent: Optional[str] = None) -> None:
     """Сохраняет сообщение в историю диалога."""
