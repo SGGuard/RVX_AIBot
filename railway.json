@@ -6,8 +6,7 @@
   "deploy": {
     "numReplicas": 1,
     "restartPolicyType": "on_failure",
-    "restartPolicyMaxRetries": 5,
-    "startCommand": "sh -c 'python api_server.py & python bot.py'"
+    "restartPolicyMaxRetries": 5
   },
   "variables": {
     "PORT": {
