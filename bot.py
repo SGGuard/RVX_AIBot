@@ -8727,9 +8727,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 # Обновляем счетчик кликов
                 context.user_data["clarify_count"] = clarify_count
                 
-                # Показываем подсказку, что можно кликнуть еще
-                aspect_name = aspect.split()[0] if len(aspect.split()) > 0 else ""
-                logger.info(f"✅ Дополнительная информация #{clarify_count} для {user_id}")
+                # Логируем успешный клик (aspect_emoji уже содержит эмодзи)
+                logger.info(f"✅ Дополнительная информация #{clarify_count} для {user_id}: {aspect_emoji}")
             else:
                 await query.answer("❌ Не удалось получить информацию", show_alert=True)
                 logger.warning(f"⚠️ Не удалось получить доп информацию для {user_id}")
