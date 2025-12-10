@@ -281,51 +281,67 @@ async def teach_lesson(
         
         logger.info(f"📚 Подготовка урока: {topic_info.get('name', topic)} ({difficulty_level})")
         
-        # Получаем API URL для специализированного endpoint обучения
-        # Используем BASE_URL из конфига, добавляя /teach_lesson
-        API_BASE_URL = os.getenv("API_URL_NEWS", "http://localhost:8000/explain_news").rsplit("/", 1)[0]
+        # Получаем API URL правильным способом используя urlparse
+        from urllib.parse import urlparse
+        api_url_env = os.getenv("API_URL_NEWS", "http://localhost:8000/explain_news")
+        parsed_url = urlparse(api_url_env)
+        
+        # Строим базовый URL как scheme://netloc (без пути)
+        API_BASE_URL = f"{parsed_url.scheme}://{parsed_url.netloc}"
         TEACH_API_URL = f"{API_BASE_URL}/teach_lesson"
         
-        # Отправляем запрос на новый endpoint
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                TEACH_API_URL,
-                json={
-                    "topic": topic,
-                    "difficulty_level": difficulty_level
-                },
-                headers={"Content-Type": "application/json"}
-            )
-            
-            if response.status_code != 200:
-                logger.error(f"❌ API ошибка {response.status_code}: {response.text[:200]}")
-                return None
-            
-            lesson_data = response.json()
-            
-            logger.info(f"📤 Получен урок: {len(str(lesson_data))} символов")
-            logger.debug(f"Урок: {lesson_data}")
-            
-            # Проверяем, что все необходимые поля присутствуют
-            required_fields = ["lesson_title", "content", "key_points", "real_world_example", "practice_question", "next_topics"]
-            if all(field in lesson_data for field in required_fields):
-                logger.info(f"✅ Урок готов: {lesson_data.get('lesson_title', 'Без названия')}")
-                return lesson_data
-            else:
-                logger.warning(f"⚠️ Урок имеет неполную структуру: {list(lesson_data.keys())}")
-                # Возвращаем с заполнением недостающих полей
-                for field in required_fields:
-                    if field not in lesson_data:
-                        if field in ["key_points", "next_topics"]:
-                            lesson_data[field] = []
-                        else:
-                            lesson_data[field] = ""
-                return lesson_data
+        logger.debug(f"🔗 API_URL_NEWS from env: {api_url_env}")
+        logger.debug(f"🔗 Parsed BASE_URL: {API_BASE_URL}")
+        logger.debug(f"🔗 TEACH_API_URL: {TEACH_API_URL}")
         
-    except asyncio.TimeoutError:
-        logger.error("❌ Timeout при запросе к API /teach_lesson")
-        return None
+        # Отправляем запрос на новый endpoint
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    TEACH_API_URL,
+                    json={
+                        "topic": topic,
+                        "difficulty_level": difficulty_level
+                    },
+                    headers={"Content-Type": "application/json"}
+                )
+                
+                if response.status_code != 200:
+                    logger.error(f"❌ API ошибка {response.status_code}: {response.text[:200]}")
+                    return None
+                
+                lesson_data = response.json()
+                
+                logger.info(f"📤 Получен урок: {len(str(lesson_data))} символов")
+                logger.debug(f"Урок: {lesson_data}")
+                
+                # Проверяем, что все необходимые поля присутствуют
+                required_fields = ["lesson_title", "content", "key_points", "real_world_example", "practice_question", "next_topics"]
+                if all(field in lesson_data for field in required_fields):
+                    logger.info(f"✅ Урок готов: {lesson_data.get('lesson_title', 'Без названия')}")
+                    return lesson_data
+                else:
+                    logger.warning(f"⚠️ Урок имеет неполную структуру: {list(lesson_data.keys())}")
+                    # Возвращаем с заполнением недостающих полей
+                    for field in required_fields:
+                        if field not in lesson_data:
+                            if field in ["key_points", "next_topics"]:
+                                lesson_data[field] = []
+                            else:
+                                lesson_data[field] = ""
+                    return lesson_data
+        
+        except httpx.ConnectError as e:
+            logger.error(f"❌ Connection error при запросе к {TEACH_API_URL}: {e}")
+            return None
+        except asyncio.TimeoutError:
+            logger.error(f"❌ Timeout при запросе к API /teach_lesson ({TEACH_API_URL})")
+            return None
+        except Exception as e:
+            logger.error(f"❌ Ошибка при создании урока: {e}", exc_info=True)
+            return None
+        
     except Exception as e:
-        logger.error(f"❌ Ошибка при создании урока: {e}")
+        logger.error(f"❌ Критическая ошибка в teach_lesson: {e}", exc_info=True)
         return None
 
