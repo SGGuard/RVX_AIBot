@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  # FastAPI Backend
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=models/gemini-2.5-flash
+      - PORT=8000
+      - RELOAD=false
+    volumes:
+      - ./:/app
+    command: python api_server.py
+    networks:
+      - rvx-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Telegram Bot (может работать отдельно)
+  bot:
+    build: .
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - API_URL_NEWS=http://api:8000/explain_news
+      - DB_PATH=/data/rvx_bot.db
+    volumes:
+      - ./:/app
+      - rvx-data:/data
+    command: python bot.py
+    networks:
+      - rvx-network
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  rvx-data:
+
+networks:
+  rvx-network:
+    driver: bridge
