@@ -281,11 +281,20 @@ async def teach_lesson(
         
         logger.info(f"📚 Подготовка урока: {topic_info.get('name', topic)} ({difficulty_level})")
         
-        # Получаем API URL правильным способом используя urlparse
+        # Получаем API URL - на Railway используем 127.0.0.1:8080 по умолчанию
         from urllib.parse import urlparse
-        api_url_env = os.getenv("API_URL_NEWS", "http://localhost:8000/explain_news")
-        parsed_url = urlparse(api_url_env)
         
+        # Priority: env variable > Railway auto-detection > localhost fallback
+        api_url_env = os.getenv("API_URL_NEWS")
+        if not api_url_env:
+            # Auto-detect for Railway: if RAILWAY_ENVIRONMENT exists, we're on Railway
+            if os.getenv("RAILWAY_ENVIRONMENT"):
+                api_url_env = "http://127.0.0.1:8080/explain_news"
+            else:
+                # Local development
+                api_url_env = "http://localhost:8000/explain_news"
+        
+        parsed_url = urlparse(api_url_env)
         # Строим базовый URL как scheme://netloc (без пути)
         API_BASE_URL = f"{parsed_url.scheme}://{parsed_url.netloc}"
         TEACH_API_URL = f"{API_BASE_URL}/teach_lesson"

@@ -140,14 +140,13 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 # Определяем API URL - с поддержкой Railway environment
-# На Railway используем переменную окружения или URL текущего хоста
+# На Railway используем 127.0.0.1:8080, на локал localhost:8000
 _api_url_env = os.getenv("API_URL_NEWS")
 if _api_url_env:
     API_URL_NEWS = _api_url_env
 elif os.getenv("RAILWAY_ENVIRONMENT"):
-    # На Railway можем использовать interno服务 communication (если API в отдельном сервисе)
-    # или localhost если оба сервиса в одном контейнере
-    API_URL_NEWS = os.getenv("API_URL_BASE", "http://localhost:8000/explain_news")
+    # На Railway API в отдельном web dyno на порту 8080
+    API_URL_NEWS = "http://127.0.0.1:8080/explain_news"
 else:
     # Локальная разработка
     API_URL_NEWS = "http://localhost:8000/explain_news"
@@ -9936,23 +9935,7 @@ async def graceful_shutdown(application) -> None:
 
 def main():
     """Запуск бота."""
-    # ⚡ ANTI-DUPLICATE GUARD: Ensure only one bot instance runs
-    lock_file = "/tmp/rvx_bot.lock"
-    try:
-        # Try to create lock file exclusively (fails if already exists)
-        fd = os.open(lock_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
-        os.write(fd, f"{os.getpid()}\n".encode())
-        os.close(fd)
-        logger.info(f"🔒 Bot lock acquired (PID: {os.getpid()})")
-    except FileExistsError:
-        # Another instance is running
-        logger.critical(f"🚨 CRITICAL: Another bot instance is already running!")
-        logger.critical(f"   Lock file: {lock_file}")
-        logger.critical(f"   Please stop the other instance before starting a new one.")
-        logger.critical(f"   To force: rm {lock_file}")
-        return
-    except Exception as e:
-        logger.error(f"⚠️ Lock file error (continuing anyway): {e}")
+    # ✅ Using separate Railway worker dyno - no lock needed
     
     # Set asyncio event loop policy for Python 3.10+ Windows/Unix compatibility
     if sys.version_info >= (3, 10):
@@ -10401,15 +10384,6 @@ def main():
         logger.info("👋 Бот остановлен пользователем")
     except Exception as e:
         logger.critical(f"❌ КРИТИЧЕСКАЯ ОШИБКА: {e}", exc_info=True)
-    finally:
-        # Clean up lock file on exit (whether success or error)
-        lock_file = "/tmp/rvx_bot.lock"
-        try:
-            if os.path.exists(lock_file):
-                os.remove(lock_file)
-                logger.info(f"🔓 Lock file removed on shutdown")
-        except Exception as e:
-            logger.warning(f"⚠️ Could not remove lock file: {e}")
 
 if __name__ == "__main__":
     main()
