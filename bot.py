@@ -10529,8 +10529,6 @@ def main():
         logger.info("🚀 БОТ ПОЛНОСТЬЮ ЗАПУЩЕН И ГОТОВ К РАБОТЕ")
         # ✅ CRITICAL FIX v2: For python-telegram-bot v21+
         # Must create event loop explicitly in Python 3.12+
-        # Use get_event_loop_policy().new_event_loop() for proper cleanup
-        import sys
         if sys.platform == 'win32':
             asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         
@@ -10544,14 +10542,6 @@ def main():
         logger.info("👋 Бот остановлен пользователем")
     except Exception as e:
         logger.critical(f"❌ КРИТИЧЕСКАЯ ОШИБКА: {e}", exc_info=True)
-    finally:
-        # Ensure proper cleanup
-        try:
-            loop = asyncio.get_event_loop()
-            if not loop.is_closed():
-                loop.close()
-        except:
-            pass
 
 if __name__ == "__main__":
     main()
