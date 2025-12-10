@@ -1,2 +1,1 @@
-web: python api_server.py
-worker: python bot.py
+web: sh -c 'python bot.py &' && python api_server.py
