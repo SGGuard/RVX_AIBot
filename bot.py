@@ -1631,6 +1631,57 @@ def migrate_database() -> None:
             """)
             migrations_needed = True
         
+        # ✅ NEW v0.30.0: Миграция conversation_history к унифицированной схеме
+        # Конвертируем старую схему (message_type, created_at) в новую (role, timestamp)
+        try:
+            cursor.execute("PRAGMA table_info(conversation_history)")
+            columns = {row[1] for row in cursor.fetchall()}
+            
+            # Если таблица имеет старую схему, мигрируем её
+            if 'message_type' in columns and 'role' not in columns:
+                logger.warning("🔄 Миграция conversation_history к новой схеме...")
+                try:
+                    # Переименовываем старую таблицу
+                    cursor.execute("ALTER TABLE conversation_history RENAME TO conversation_history_old")
+                    
+                    # Создаём новую таблицу с правильной схемой
+                    cursor.execute("""
+                        CREATE TABLE conversation_history (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            user_id INTEGER NOT NULL,
+                            role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+                            content TEXT NOT NULL,
+                            intent TEXT,
+                            timestamp INTEGER DEFAULT (strftime('%s', 'now')),
+                            message_length INTEGER,
+                            tokens_estimate INTEGER,
+                            FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                        )
+                    """)
+                    
+                    # Создаём индексы
+                    cursor.execute("CREATE INDEX IF NOT EXISTS idx_conv_user_id ON conversation_history(user_id)")
+                    cursor.execute("CREATE INDEX IF NOT EXISTS idx_conv_timestamp ON conversation_history(timestamp)")
+                    cursor.execute("CREATE INDEX IF NOT EXISTS idx_conv_role ON conversation_history(role)")
+                    
+                    # Мигрируем данные со старой таблицы
+                    cursor.execute("""
+                        INSERT INTO conversation_history (id, user_id, role, content, intent, message_length)
+                        SELECT id, user_id, 
+                               CASE WHEN message_type = 'bot' THEN 'assistant' ELSE 'user' END as role,
+                               content, intent, LENGTH(content)
+                        FROM conversation_history_old
+                    """)
+                    
+                    # Удаляем старую таблицу
+                    cursor.execute("DROP TABLE conversation_history_old")
+                    logger.info("✅ Таблица conversation_history успешно мигрирована")
+                    migrations_needed = True
+                except Exception as e:
+                    logger.error(f"❌ Ошибка миграции conversation_history: {e}")
+        except Exception as e:
+            logger.debug(f"⚠️ Не удалось проверить schema conversation_history: {e}")
+        
         if migrations_needed:
             logger.info("✅ Миграция успешно завершена")
         else:
@@ -1896,16 +1947,19 @@ def init_database() -> None:
         
         # ============ НОВЫЕ ТАБЛИЦЫ v0.21.0 (ДИАЛОГОВАЯ СИСТЕМА) ============
         
-        # Таблица истории диалогов (memory system)
+        # Таблица истории диалогов (memory system) - UNIFIED SCHEMA
+        # ✅ UNIFIED: Используется одна схема для bot.py и conversation_context.py
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS conversation_history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                message_type TEXT,
-                content TEXT,
+                user_id INTEGER NOT NULL,
+                role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+                content TEXT NOT NULL,
                 intent TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(user_id)
+                timestamp INTEGER DEFAULT (strftime('%s', 'now')),
+                message_length INTEGER,
+                tokens_estimate INTEGER,
+                FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
             )
         """)
         
@@ -2583,76 +2637,43 @@ def ensure_conversation_history_columns() -> None:
         logger.error(f"❌ Критическая ошибка при миграции БД: {e}", exc_info=True)
 
 def save_conversation(user_id: int, message_type: str, content: str, intent: Optional[str] = None) -> None:
-    """Сохраняет сообщение в историю диалога."""
-    with get_db() as conn:
-        cursor = conn.cursor()
-        
-        # ✅ CRITICAL FIX: Ensure ALL required columns exist before insert (handles old DB migrations)
-        try:
-            cursor.execute("PRAGMA table_info(conversation_history)")
-            columns = {row[1] for row in cursor.fetchall()}
+    """Сохраняет сообщение в историю диалога с правильным форматом."""
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
             
-            # Check and add missing columns
-            if 'message_type' not in columns:
-                logger.warning("⚠️ Adding missing message_type column to conversation_history...")
-                try:
-                    cursor.execute("ALTER TABLE conversation_history ADD COLUMN message_type TEXT DEFAULT 'user'")
-                    conn.commit()
-                    logger.info("✅ Column message_type added successfully")
-                except sqlite3.OperationalError as e:
-                    if "duplicate column name" not in str(e).lower():
-                        logger.error(f"❌ Failed to add message_type column: {e}")
-            
-            if 'created_at' not in columns:
-                logger.warning("⚠️ Adding missing created_at column to conversation_history...")
-                try:
-                    # SQLite doesn't support CURRENT_TIMESTAMP in ALTER TABLE
-                    # Add column without default, we'll set time on INSERT
-                    cursor.execute("ALTER TABLE conversation_history ADD COLUMN created_at TIMESTAMP")
-                    conn.commit()
-                    logger.info("✅ Column created_at added successfully")
-                except sqlite3.OperationalError as e:
-                    if "duplicate column name" not in str(e).lower():
-                        logger.error(f"❌ Failed to add created_at column: {e}")
-            
-            if 'role' not in columns:
-                logger.warning("⚠️ Adding missing role column to conversation_history...")
-                try:
-                    cursor.execute("ALTER TABLE conversation_history ADD COLUMN role TEXT DEFAULT 'user'")
-                    conn.commit()
-                    logger.info("✅ Column role added successfully")
-                except sqlite3.OperationalError as e:
-                    if "duplicate column name" not in str(e).lower():
-                        logger.error(f"❌ Failed to add role column: {e}")
-        except Exception as e:
-            logger.warning(f"⚠️ Could not check columns: {e}")
-        
-        # Now insert the conversation
-        try:
-            # Map message_type to role (CHECK constraint: role IN ('user', 'assistant'))
+            # Map message_type to role: 'user' stays 'user', 'bot' becomes 'assistant'
             role = "assistant" if message_type == "bot" else "user"
+            
+            # Вставляем в унифицированную схему
+            tokens_estimate = len(content.split()) * 1.3
+            current_time = int(time.time())
+            
             cursor.execute("""
-                INSERT INTO conversation_history (user_id, message_type, content, intent, created_at, role)
-                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
-            """, (user_id, message_type, content, intent or "general", role))
+                INSERT INTO conversation_history 
+                (user_id, role, content, intent, timestamp, message_length, tokens_estimate)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (user_id, role, content, intent or "general", current_time, len(content), int(tokens_estimate)))
+            
             conn.commit()
-        except sqlite3.OperationalError as e:
-            logger.warning(f"⚠️ DB save failed (non-critical): {e}")
+    except sqlite3.IntegrityError as e:
+        logger.warning(f"⚠️ DB save failed (non-critical): {e}")
+    except Exception as e:
+        logger.warning(f"⚠️ Could not save conversation: {e}")
 
 def get_conversation_history(user_id: int, limit: int = 10) -> List[dict]:
     """Получает последние сообщения из истории диалога для контекста.
     
-    ROBUST FIX: Handles NULL columns, missing columns, and malformed data.
-    Returns empty list on any database error to prevent AI dialogue crashes.
+    Работает с унифицированной схемой conversation_history.
     """
     try:
         with get_db() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT message_type, content, intent, created_at
+                SELECT role, content, intent, timestamp
                 FROM conversation_history
                 WHERE user_id = ?
-                ORDER BY created_at DESC
+                ORDER BY timestamp DESC
                 LIMIT ?
             """, (user_id, limit))
             rows = cursor.fetchall()
@@ -2660,30 +2681,25 @@ def get_conversation_history(user_id: int, limit: int = 10) -> List[dict]:
             result = []
             for row in rows:
                 try:
-                    # Handle NULL message_type (default to 'user')
-                    msg_type = row[0] if row[0] else 'user'
-                    # Handle NULL content
+                    # role может быть 'user' или 'assistant'
+                    role = row[0] if row[0] else 'user'
                     content = row[1] if row[1] else ''
-                    # Handle NULL intent
                     intent = row[2] if row[2] else 'general'
-                    # Handle NULL timestamp
                     timestamp = row[3] if row[3] else ''
                     
                     result.append({
-                        "type": msg_type,
-                        "content": str(content),  # Ensure it's a string
+                        "type": role,
+                        "content": str(content),
                         "intent": intent,
                         "timestamp": timestamp
                     })
                 except (IndexError, TypeError) as e:
-                    # Skip malformed rows
                     logger.debug(f"⚠️ Skipping malformed conversation row: {e}")
                     continue
             
             return result
     except Exception as e:
         logger.warning(f"⚠️ Failed to retrieve conversation history for user {user_id}: {e}")
-        # Return empty list instead of crashing
         return []
 
 def get_user_profile(user_id: int) -> Dict[str, str]:
