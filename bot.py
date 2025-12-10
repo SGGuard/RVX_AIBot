@@ -9947,7 +9947,19 @@ async def graceful_shutdown(application) -> None:
 
 def main():
     """Запуск бота."""
-    # ✅ Using separate Railway worker dyno - no lock needed
+    # ✅ CRITICAL: Ensure we're running in worker dyno on Railway
+    # Prevent double-polling that causes "Conflict: terminated by other getUpdates"
+    dyno_type = os.getenv("DYNO", "").split(".")[0] if os.getenv("DYNO") else ""
+    railway_env = os.getenv("RAILWAY_ENVIRONMENT", "")
+    is_railway = bool(railway_env)
+    
+    # If on Railway, warn if not in worker dyno
+    if is_railway and dyno_type:
+        if dyno_type != "worker":
+            logger.warning(f"⚠️ Running on {dyno_type} dyno (should be 'worker')")
+            logger.warning(f"   If you see 'Conflict: terminated by other getUpdates', check Procfile")
+            logger.warning(f"   Required: web: python api_server.py")
+            logger.warning(f"   Required: worker: python bot.py")
     
     # Set asyncio event loop policy for Python 3.10+ Windows/Unix compatibility
     if sys.version_info >= (3, 10):
