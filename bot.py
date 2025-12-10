@@ -2614,15 +2614,25 @@ def save_conversation(user_id: int, message_type: str, content: str, intent: Opt
                 except sqlite3.OperationalError as e:
                     if "duplicate column name" not in str(e).lower():
                         logger.error(f"❌ Failed to add created_at column: {e}")
+            
+            if 'role' not in columns:
+                logger.warning("⚠️ Adding missing role column to conversation_history...")
+                try:
+                    cursor.execute("ALTER TABLE conversation_history ADD COLUMN role TEXT DEFAULT 'user'")
+                    conn.commit()
+                    logger.info("✅ Column role added successfully")
+                except sqlite3.OperationalError as e:
+                    if "duplicate column name" not in str(e).lower():
+                        logger.error(f"❌ Failed to add role column: {e}")
         except Exception as e:
             logger.warning(f"⚠️ Could not check columns: {e}")
         
         # Now insert the conversation
         try:
             cursor.execute("""
-                INSERT INTO conversation_history (user_id, message_type, content, intent, created_at)
-                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-            """, (user_id, message_type, content, intent or "general"))
+                INSERT INTO conversation_history (user_id, message_type, content, intent, created_at, role)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+            """, (user_id, message_type, content, intent or "general", message_type))
             conn.commit()
         except sqlite3.OperationalError as e:
             logger.warning(f"⚠️ DB save failed (non-critical): {e}")
