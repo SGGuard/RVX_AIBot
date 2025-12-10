@@ -104,14 +104,32 @@ class ConversationContextManager:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            # Drop old tables if they exist and recreate with proper schema
-            cursor.execute("DROP TABLE IF EXISTS conversation_history")
-            cursor.execute("DROP TABLE IF EXISTS conversation_stats")
+            # ✅ FIX: Only drop tables if they exist AND need migration
+            # Check if conversation_history already exists
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='conversation_history'")
+            table_exists = cursor.fetchone() is not None
             
-            cursor.executescript(DB_SCHEMA)
-            conn.commit()
+            # If table exists, check if it has the proper schema (has 'role' column)
+            if table_exists:
+                cursor.execute("PRAGMA table_info(conversation_history)")
+                columns = {row[1] for row in cursor.fetchall()}
+                # Only recreate if missing critical columns
+                if 'role' not in columns:
+                    logger.warning("⚠️ Table exists but missing 'role' column - migrating schema...")
+                    cursor.execute("DROP TABLE IF EXISTS conversation_history")
+                    cursor.execute("DROP TABLE IF EXISTS conversation_stats")
+                    cursor.executescript(DB_SCHEMA)
+                    conn.commit()
+                    logger.info("✅ Database schema migrated (tables recreated with proper schema)")
+                else:
+                    logger.info("✅ Database schema is compatible - no recreation needed")
+            else:
+                # Table doesn't exist, create it fresh
+                cursor.executescript(DB_SCHEMA)
+                conn.commit()
+                logger.info("✅ Database schema initialized (new tables created)")
+            
             conn.close()
-            logger.info("✅ Database schema initialized (conversation_context tables recreated)")
         except Exception as e:
             logger.error(f"❌ Failed to init database: {e}")
     
