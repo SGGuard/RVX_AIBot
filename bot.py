@@ -8301,6 +8301,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     # ============ TEACH CALLBACKS v0.8.0 - ОБРАБАТЫВАЕМ ДО ОСТАЛЬНОГО ============
     
+    # Инициация меню обучения
+    if data == "start_teach":
+        data = "teach_menu"  # Перенаправляем на меню выбора тем
+    
     # Меню выбора тем обучения
     if data == "teach_menu":
         keyboard = []
@@ -8405,6 +8409,97 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             )
         except Exception as e:
             logger.error(f"Ошибка в teach_topic_: {e}")
+        return
+    
+    # ============ TEACH RECOMMENDED - Автоматический выбор рекомендуемой темы ============
+    if data == "teach_recommended":
+        # Получаем рекомендуемую тему на основе XP пользователя
+        with get_db() as conn:
+            cursor = conn.cursor()
+            _, user_xp = calculate_user_level_and_xp(cursor, user.id)
+            
+            # Выбираем тему на основе прогресса
+            if user_xp < 100:
+                recommended_topic = "crypto_basics"  # Начинаем с основ
+            elif user_xp < 300:
+                recommended_topic = "trading"  # Переходим к торговле
+            elif user_xp < 600:
+                recommended_topic = "web3"  # Изучаем Web3
+            else:
+                recommended_topic = "defi"  # Продвинутые темы
+        
+        # Переходим как если бы выбрали teach_topic_
+        # Повторяем логику teach_topic_ для выбранной темы
+        topic = recommended_topic
+        if topic not in TEACHING_TOPICS:
+            await query.answer("❌ Ошибка при выборе рекомендуемой темы", show_alert=True)
+            return
+        
+        # Обновляем ежедневную задачу
+        update_task_progress(user.id, "teach_explore", 1)
+        
+        # Повторно определяем рекомендуемый уровень
+        with get_db() as conn:
+            cursor = conn.cursor()
+            _, user_xp = calculate_user_level_and_xp(cursor, user.id)
+            
+            if user_xp < 100:
+                recommended = "beginner"
+                rec_emoji = "🌱"
+            elif user_xp < 300:
+                recommended = "intermediate"
+                rec_emoji = "📚"
+            elif user_xp < 600:
+                recommended = "advanced"
+                rec_emoji = "🚀"
+            else:
+                recommended = "expert"
+                rec_emoji = "💎"
+        
+        topic_info = TEACHING_TOPICS.get(topic, {})
+        
+        keyboard = []
+        levels_list = list(DIFFICULTY_LEVELS.keys())
+        for i in range(0, len(levels_list), 2):
+            row = []
+            if i < len(levels_list):
+                level1 = levels_list[i]
+                level_info = DIFFICULTY_LEVELS[level1]
+                level_label = f"{level_info['emoji']} {level_info['name']}"
+                if level1 == recommended:
+                    level_label = f"⭐ {level_label}"
+                row.append(InlineKeyboardButton(
+                    level_label, 
+                    callback_data=f"teach_start_{topic}_{level1}"
+                ))
+            if i + 1 < len(levels_list):
+                level2 = levels_list[i + 1]
+                level_info = DIFFICULTY_LEVELS[level2]
+                level_label = f"{level_info['emoji']} {level_info['name']}"
+                if level2 == recommended:
+                    level_label = f"⭐ {level_label}"
+                row.append(InlineKeyboardButton(
+                    level_label, 
+                    callback_data=f"teach_start_{topic}_{level2}"
+                ))
+            if row:
+                keyboard.append(row)
+        
+        keyboard.append([InlineKeyboardButton("◀️ Другая тема", callback_data="teach_menu")])
+        
+        try:
+            rec_text = f"\n\n💡 <i>Рекомендуем уровень: {rec_emoji} {DIFFICULTY_LEVELS[recommended]['name']}</i>"
+            await query.edit_message_text(
+                f"📚 <b>Рекомендуемая тема: {topic_info.get('name', topic)}</b>\n\n"
+                f"{topic_info.get('description', 'Описание темы')}\n\n"
+                "<b>Выберите уровень сложности:</b>"
+                f"{rec_text}",
+                parse_mode=ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        except Exception as e:
+            logger.error(f"Ошибка в teach_recommended: {e}")
+            await query.answer("❌ Ошибка при загрузке рекомендуемой темы", show_alert=True)
         return
     
     # Запуск урока
