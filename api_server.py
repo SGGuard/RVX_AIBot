@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException, Request, status, Query
 from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, field_validator
 from dotenv import load_dotenv
 from starlette.concurrency import run_in_threadpool
 from tenacity import retry, stop_after_attempt, wait_exponential, RetryError
@@ -114,7 +114,8 @@ class NewsPayload(BaseModel):
     """Входные данные для анализа новости."""
     text_content: str = Field(..., min_length=10, max_length=MAX_TEXT_LENGTH)
     
-    @validator('text_content')
+    @field_validator('text_content')
+    @classmethod
     def validate_and_sanitize(cls, v):
         if not v.strip():
             raise ValueError("Текст не может быть пустым")
@@ -125,13 +126,15 @@ class TeachingPayload(BaseModel):
     topic: str = Field(..., min_length=2, max_length=100)
     difficulty_level: str = Field(default="beginner")
     
-    @validator('topic')
+    @field_validator('topic')
+    @classmethod
     def validate_topic(cls, v):
         if not v.strip():
             raise ValueError("Тема не может быть пустой")
         return v.strip().lower()
     
-    @validator('difficulty_level')
+    @field_validator('difficulty_level')
+    @classmethod
     def validate_difficulty(cls, v):
         valid_levels = ["beginner", "intermediate", "advanced", "expert"]
         if v.lower() not in valid_levels:
@@ -2197,7 +2200,7 @@ async def get_token_info_endpoint(token_id: str):
 
 @app.get("/get_leaderboard", response_model=LeaderboardResponse, tags=["Leaderboard"])
 async def get_leaderboard_endpoint(
-    period: str = Query("all", regex="^(week|month|all)$"),
+    period: str = Query("all", pattern="^(week|month|all)$"),
     limit: int = Query(10, ge=1, le=50),
     user_id: Optional[int] = Query(None)
 ):
