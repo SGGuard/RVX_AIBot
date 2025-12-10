@@ -2586,12 +2586,34 @@ def save_conversation(user_id: int, message_type: str, content: str, intent: Opt
     """Сохраняет сообщение в историю диалога."""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO conversation_history (user_id, message_type, content, intent, created_at)
-            VALUES (?, ?, ?, ?, datetime('now'))
-        """, (user_id, message_type, content, intent or "general"))
-        conn.commit()
-        logger.debug(f"💾 Диалог сохранен: user_id={user_id}, intent={intent}")
+        
+        # ✅ CRITICAL FIX: Ensure column exists before insert (handles old DB migrations)
+        try:
+            cursor.execute("PRAGMA table_info(conversation_history)")
+            columns = {row[1] for row in cursor.fetchall()}
+            
+            if 'message_type' not in columns:
+                logger.warning("⚠️ Adding missing message_type column to conversation_history...")
+                try:
+                    cursor.execute("ALTER TABLE conversation_history ADD COLUMN message_type TEXT DEFAULT 'user'")
+                    conn.commit()
+                    logger.info("✅ Column message_type added successfully")
+                except sqlite3.OperationalError as e:
+                    if "duplicate column name" not in str(e).lower():
+                        logger.error(f"❌ Failed to add message_type column: {e}")
+                        return
+        except Exception as e:
+            logger.warning(f"⚠️ Could not check columns: {e}")
+        
+        # Now insert the conversation
+        try:
+            cursor.execute("""
+                INSERT INTO conversation_history (user_id, message_type, content, intent, created_at)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """, (user_id, message_type, content, intent or "general"))
+            conn.commit()
+        except sqlite3.OperationalError as e:
+            logger.warning(f"⚠️ DB save failed (non-critical): {e}")
 
 def get_conversation_history(user_id: int, limit: int = 10) -> List[dict]:
     """Получает последние сообщения из истории диалога для контекста.
