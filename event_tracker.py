@@ -24,6 +24,7 @@ class EventType(Enum):
     USER_QUEST_COMPLETE = "user_quest_complete"
     USER_DROP_RECEIVED = "user_drop_received"
     USER_PROFILE_VIEW = "user_profile_view"
+    USER_EDUCATION = "user_education"
     
     # AI события
     AI_REQUEST = "ai_request"

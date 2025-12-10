@@ -5080,7 +5080,7 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     # ✅ v0.25.0: Track user_profile event
     tracker = get_tracker()
     tracker.track(create_event(
-        EventType.USER_PROFILE,
+        EventType.USER_PROFILE_VIEW,
         user_id=user_id,
         data={}
     ))
