@@ -2488,11 +2488,12 @@ def ensure_conversation_history_columns() -> None:
     """Проверяет и добавляет недостающие столбцы в conversation_history.
     
     ⚠️ ВАЖНО: Вызывается ПЕРЕД основной инициализацией!
+    TIER 1 v0.23.0: Enhanced with default values and data consistency fixes.
     """
     import sqlite3
     try:
-        # Открываем БД напрямую (не через пул)
-        db_path = os.getenv("DATABASE_PATH", "rvx_bot.db")
+        # Открываем БД напрямую (не через пул) - используем правильную переменную
+        db_path = os.getenv("DB_PATH", "rvx_bot.db")
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
@@ -2549,26 +2550,51 @@ def save_conversation(user_id: int, message_type: str, content: str, intent: Opt
         logger.debug(f"💾 Диалог сохранен: user_id={user_id}, intent={intent}")
 
 def get_conversation_history(user_id: int, limit: int = 10) -> List[dict]:
-    """Получает последние сообщения из истории диалога для контекста."""
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT message_type, content, intent, created_at
-            FROM conversation_history
-            WHERE user_id = ?
-            ORDER BY created_at DESC
-            LIMIT ?
-        """, (user_id, limit))
-        rows = cursor.fetchall()
-        return [
-            {
-                "type": row[0],
-                "content": row[1],
-                "intent": row[2],
-                "timestamp": row[3]
-            }
-            for row in rows
-        ]
+    """Получает последние сообщения из истории диалога для контекста.
+    
+    ROBUST FIX: Handles NULL columns, missing columns, and malformed data.
+    Returns empty list on any database error to prevent AI dialogue crashes.
+    """
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT message_type, content, intent, created_at
+                FROM conversation_history
+                WHERE user_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+            """, (user_id, limit))
+            rows = cursor.fetchall()
+            
+            result = []
+            for row in rows:
+                try:
+                    # Handle NULL message_type (default to 'user')
+                    msg_type = row[0] if row[0] else 'user'
+                    # Handle NULL content
+                    content = row[1] if row[1] else ''
+                    # Handle NULL intent
+                    intent = row[2] if row[2] else 'general'
+                    # Handle NULL timestamp
+                    timestamp = row[3] if row[3] else ''
+                    
+                    result.append({
+                        "type": msg_type,
+                        "content": str(content),  # Ensure it's a string
+                        "intent": intent,
+                        "timestamp": timestamp
+                    })
+                except (IndexError, TypeError) as e:
+                    # Skip malformed rows
+                    logger.debug(f"⚠️ Skipping malformed conversation row: {e}")
+                    continue
+            
+            return result
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to retrieve conversation history for user {user_id}: {e}")
+        # Return empty list instead of crashing
+        return []
 
 def get_user_profile(user_id: int) -> Dict[str, str]:
     """Получает профиль пользователя для персонализации."""
