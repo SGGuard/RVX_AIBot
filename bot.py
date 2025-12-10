@@ -9936,38 +9936,57 @@ async def graceful_shutdown(application) -> None:
 
 def main():
     """Запуск бота."""
-    # Set asyncio event loop policy for Python 3.10+ Windows/Unix compatibility
-    if sys.version_info >= (3, 10):
-        if sys.platform == "win32":
-            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-        else:
-            # For Unix/Linux, ensure we have a proper event loop
-            try:
-                asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
-            except:
-                pass
-    
-    # Проверка обязательных переменных
-    if not TELEGRAM_BOT_TOKEN:
-        logger.critical("❌ TELEGRAM_BOT_TOKEN не найден в .env!")
+    # ⚡ ANTI-DUPLICATE GUARD: Ensure only one bot instance runs
+    lock_file = "/tmp/rvx_bot.lock"
+    try:
+        # Try to create lock file exclusively (fails if already exists)
+        fd = os.open(lock_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+        os.write(fd, f"{os.getpid()}\n".encode())
+        os.close(fd)
+        logger.info(f"🔒 Bot lock acquired (PID: {os.getpid()})")
+    except FileExistsError:
+        # Another instance is running
+        logger.critical(f"🚨 CRITICAL: Another bot instance is already running!")
+        logger.critical(f"   Lock file: {lock_file}")
+        logger.critical(f"   Please stop the other instance before starting a new one.")
+        logger.critical(f"   To force: rm {lock_file}")
         return
+    except Exception as e:
+        logger.error(f"⚠️ Lock file error (continuing anyway): {e}")
     
-    if not API_URL_NEWS:
-        logger.critical("❌ API_URL_NEWS не найден в .env!")
-        return
-    
-    # ✅ v0.25.0: Initialize core systems
-    print("\n" + "="*80)
-    print("🚀 INITIALIZING v0.25.0 CORE SYSTEMS")
-    print("="*80)
-    
-    tracker = get_tracker()
-    honesty_prompt = get_honesty_system_prompt()
-    analytics = get_analytics()
-    
-    print("✅ Event tracker initialized")
-    print("✅ AI honesty system loaded")
-    print("✅ Analytics system ready")
+    try:
+        # Set asyncio event loop policy for Python 3.10+ Windows/Unix compatibility
+        if sys.version_info >= (3, 10):
+            if sys.platform == "win32":
+                asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+            else:
+                # For Unix/Linux, ensure we have a proper event loop
+                try:
+                    asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
+                except:
+                    pass
+        
+        # Проверка обязательных переменных
+        if not TELEGRAM_BOT_TOKEN:
+            logger.critical("❌ TELEGRAM_BOT_TOKEN не найден в .env!")
+            return
+        
+        if not API_URL_NEWS:
+            logger.critical("❌ API_URL_NEWS не найден в .env!")
+            return
+        
+        # ✅ v0.25.0: Initialize core systems
+        print("\n" + "="*80)
+        print("🚀 INITIALIZING v0.25.0 CORE SYSTEMS")
+        print("="*80)
+        
+        tracker = get_tracker()
+        honesty_prompt = get_honesty_system_prompt()
+        analytics = get_analytics()
+        
+        print("✅ Event tracker initialized")
+        print("✅ AI honesty system loaded")
+        print("✅ Analytics system ready")
     print(f"✅ Config loaded: BOT_ADMIN_IDS={BOT_ADMIN_IDS}")
     print(f"✅ Cache enabled: {CACHE_ENABLED}")
     print(f"✅ Analytics enabled: {FEATURE_ANALYTICS_ENABLED}")
@@ -10383,6 +10402,15 @@ def main():
         logger.info("👋 Бот остановлен пользователем")
     except Exception as e:
         logger.critical(f"❌ КРИТИЧЕСКАЯ ОШИБКА: {e}", exc_info=True)
+    finally:
+        # Clean up lock file on exit (whether success or error)
+        lock_file = "/tmp/rvx_bot.lock"
+        try:
+            if os.path.exists(lock_file):
+                os.remove(lock_file)
+                logger.info(f"🔓 Lock file removed on shutdown")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not remove lock file: {e}")
 
 if __name__ == "__main__":
     main()
