@@ -10527,9 +10527,10 @@ def main():
     
     try:
         logger.info("🚀 БОТ ПОЛНОСТЬЮ ЗАПУЩЕН И ГОТОВ К РАБОТЕ")
-        # ✅ CRITICAL FIX: Use asyncio.run() instead of manual event loop management
-        # This properly handles cleanup and prevents "Event loop is closed" error
-        asyncio.run(application.run_polling())
+        # ✅ CRITICAL FIX: Use application.run_polling() directly
+        # The python-telegram-bot library manages its own event loop
+        # Do NOT wrap with asyncio.run() - it causes "no current event loop" error
+        application.run_polling()
     except KeyboardInterrupt:
         logger.info("👋 Бот остановлен пользователем")
     except Exception as e:
