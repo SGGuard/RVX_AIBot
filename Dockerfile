@@ -30,5 +30,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:8000/health')" || exit 1
 
-# Railway will use Procfile, but for docker-compose we run both
-CMD ["sh", "-c", "python api_server.py & python bot.py"]
+# Start via Procfile command (Railway will execute this)
+CMD sh -c 'python bot.py & python api_server.py'
