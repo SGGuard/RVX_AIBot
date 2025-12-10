@@ -2629,10 +2629,12 @@ def save_conversation(user_id: int, message_type: str, content: str, intent: Opt
         
         # Now insert the conversation
         try:
+            # Map message_type to role (CHECK constraint: role IN ('user', 'assistant'))
+            role = "assistant" if message_type == "bot" else "user"
             cursor.execute("""
                 INSERT INTO conversation_history (user_id, message_type, content, intent, created_at, role)
                 VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
-            """, (user_id, message_type, content, intent or "general", message_type))
+            """, (user_id, message_type, content, intent or "general", role))
             conn.commit()
         except sqlite3.OperationalError as e:
             logger.warning(f"⚠️ DB save failed (non-critical): {e}")
