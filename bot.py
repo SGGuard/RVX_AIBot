@@ -2484,6 +2484,31 @@ def get_user_history(user_id: int, limit: int = 10) -> List[Tuple]:
 
 # ==================== ДИАЛОГОВАЯ СИСТЕМА v0.21.0 ====================
 
+def ensure_conversation_history_columns() -> None:
+    """Проверяет и добавляет недостающие столбцы в conversation_history."""
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            # Проверяем есть ли столбец message_type
+            cursor.execute("PRAGMA table_info(conversation_history)")
+            columns = {col[1] for col in cursor.fetchall()}
+            
+            # Добавляем недостающие столбцы
+            if 'message_type' not in columns:
+                logger.info("  • Добавляем столбец message_type в conversation_history...")
+                cursor.execute("ALTER TABLE conversation_history ADD COLUMN message_type TEXT DEFAULT 'user'")
+                conn.commit()
+                logger.info("✅ Столбец message_type добавлен")
+                
+            if 'intent' not in columns:
+                logger.info("  • Добавляем столбец intent в conversation_history...")
+                cursor.execute("ALTER TABLE conversation_history ADD COLUMN intent TEXT")
+                conn.commit()
+                logger.info("✅ Столбец intent добавлен")
+    except Exception as e:
+        logger.warning(f"⚠️ Ошибка при проверке миграции: {e}")
+        # Продолжаем работу, это не критично
+
 def save_conversation(user_id: int, message_type: str, content: str, intent: Optional[str] = None) -> None:
     """Сохраняет сообщение в историю диалога."""
     with get_db() as conn:
@@ -8689,24 +8714,9 @@ def analyze_message_context(text: str) -> dict:
                                              "переход", "миграция", "интеграция"]):
             return {"type": "info_request", "needs_crypto_analysis": False}
     
-    # Импорт списков ключевых слов и паттернов из отдельного файла
-    # КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ #3: Импортируем ВСЕ необходимые компоненты, включая geopolitical_words
-    try:
-        from context_keywords import (
-            crypto_words, action_words, tech_keywords, 
-            finance_words, geopolitical_words, news_patterns
-        )
-    except ImportError as e:
-        logger.error(f"❌ КРИТИЧЕСКАЯ ОШИБКА: Не удалось импортировать context_keywords: {e}")
-        logger.error(f"   Это может привести к тому, что новости не будут анализироваться!")
-        # Fallback: пустые списки (лучше чем крах)
-        crypto_words = []
-        action_words = []
-        tech_keywords = []
-        finance_words = []
-        geopolitical_words = []
-        news_patterns = []
-        return {"type": "error", "needs_crypto_analysis": False}
+    # Ключевые слова для анализа контекста (встроено, не требует отдельного файла)
+    # Для сложных сценариев используйте ai_dialogue.py
+    return {"type": "general", "needs_crypto_analysis": False}
     
     has_crypto = any(c in text_lower for c in crypto_words)
     has_tech = any(t in text_lower for t in tech_keywords)
@@ -9871,6 +9881,9 @@ def main():
     
     # Инициализация БД
     init_database()
+    
+    # 🔧 Применяем миграции (добавляем недостающие столбцы)
+    ensure_conversation_history_columns()
     
     # 💾 Инициализируем пул соединений (TIER 1 v0.22.0)
     init_db_pool()
