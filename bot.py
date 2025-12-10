@@ -1447,7 +1447,7 @@ def check_column_exists(cursor, table: str, column: str) -> bool:
         "user_quiz_responses", "user_quiz_stats", "conversation_history",
         "user_profiles", "user_bookmarks", "user_xp_events", "courses",
         "lessons", "user_questions", "faq", "tools", "user_drop_subscriptions",
-        "drops_history", "activities_cache"
+        "drops_history", "activities_cache", "user_courses"
     }
     
     # Проверка против whitelist - БЕЗОПАСНО ОТ SQL INJECTION
@@ -2083,6 +2083,18 @@ def init_database() -> None:
         try:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_bookmarks_user_id ON bookmarks(user_id)")
         except: pass
+        
+        # ============ ТАБЛИЦА ПРОГРЕССА КУРСОВ (КРИТИЧНО) ============
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_courses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                course_name TEXT,
+                completed_lessons INTEGER DEFAULT 0,
+                last_accessed TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(user_id)
+            )
+        """)
         
         logger.info("✅ База данных инициализирована с optimized indexes (v0.21.0 - Production Ready)")
     
