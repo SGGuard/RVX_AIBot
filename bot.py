@@ -2485,29 +2485,57 @@ def get_user_history(user_id: int, limit: int = 10) -> List[Tuple]:
 # ==================== ДИАЛОГОВАЯ СИСТЕМА v0.21.0 ====================
 
 def ensure_conversation_history_columns() -> None:
-    """Проверяет и добавляет недостающие столбцы в conversation_history."""
+    """Проверяет и добавляет недостающие столбцы в conversation_history.
+    
+    ⚠️ ВАЖНО: Вызывается ПЕРЕД основной инициализацией!
+    """
+    import sqlite3
     try:
-        with get_db() as conn:
-            cursor = conn.cursor()
-            # Проверяем есть ли столбец message_type
-            cursor.execute("PRAGMA table_info(conversation_history)")
-            columns = {col[1] for col in cursor.fetchall()}
-            
-            # Добавляем недостающие столбцы
-            if 'message_type' not in columns:
-                logger.info("  • Добавляем столбец message_type в conversation_history...")
+        # Открываем БД напрямую (не через пул)
+        db_path = os.getenv("DATABASE_PATH", "rvx_bot.db")
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Проверяем существует ли таблица
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='conversation_history'")
+        if not cursor.fetchone():
+            logger.info("ℹ️  Таблица conversation_history не существует, будет создана позже")
+            conn.close()
+            return
+        
+        # Получаем информацию о столбцах
+        cursor.execute("PRAGMA table_info(conversation_history)")
+        columns = {col[1] for col in cursor.fetchall()}
+        logger.debug(f"📋 Текущие столбцы conversation_history: {columns}")
+        
+        # Проверяем и добавляем недостающие столбцы
+        if 'message_type' not in columns:
+            logger.info("  • Добавляем столбец message_type в conversation_history...")
+            try:
                 cursor.execute("ALTER TABLE conversation_history ADD COLUMN message_type TEXT DEFAULT 'user'")
                 conn.commit()
-                logger.info("✅ Столбец message_type добавлен")
+                logger.info("✅ Столбец message_type добавлен успешно")
+            except sqlite3.OperationalError as e:
+                logger.warning(f"⚠️  Не удалось добавить message_type: {e}")
                 
-            if 'intent' not in columns:
-                logger.info("  • Добавляем столбец intent в conversation_history...")
+        if 'intent' not in columns:
+            logger.info("  • Добавляем столбец intent в conversation_history...")
+            try:
                 cursor.execute("ALTER TABLE conversation_history ADD COLUMN intent TEXT")
                 conn.commit()
-                logger.info("✅ Столбец intent добавлен")
+                logger.info("✅ Столбец intent добавлен успешно")
+            except sqlite3.OperationalError as e:
+                logger.warning(f"⚠️  Не удалось добавить intent: {e}")
+        
+        # Финальная проверка
+        cursor.execute("PRAGMA table_info(conversation_history)")
+        final_columns = {col[1] for col in cursor.fetchall()}
+        logger.info(f"✅ Финальные столбцы conversation_history: {final_columns}")
+        
+        conn.close()
     except Exception as e:
-        logger.warning(f"⚠️ Ошибка при проверке миграции: {e}")
-        # Продолжаем работу, это не критично
+        logger.error(f"❌ Критическая ошибка при миграции БД: {e}", exc_info=True)
+        # Продолжаем работу несмотря на ошибку
 
 def save_conversation(user_id: int, message_type: str, content: str, intent: Optional[str] = None) -> None:
     """Сохраняет сообщение в историю диалога."""
@@ -9879,11 +9907,11 @@ def main():
     print(f"✅ Analytics enabled: {FEATURE_ANALYTICS_ENABLED}")
     print("="*80 + "\n")
     
+    # 🔧 Применяем миграции ПЕРЕД инициализацией БД (это критично!)
+    ensure_conversation_history_columns()
+    
     # Инициализация БД
     init_database()
-    
-    # 🔧 Применяем миграции (добавляем недостающие столбцы)
-    ensure_conversation_history_columns()
     
     # 💾 Инициализируем пул соединений (TIER 1 v0.22.0)
     init_db_pool()
