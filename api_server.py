@@ -528,64 +528,13 @@ def extract_json_from_response(raw_text: str) -> Optional[dict]:
     return None
 
 def extract_teaching_json(raw_text: str) -> Optional[dict]:
-    """Извлекает JSON урока из ответа AI с множественными стратегиями.
+    """Извлекает JSON урока из ответа AI - использует универсальный парсер.
     
     ✅ CRITICAL FIX #6: Protect against DoS via oversized responses
+    ✅ Uses advanced extract_json_from_response for reliable parsing
     """
-    if not raw_text:
-        return None
-    
-    # ✅ CRITICAL FIX #6: Enforce max response size to prevent DoS
-    MAX_JSON_SIZE = 100_000  # 100KB max
-    if len(raw_text) > MAX_JSON_SIZE:
-        logger.warning(f"⚠️ Teaching JSON exceeds max size ({len(raw_text)} > {MAX_JSON_SIZE})")
-        return None
-    
-    # Стратегия 1: Удаляем markdown блоки
-    text = re.sub(r'```json\s*', '', raw_text, flags=re.IGNORECASE).strip()
-    text = re.sub(r'```\s*', '', text).strip()
-    
-    # Стратегия 2: XML теги <json>...</json>
-    xml_match = re.search(r'<json>(.*?)</json>', text, re.DOTALL | re.IGNORECASE)
-    if xml_match:
-        text_to_parse = xml_match.group(1).strip()
-    else:
-        # Стратегия 3: Ищем первый валидный JSON блок
-        brace_match = re.search(r'\{.*\}', text, re.DOTALL)
-        if brace_match:
-            text_to_parse = brace_match.group(0)
-        else:
-            logger.warning(f"Урок JSON не найден. Начало ответа: {raw_text[:100]}...")
-            return None
-    
-    # Очищаем от markdown маркеров
-    text_to_parse = text_to_parse.replace("**", "")
-    text_to_parse = text_to_parse.replace("__", "")
-    text_to_parse = text_to_parse.replace("~~", "")
-    
-    # Парсинг с обработкой ошибок
-    try:
-        data = json.loads(text_to_parse)
-        if not isinstance(data, dict):
-            logger.error(f"Урок JSON не является словарем, тип: {type(data)}")
-            return None
-        logger.info("✅ Урок JSON успешно распарсен")
-        return data
-    except json.JSONDecodeError as e:
-        logger.error(f"Ошибка парсинга урока JSON на строке {e.lineno}, колонке {e.colno}: {e.msg}")
-        logger.debug(f"Проблемный текст: {text_to_parse[:300]}")
-        
-        # Попытка исправить распространённые ошибки JSON
-        cleaned = text_to_parse.replace("'", '"')
-        try:
-            data = json.loads(cleaned)
-            if isinstance(data, dict):
-                logger.info("✅ Урок JSON успешно распарсен после очистки кавычек")
-                return data
-        except json.JSONDecodeError:
-            logger.error("❌ Не удалось распарсить урок JSON даже после очистки")
-        
-        return None
+    # Используем универсальный парсер с полной поддержкой вложенных скобок
+    return extract_json_from_response(raw_text)
 
 def validate_analysis(data: Any) -> tuple[bool, Optional[str]]:
     """Валидация структуры ответа AI - summary_text и impact_points ОБЯЗАТЕЛЬНЫ."""
