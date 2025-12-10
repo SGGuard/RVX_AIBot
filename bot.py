@@ -2587,11 +2587,12 @@ def save_conversation(user_id: int, message_type: str, content: str, intent: Opt
     with get_db() as conn:
         cursor = conn.cursor()
         
-        # ✅ CRITICAL FIX: Ensure column exists before insert (handles old DB migrations)
+        # ✅ CRITICAL FIX: Ensure ALL required columns exist before insert (handles old DB migrations)
         try:
             cursor.execute("PRAGMA table_info(conversation_history)")
             columns = {row[1] for row in cursor.fetchall()}
             
+            # Check and add missing columns
             if 'message_type' not in columns:
                 logger.warning("⚠️ Adding missing message_type column to conversation_history...")
                 try:
@@ -2601,7 +2602,16 @@ def save_conversation(user_id: int, message_type: str, content: str, intent: Opt
                 except sqlite3.OperationalError as e:
                     if "duplicate column name" not in str(e).lower():
                         logger.error(f"❌ Failed to add message_type column: {e}")
-                        return
+            
+            if 'created_at' not in columns:
+                logger.warning("⚠️ Adding missing created_at column to conversation_history...")
+                try:
+                    cursor.execute("ALTER TABLE conversation_history ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+                    conn.commit()
+                    logger.info("✅ Column created_at added successfully")
+                except sqlite3.OperationalError as e:
+                    if "duplicate column name" not in str(e).lower():
+                        logger.error(f"❌ Failed to add created_at column: {e}")
         except Exception as e:
             logger.warning(f"⚠️ Could not check columns: {e}")
         
@@ -10517,10 +10527,9 @@ def main():
     
     try:
         logger.info("🚀 БОТ ПОЛНОСТЬЮ ЗАПУЩЕН И ГОТОВ К РАБОТЕ")
-        # Create a new event loop and set it as the current event loop
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(application.run_polling())
+        # ✅ CRITICAL FIX: Use asyncio.run() instead of manual event loop management
+        # This properly handles cleanup and prevents "Event loop is closed" error
+        asyncio.run(application.run_polling())
     except KeyboardInterrupt:
         logger.info("👋 Бот остановлен пользователем")
     except Exception as e:
