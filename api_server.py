@@ -1130,7 +1130,13 @@ async def lifespan(app: FastAPI):
     logger.info(f"  • Ошибок: {request_counter['errors']}")
     logger.info(f"  • Fallback режим: {request_counter['fallback']}")
     logger.info(f"  • Rate limited: {request_counter.get('rate_limited', 0)}")
-    logger.info(f"  • Размер кэша: {len(response_cache)}")
+    
+    # Get cache stats safely
+    try:
+        cache_stats = response_cache.get_stats()
+        logger.info(f"  • Размер кэша: {cache_stats['size']}/{cache_stats['max_size']}")
+    except Exception as e:
+        logger.warning(f"⚠️ Не удалось получить размер кэша: {e}")
     
     # Security stats at shutdown
     security_stats = security_manager.get_security_stats()
