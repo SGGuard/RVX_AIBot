@@ -9220,7 +9220,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # ==================== ДИАЛОГОВАЯ СИСТЕМА v0.21.0 ====================
     # Классифицируем намерение и сохраняем в историю
     intent = classify_intent(user_text)
-    save_conversation(user.id, "user", user_text, intent)
+    try:
+        save_conversation(user.id, "user", user_text, intent)
+    except Exception as e:
+        logger.warning(f"⚠️ DB save failed (non-critical): {e}")
     # ===================================================================
     
     # Анализируем контекст сообщения
@@ -9326,7 +9329,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 add_ai_message(user.id, ai_response)
                 
                 # Сохраняем ответ в историю диалога
-                save_conversation(user.id, "bot", ai_response, intent)
+                try:
+                    save_conversation(user.id, "bot", ai_response, intent)
+                except Exception as e:
+                    logger.warning(f"⚠️ DB save failed (non-critical): {e}")
                 logger.info(f"✅ AI Dialogue для {user.id}: '{user_text[:40]}...' → ИИ ответ ({len(ai_response)} символов)")
                 return
             else:
