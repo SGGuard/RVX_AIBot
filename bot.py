@@ -9311,14 +9311,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 
                 # ✅ v0.25.0: Apply AI honesty checks before sending response
                 honesty_analysis = analyze_ai_response(ai_response)
+                
+                # ✅ v0.26.0: FIX - ТОЛЬКО ОДНО сообщение, никаких дубликатов!
+                final_response = formatted_response
+                
                 if honesty_analysis["confidence"] < 0.6:
-                    # Low confidence - add warning
-                    warning_msg = f"⚠️ <i>Уверенность ИИ в этом ответе средняя. Пожалуйста, проверьте информацию самостоятельно.</i>\n\n{formatted_response}"
-                    await update.message.reply_text(warning_msg, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
-                else:
-                    # High confidence - send cleaned response
-                    cleaned_response = clean_ai_response(ai_response)
-                    await update.message.reply_text(formatted_response, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+                    # Low confidence - add warning AT THE BEGINNING
+                    final_response = f"⚠️ <i>Уверенность ИИ в этом ответе средняя. Пожалуйста, проверьте информацию самостоятельно.</i>\n\n{formatted_response}"
+                
+                # ONLY ONE send_message call - no duplicates!
+                await update.message.reply_text(final_response, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
                 
                 # ✅ v0.26.0: Добавляем ИИ ответ в контекст
                 add_ai_message(user.id, ai_response)
