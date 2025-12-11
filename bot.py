@@ -10572,22 +10572,21 @@ def main():
     
     try:
         logger.info("🚀 БОТ ПОЛНОСТЬЮ ЗАПУЩЕН И ГОТОВ К РАБОТЕ")
-        # ✅ CRITICAL FIX v4: Prevent "Event loop is closed" on Railway
-        # Handle both cases: fresh event loop (local) and existing loop (Railway)
+        # ✅ CRITICAL FIX v5: Explicit event loop creation for Python 3.12
+        # Works on both Railway and local environments
+        if sys.platform == 'win32':
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        
+        # Create a new event loop explicitly
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         try:
-            # Try to get existing event loop (Railway uses one)
-            loop = asyncio.get_event_loop()
-            if loop.is_closed():
-                # If it's closed, create a new one
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-            # Run the polling without closing the loop
+            # Run polling without closing loop (prevents "Event loop is closed" crash)
             loop.run_until_complete(application.run_polling())
-        except RuntimeError:
-            # No event loop exists, create fresh one with asyncio.run()
-            if sys.platform == 'win32':
-                asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-            asyncio.run(application.run_polling())
+        finally:
+            # Only close if we created it
+            if not loop.is_closed():
+                loop.close()
     except KeyboardInterrupt:
         logger.info("👋 Бот остановлен пользователем")
     except Exception as e:
