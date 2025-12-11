@@ -10,21 +10,20 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI, HTTPException, Request, status, Query
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field, validator, field_validator
+from pydantic import BaseModel, Field, field_validator
 from dotenv import load_dotenv
 from starlette.concurrency import run_in_threadpool
-from tenacity import retry, stop_after_attempt, wait_exponential, RetryError
+from tenacity import retry, stop_after_attempt, wait_exponential
 import httpx
 
 # DeepSeek AI (OpenAI compatible) + Google Gemini
-from openai import OpenAI, AsyncOpenAI
+from openai import OpenAI
 from google import genai
-from google.genai.errors import APIError
 
 # TIER 1 Optimizations (v0.22.0)
-from tier1_optimizations import cache_manager, structured_logger, CacheManager
+from tier1_optimizations import cache_manager, structured_logger
 
 # Limited Cache (v1.0) - исправление утечки памяти
 from limited_cache import LimitedCache
@@ -32,19 +31,18 @@ from limited_cache import LimitedCache
 # Drops Tracker - для информации о дропах и активностях (v0.15.0)
 from drops_tracker import (
     get_trending_tokens, get_nft_drops, get_activities,
-    get_drops_by_chain, get_token_info, get_cache_info
+    get_drops_by_chain, get_token_info
 )
 
 # ============================================================================
 # 🔐 SECURITY MODULES v1.0 - Production-Grade Security
 # ============================================================================
-from security_manager import security_manager, log_security_action, SECURITY_HEADERS
+from security_manager import security_manager, SECURITY_HEADERS
 from api_auth_manager import api_key_manager, init_auth_database
 from audit_logger import audit_logger
-from secrets_manager import secrets_manager, get_safe_logger
+from secrets_manager import get_safe_logger
 from security_middleware import (
     RateLimiter,
-    RequestValidator,
 )
 
 # =============================================================================

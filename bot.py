@@ -35,25 +35,19 @@ from telegram.constants import ParseMode, ChatAction
 # ✅ v0.25.0: CORE MODULES - Config, Messages, AI Honesty, Event Tracking
 # ============================================================================
 from config import (
-    TELEGRAM_BOT_TOKEN as CONFIG_BOT_TOKEN,
-    API_URL_NEWS, CACHE_ENABLED, BOT_MAX_MESSAGE_LENGTH,
-    BOT_ADMIN_IDS, RATE_LIMIT_ENABLED, BOT_OWNER_ID,
-    FEATURE_ANALYTICS_ENABLED, FEATURE_FEEDBACK_ENABLED
+    API_URL_NEWS,
+    CACHE_ENABLED, BOT_ADMIN_IDS, BOT_OWNER_ID,
+    FEATURE_ANALYTICS_ENABLED
 )
 from messages import (
-    MSG_START, MSG_HELP, MSG_ANALYZING, MSG_ERROR_GENERIC,
-    MSG_ERROR_API_TIMEOUT, format_message, split_message, truncate_message,
-    BUTTON_USEFUL, BUTTON_NOT_USEFUL, BUTTON_MORE_INFO,
-    MSG_HELP_EXTENDED, MSG_FEEDBACK_HELPFUL, MSG_FEEDBACK_UNHELPFUL,
-    MSG_CLARIFY_PROMPT, MSG_CLARIFY_NOT_FOUND, MSG_ERROR_BANNED,
-    MSG_ERROR_LIMIT_EXCEEDED, MSG_ERROR_FLOOD_CONTROL, MSG_ERROR_TEXT_TOO_LONG
+    split_message, MSG_HELP_EXTENDED, MSG_FEEDBACK_HELPFUL, MSG_FEEDBACK_UNHELPFUL,
+    MSG_CLARIFY_PROMPT, MSG_CLARIFY_NOT_FOUND
 )
 from ai_honesty import (
-    analyze_ai_response, clean_ai_response, get_honesty_system_prompt,
-    validate_response, HonestyDetector, ResponseCleaner
+    analyze_ai_response, get_honesty_system_prompt
 )
 from event_tracker import (
-    get_tracker, create_event, EventType, get_analytics, Analytics
+    get_tracker, create_event, EventType, get_analytics
 )
 
 # ✅ v0.25.0: Admin Dashboard
@@ -61,15 +55,14 @@ from admin_dashboard import get_admin_dashboard
 
 # ✅ v0.26.0: Conversation Context Manager - контекст разговора
 from conversation_context import (
-    get_context_manager, add_user_message, add_ai_message, 
-    get_user_context, get_context_messages, clear_user_history, get_context_stats
+    add_user_message, add_ai_message, get_context_messages, 
+    clear_user_history, get_context_stats
 )
 
 # ✅ CRITICAL FIX #2: Input Validators - валидация входных данных
-from input_validators import validate_user_input, UserMessageInput, sanitize_for_display
+from input_validators import validate_user_input, UserMessageInput
 
 # ✅ CRITICAL FIX #1: SQL Validator - защита от SQL injection
-from sql_validator import sql_validator
 
 # Новый модуль для обучения (v0.5.0)
 from education import (
@@ -87,14 +80,12 @@ from education import (
 
 # Передовая система обучения (v0.21.0)
 from adaptive_learning import (
-    UserLearningProfile, SpiralLearning, PersonalizedLearningPath,
-    Gamification, InteractiveLearning, AdaptiveContent, FeedbackSystem,
-    MicroLearning, CollaborativeLearning, initialize_learning_profile,
-    get_recommended_learning_session, DifficultyLevel, LearningStyle
+    Gamification, initialize_learning_profile, get_recommended_learning_session,
+    DifficultyLevel
 )
 
 # TIER 1 Optimizations (v0.22.0) - Type hints, Redis cache, connection pooling, structured logging
-from tier1_optimizations import cache_manager, structured_logger, DatabaseConnectionPool
+from tier1_optimizations import DatabaseConnectionPool
 
 # Учительский модуль (v0.7.0) - ИИ преподает крипто, AI, Web3, трейдинг
 from teacher import teach_lesson, TEACHING_TOPICS, DIFFICULTY_LEVELS
@@ -103,10 +94,7 @@ from teacher import teach_lesson, TEACHING_TOPICS, DIFFICULTY_LEVELS
 from ai_intelligence import (
     analyze_user_knowledge_level, get_adaptive_greeting, get_contextual_tips,
     get_encouragement_message, get_personalized_next_action, UserLevel,
-    build_smart_response_context, analyze_user_interests, 
-    generate_achievement_badge_message, get_challenge_message,
-    get_conversational_response, get_personalized_learning_path,
-    generate_motivational_quote, get_weekly_challenge
+    analyze_user_interests
 )
 
 # Новая система адаптивных квестов v2 (v0.13.0)
@@ -115,7 +103,7 @@ from daily_quests_v2 import (
     get_daily_quests_for_level, LEVEL_RANGES
 )
 from quest_handler_v2 import (
-    start_quest, start_test, show_question, handle_answer, show_results
+    start_quest, start_test, show_question, handle_answer
 )
 
 # (v0.23.0) Глобальное состояние теперь управляется через BotState класс - см. ниже
