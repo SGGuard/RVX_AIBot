@@ -9553,28 +9553,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             )
             
             if ai_response:
-                # Обрезаем до 500 символов - короче и конкретнее
-                MAX_RESPONSE = 500
-                
-                if len(ai_response) > MAX_RESPONSE:
-                    # Обрезаем по полным словам, не посередине
-                    truncated = ai_response[:MAX_RESPONSE]
-                    
-                    # Ищем последнюю точку (конец предложения)
-                    last_period = truncated.rfind('.')
-                    
-                    # Если есть точка - обрезаем после неё
-                    if last_period > MAX_RESPONSE * 0.7:  # Точка в последних 30%
-                        ai_response = truncated[:last_period + 1]
-                    elif last_period > 0:  # Если точка есть хотя бы где-то
-                        ai_response = truncated[:last_period + 1]
-                    else:
-                        # Если точки нет - ищем последний пробел
-                        last_space = truncated.rfind(' ')
-                        if last_space > 0:
-                            ai_response = truncated[:last_space] + "..."
-                        else:
-                            ai_response = truncated + "..."
+                # ✅ v0.27.0: REMOVED arbitrary 500-char limit - now fully respects AI response length
+                # ✅ AI returns 2000 tokens max (~4000 symbols), will be split by Telegram limit (4096)
                 
                 # Очищаем markdown символы (**, __, --, ~~) которые ИИ может добавить
                 ai_response = ai_response.replace("**", "").replace("__", "").replace("--", "").replace("~~", "")
@@ -9619,8 +9599,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     # Low confidence - add warning AT THE BEGINNING
                     final_response = f"⚠️ <i>Уверенность ИИ в этом ответе средняя. Пожалуйста, проверьте информацию самостоятельно.</i>\n\n{formatted_response}"
                 
-                # ONLY ONE send_message call - no duplicates!
-                await update.message.reply_text(final_response, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+                # ✅ CRITICAL FIX: Split long responses to stay under 4096 char limit
+                response_chunks = split_message(final_response, chunk_size=4090)
+                
+                # Send first chunk with keyboard
+                if response_chunks:
+                    await update.message.reply_text(response_chunks[0], parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+                    # Send remaining chunks without keyboard
+                    for chunk in response_chunks[1:]:
+                        await update.message.reply_text(chunk, parse_mode=ParseMode.HTML)
                 
                 # ✅ v0.26.0: Добавляем ИИ ответ в контекст
                 add_ai_message(user.id, ai_response)
