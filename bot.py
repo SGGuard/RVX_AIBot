@@ -10572,14 +10572,22 @@ def main():
     
     try:
         logger.info("🚀 БОТ ПОЛНОСТЬЮ ЗАПУЩЕН И ГОТОВ К РАБОТЕ")
-        # ✅ CRITICAL FIX v3: Prevent "Event loop is closed" on Railway
-        # Use asyncio.run() for proper event loop lifecycle management
-        # This is the correct pattern for Python 3.12 + python-telegram-bot v21+
-        if sys.platform == 'win32':
-            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-        
-        # asyncio.run() creates and closes event loop automatically
-        asyncio.run(application.run_polling())
+        # ✅ CRITICAL FIX v4: Prevent "Event loop is closed" on Railway
+        # Handle both cases: fresh event loop (local) and existing loop (Railway)
+        try:
+            # Try to get existing event loop (Railway uses one)
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                # If it's closed, create a new one
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            # Run the polling without closing the loop
+            loop.run_until_complete(application.run_polling())
+        except RuntimeError:
+            # No event loop exists, create fresh one with asyncio.run()
+            if sys.platform == 'win32':
+                asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+            asyncio.run(application.run_polling())
     except KeyboardInterrupt:
         logger.info("👋 Бот остановлен пользователем")
     except Exception as e:
