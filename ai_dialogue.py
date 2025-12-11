@@ -305,8 +305,7 @@ def should_mention_developer(user_message: str) -> bool:
 def build_context_for_prompt(context_history: List[dict]) -> str:
     """Формирует контекст из истории.
     
-    ROBUST FIX: Handles malformed data (strings instead of dicts, NULL values, etc).
-    Returns empty string if history is invalid to prevent AI dialogue crashes.
+    ✅ FIXED: Теперь получает List[dict] в правильном формате
     """
     if not context_history:
         return ""
@@ -314,27 +313,17 @@ def build_context_for_prompt(context_history: List[dict]) -> str:
     context_lines = []
     for msg in context_history[-10:]:
         try:
-            # Handle case where msg is a string instead of dict
-            if isinstance(msg, str):
-                logger.debug(f"⚠️ Converting string message to dict: {msg[:50]}...")
-                # Try to use it as content from user
-                if msg.strip():
-                    context_lines.append(f"Пользователь: {msg[:150]}")
-                continue
-            
-            # Normal dict handling with fallbacks
             if not isinstance(msg, dict):
-                logger.debug(f"⚠️ Skipping non-dict message: {type(msg)}")
                 continue
                 
-            msg_type = msg.get('type', 'user')
+            msg_type = msg.get('role', 'user')
             content = msg.get('content', '')
             
-            # Ensure content is string
-            if not isinstance(content, str):
-                content = str(content) if content else ''
-            
-            content = content[:150]
+            # Увеличена до 300 символов для лучшего контекста (было 150)
+            if isinstance(content, str):
+                content = content[:300]
+            else:
+                content = str(content)[:300] if content else ''
             
             if msg_type == 'user':
                 context_lines.append(f"Пользователь: {content}")
@@ -346,7 +335,6 @@ def build_context_for_prompt(context_history: List[dict]) -> str:
     
     if context_lines:
         return "ИСТОРИЯ:\n" + "\n".join(context_lines) + "\n\n"
-    return ""
     return ""
 
 

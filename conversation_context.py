@@ -603,6 +603,15 @@ def get_context_stats(user_id: int) -> Dict:
     return manager.get_stats(user_id)
 
 
+def get_context_messages(user_id: int, limit: int = 10) -> list:
+    """Получает последние сообщения контекста в виде List[dict]
+    
+    Это функция для передачи в AI диалог в правильном формате!
+    """
+    manager = get_context_manager()
+    return manager.get_messages(user_id, limit=limit)
+
+
 # ============================================================================
 # TESTING & UTILITIES
 # ============================================================================
