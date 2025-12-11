@@ -60,6 +60,35 @@ DIFFICULTY_LEVELS = {
 }
 
 
+def _get_fallback_lesson(topic: str, difficulty_level: str) -> Optional[Dict[str, Any]]:
+    """Возвращает базовый урок когда API недоступен (fallback режим)."""
+    topic_info = TEACHING_TOPICS.get(topic, {"name": topic, "description": ""})
+    if isinstance(topic_info, str):
+        topic_info = {"name": topic_info, "description": ""}
+    
+    level_info = DIFFICULTY_LEVELS.get(difficulty_level, {"emoji": "📚", "name": "средний"})
+    
+    fallback_content = f"""
+    {level_info['emoji']} {topic_info['name']}
+    
+    Это базовое объяснение, так как сервис обучения временно недоступен.
+    Пожалуйста, попробуйте снова позже для полного интерактивного урока.
+    """
+    
+    return {
+        "lesson_title": f"{level_info['emoji']} {topic_info['name']} (offline mode)",
+        "content": fallback_content.strip(),
+        "key_points": [
+            "Основная концепция",
+            "Практическое применение",
+            "Дальнейшее изучение"
+        ],
+        "real_world_example": "Примеры будут доступны при восстановлении сервиса обучения",
+        "practice_question": "Попробуйте снова позже для проверки понимания",
+        "next_topics": []
+    }
+
+
 def build_teacher_prompt(topic: str, level: str, question: Optional[str] = None) -> str:
     """Создает промпт для обучающего ИИ."""
     
@@ -281,15 +310,21 @@ async def teach_lesson(
         
         logger.info(f"📚 Подготовка урока: {topic_info.get('name', topic)} ({difficulty_level})")
         
-        # Получаем API URL - на Railway используем 127.0.0.1:8080 по умолчанию
+        # Получаем API URL для связи между сервисами
         from urllib.parse import urlparse
         
-        # Priority: env variable > Railway auto-detection > localhost fallback
+        # Priority: env variable > auto-detection > localhost fallback
         api_url_env = os.getenv("API_URL_NEWS")
         if not api_url_env:
-            # Auto-detect for Railway: if RAILWAY_ENVIRONMENT exists, we're on Railway
-            if os.getenv("RAILWAY_ENVIRONMENT"):
-                api_url_env = "http://127.0.0.1:8080/explain_news"
+            # На Railway используем переменную окружения API_URL
+            railway_api_url = os.getenv("API_URL")
+            if railway_api_url:
+                # Railway сервис - используем публичный URL
+                api_url_env = railway_api_url.rstrip('/') + "/explain_news"
+            elif os.getenv("RAILWAY_ENVIRONMENT"):
+                # Fallback: если RAILWAY_ENVIRONMENT но нет API_URL, используем localhost
+                # (это может работать если оба контейнера в одной сети)
+                api_url_env = "http://localhost:8080/explain_news"
             else:
                 # Local development
                 api_url_env = "http://localhost:8000/explain_news"
@@ -342,15 +377,19 @@ async def teach_lesson(
         
         except httpx.ConnectError as e:
             logger.error(f"❌ Connection error при запросе к {TEACH_API_URL}: {e}")
-            return None
+            logger.warning(f"⚠️ Использую fallback урок, так как API недоступен")
+            return _get_fallback_lesson(topic, difficulty_level)
         except asyncio.TimeoutError:
             logger.error(f"❌ Timeout при запросе к API /teach_lesson ({TEACH_API_URL})")
-            return None
+            logger.warning(f"⚠️ Использую fallback урок, так как API не ответил")
+            return _get_fallback_lesson(topic, difficulty_level)
         except Exception as e:
             logger.error(f"❌ Ошибка при создании урока: {e}", exc_info=True)
-            return None
+            logger.warning(f"⚠️ Использую fallback урок")
+            return _get_fallback_lesson(topic, difficulty_level)
         
     except Exception as e:
         logger.error(f"❌ Критическая ошибка в teach_lesson: {e}", exc_info=True)
+        return _get_fallback_lesson(topic, difficulty_level)
         return None
 
