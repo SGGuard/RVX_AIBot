@@ -1398,41 +1398,74 @@ def get_db() -> contextmanager:
     TIER 1 v0.22.0: Использует пул соединений для оптимизации производительности.
     Гарантирует закрытие соединения даже при исключениях.
     Предотвращает утечку ресурсов (memory leak ~500KB/day в production).
+    
+    v0.26.0: Добавлен retry mechanism для "database is locked" ошибок с exponential backoff.
     """
     conn = None
-    try:
-        # Получаем соединение из пула или создаем новое
-        if db_pool:
-            conn = db_pool.get_connection()
-        else:
-            conn = sqlite3.connect(DB_PATH, timeout=10.0, check_same_thread=False)
-        
-        if conn:
-            conn.row_factory = sqlite3.Row
-            conn.execute("PRAGMA journal_mode=WAL")  # Write-Ahead Logging для производительности
-        
-        yield conn
-        if conn:
-            conn.commit()
-    except sqlite3.Error as e:
-        if conn:
-            try:
-                conn.rollback()
-            except:
-                pass  # Ignore rollback errors
-        logger.error(f"❌ DB ошибка: {e}", exc_info=True)
-        raise  # Re-raise to caller
-    except Exception as e:
-        if conn:
-            try:
-                conn.rollback()
-            except:
-                pass
-        logger.error(f"❌ Неожиданная ошибка БД: {e}", exc_info=True)
-    finally:
-        # Возвращаем соединение в пул (TIER 1 v0.22.0)
-        if conn and db_pool:
-            db_pool.return_connection(conn)
+    max_retries = 5
+    retry_delay = 0.1  # Start with 100ms
+    attempt = 0
+    
+    while attempt < max_retries:
+        try:
+            # Получаем соединение из пула или создаем новое
+            if db_pool:
+                conn = db_pool.get_connection()
+            else:
+                conn = sqlite3.connect(DB_PATH, timeout=10.0, check_same_thread=False)
+            
+            if conn:
+                conn.row_factory = sqlite3.Row
+                conn.execute("PRAGMA journal_mode=WAL")  # Write-Ahead Logging
+                conn.execute("PRAGMA busy_timeout=10000")  # 10 second timeout
+            
+            yield conn
+            if conn:
+                conn.commit()
+            break  # Success, exit retry loop
+            
+        except sqlite3.OperationalError as e:
+            if "database is locked" in str(e) and attempt < max_retries - 1:
+                # Retry with exponential backoff for locked database
+                import time
+                attempt += 1
+                time.sleep(retry_delay)
+                retry_delay *= 1.5  # Exponential backoff
+                if conn:
+                    try:
+                        conn.close()
+                    except:
+                        pass
+                continue
+            else:
+                # Not a lock error or final attempt
+                if conn:
+                    try:
+                        conn.rollback()
+                    except:
+                        pass
+                logger.error(f"❌ DB ошибка: {e}", exc_info=True)
+                raise
+        except sqlite3.Error as e:
+            if conn:
+                try:
+                    conn.rollback()
+                except:
+                    pass
+            logger.error(f"❌ DB ошибка: {e}", exc_info=True)
+            raise
+        except Exception as e:
+            if conn:
+                try:
+                    conn.rollback()
+                except:
+                    pass
+            logger.error(f"❌ Неожиданная ошибка БД: {e}", exc_info=True)
+            raise
+        finally:
+            # Возвращаем соединение в пул (TIER 1 v0.22.0)
+            if conn and db_pool:
+                db_pool.return_connection(conn)
 
 def check_column_exists(cursor, table: str, column: str) -> bool:
     """Проверяет существование колонки в таблице.
