@@ -10792,31 +10792,26 @@ def main():
     
     try:
         logger.info("🚀 БОТ ПОЛНОСТЬЮ ЗАПУЩЕН И ГОТОВ К РАБОТЕ")
-        # ✅ CRITICAL FIX v5: Explicit event loop creation for Python 3.12
+        # ✅ CRITICAL FIX v6: Use application.run_polling() directly
+        # python-telegram-bot v21 manages its own event loop
         # Works on both Railway and local environments
         if sys.platform == 'win32':
             asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         
-        # Run polling directly without explicit loop handling
-        # This prevents "Event loop is closed" errors on Railway
-        try:
-            asyncio.run(application.run_polling())
-        except Conflict as e:
-            # Another bot instance is running - graceful exit
-            logger.warning(f"⚠️ Conflict detected: {e}. Another bot instance might be running. Exiting...")
-            try:
-                asyncio.run(application.stop())
-            except Exception as stop_error:
-                logger.warning(f"⚠️ Error during graceful stop: {stop_error}")
-        except RuntimeError as e:
-            # Handle "Event loop is closed" error gracefully
-            if "Event loop is closed" in str(e):
-                logger.info("✅ Bot shutdown completed cleanly")
-                return
-            else:
-                logger.critical(f"❌ КРИТИЧЕСКАЯ ОШИБКА: {e}", exc_info=True)
+        # Let python-telegram-bot manage the event loop
+        # Don't wrap with asyncio.run() - it breaks PTB's loop management
+        application.run_polling(allowed_updates=Update.ALL_TYPES)
+    except Conflict as e:
+        # Another bot instance is running - graceful exit
+        logger.warning(f"⚠️ Conflict detected: {e}. Another bot instance might be running. Exiting...")
     except KeyboardInterrupt:
         logger.info("👋 Бот остановлен пользователем")
+    except RuntimeError as e:
+        # Handle event loop errors gracefully on Railway
+        if "Event loop is closed" in str(e) or "no current event loop" in str(e).lower():
+            logger.info("✅ Bot shutdown completed cleanly")
+        else:
+            logger.critical(f"❌ КРИТИЧЕСКАЯ ОШИБКА: {e}", exc_info=True)
     except Exception as e:
         logger.critical(f"❌ КРИТИЧЕСКАЯ ОШИБКА: {e}", exc_info=True)
 
