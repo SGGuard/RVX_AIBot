@@ -2471,7 +2471,31 @@ def markdown_to_html_for_telegram(text: str) -> str:
 # --- Функции работы с пользователями ---
 
 def save_user(user_id: int, username: str, first_name: str) -> None:
-    """Сохраняет или обновляет информацию о пользователе."""
+    """
+    Сохраняет или обновляет информацию о пользователе в БД.
+    
+    Создает новую запись пользователя или обновляет существующую.
+    Вызывается каждый раз когда пользователь взаимодействует с ботом.
+    
+    Args:
+        user_id (int): Unique Telegram user ID
+        username (str): Telegram username (may be empty)
+        first_name (str): User's first name from Telegram profile
+        
+    Side Effects:
+        - Creates or updates row in users table
+        - Updates: username, first_name
+        - Preserves: user_id, daily_requests, xp, level, created_at, is_banned
+        
+    Example:
+        >>> save_user(123456, "johndoe", "John")
+        >>> # User 123456 is now saved in DB with username "johndoe"
+        
+    Note:
+        - Idempotent: safe to call multiple times
+        - Uses ON CONFLICT to handle duplicates
+        - Minimal: only saves essential profile fields
+    """
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -2483,7 +2507,40 @@ def save_user(user_id: int, username: str, first_name: str) -> None:
         """, (user_id, username, first_name))
 
 def check_user_banned(user_id: int) -> Tuple[bool, Optional[str]]:
-    """Проверяет, забанен ли пользователь."""
+    """
+    Проверяет, забанен ли пользователь и возвращает причину.
+    
+    Быстрая проверка для фильтрации забаненных пользователей.
+    Вызывается в начале обработки каждого сообщения.
+    
+    Args:
+        user_id (int): Unique Telegram user ID для проверки
+        
+    Returns:
+        Tuple[bool, Optional[str]]:
+            - (True, ban_reason) if user is banned
+            - (False, None) if user is not banned
+            
+    Ban Reasons:
+        - "spam": Отправка спама
+        - "abuse": Оскорбительное поведение
+        - "malicious": Попытка взлома/атак
+        - "terms": Нарушение условий использования
+        
+    Performance:
+        - O(log N) lookup via indexed user_id
+        - Response time: <1ms typically
+        
+    Example:
+        >>> is_banned, reason = check_user_banned(123456)
+        >>> if is_banned:
+        ...     print(f"User banned: {reason}")
+        
+    Note:
+        - Used in every message handler
+        - Critical for abuse prevention
+        - Checked before rate limiting
+    """
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -5827,7 +5884,42 @@ async def lesson_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 async def handle_start_course_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, course_name: str, query):
-    """Обработчик для запуска курса через callback кнопку (интерактивный интерфейс с улучшенной UX)"""
+    """
+    Обработчик для запуска курса через callback кнопку с интерактивным UI.
+    
+    Вызывается когда пользователь нажимает кнопку "Начать курс" в интерфейсе.
+    Инициализирует выбранный курс, сохраняет прогресс, показывает первый урок.
+    
+    Args:
+        update (Update): Telegram Update с callback query от кнопки
+        context (ContextTypes.DEFAULT_TYPE): Telegram context
+        course_name (str): Название курса (key в COURSES_DATA)
+        query: CallbackQuery объект для ответа на кнопку
+        
+    Supported Courses:
+        - "intro": Основы криптовалют
+        - "trading": Трейдинг и анализ
+        - "security": Безопасность и кошельки
+        - "defi": Децентрализованные финансы
+        - "nfts": NFTs и цифровое искусство
+        
+    Side Effects:
+        - Сохраняет выбранный курс в bot_state
+        - Создает запись в БД о начале курса
+        - Рассчитывает уровень пользователя
+        - Показывает первый урок курса
+        - Логирует действие в структурированный лог
+        
+    Error Handling:
+        - Course not found: "❌ Курс не найден"
+        - User banned: Gracefully ignores
+        - DB error: Shows error with retry
+        
+    Response:
+        - Отвечает на callback query с ack
+        - Отправляет первый урок как сообщение
+        - Показывает кнопки для навигации по курсу
+    """
     user_id = update.effective_user.id
     user = update.effective_user
     
@@ -7449,7 +7541,55 @@ async def show_quiz_question(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def handle_quiz_answer(update: Update, context: ContextTypes.DEFAULT_TYPE, course_name: str, lesson_id: int, q_idx: int, answer_idx: int):
-    """Обрабатывает ответ на вопрос квиза."""
+    """
+    Обрабатывает ответ на вопрос квиза с проверкой и feedback.
+    
+    Вызывается когда пользователь выбирает ответ на вопрос викторины.
+    Проверяет правильность, сохраняет ответ, показывает feedback, переводит на следующий вопрос.
+    
+    Args:
+        update (Update): Telegram Update с callback от выбора ответа
+        context (ContextTypes.DEFAULT_TYPE): Telegram context с quiz_session
+        course_name (str): Название курса
+        lesson_id (int): ID урока в рамках курса
+        q_idx (int): Индекс вопроса в текущем квизе (0-based)
+        answer_idx (int): Индекс выбранного ответа (0-3, обычно)
+        
+    Quiz Session Structure:
+        quiz_session = {
+            'course': str,
+            'lesson_id': int,
+            'questions': list of question dicts,
+            'responses': list of user answers,
+            'current_q': int (current question index)
+        }
+        
+    Question Structure:
+        {
+            'number': int,      # Question number (1-indexed)
+            'text': str,        # Question text
+            'options': list,    # List of answer options
+            'correct': int      # Index of correct answer (0-3)
+        }
+        
+    Response Tracking:
+        - Saves user answer immediately
+        - Shows correct/incorrect feedback with emoji
+        - Adds explanation if provided
+        - Updates score counters
+        
+    Scoring:
+        - Correct answer: +10 XP
+        - Incorrect: +2 XP for attempt
+        - Bonus: +5 XP if all quiz questions correct
+        
+    Side Effects:
+        - Updates quiz_session in context
+        - Saves answers to conversation history
+        - Increments user XP and score
+        - Logs quiz interaction
+        - Shows next question or quiz summary
+    """
     query = update.callback_query
     user = query.from_user
     
