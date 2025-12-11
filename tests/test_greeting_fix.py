@@ -1,7 +1,9 @@
 """Test for greeting handling fix - ensures greetings are not sent to AI dialogue."""
 import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from pathlib import Path
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from bot import analyze_message_context
 
@@ -22,7 +24,7 @@ def test_greeting_detection():
     for greeting in greetings:
         context = analyze_message_context(greeting)
         assert context["type"] == "greeting", f"Failed to detect '{greeting}' as greeting"
-        assert context["needs_crypto_analysis"] == False, f"Greeting '{greeting}' should not need analysis"
+        assert context["needs_crypto_analysis"] is False, f"Greeting '{greeting}' should not need analysis"
         print(f"✓ '{greeting}' correctly detected as greeting")
 
 
@@ -39,7 +41,7 @@ def test_info_request_detection():
     for req in info_requests:
         context = analyze_message_context(req)
         assert context["type"] == "info_request", f"Failed to detect '{req}' as info_request"
-        assert context["needs_crypto_analysis"] == False, f"Info request '{req}' should not need analysis"
+        assert context["needs_crypto_analysis"] is False, f"Info request '{req}' should not need analysis"
         print(f"✓ '{req}' correctly detected as info_request")
 
 
