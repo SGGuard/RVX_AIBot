@@ -12,7 +12,6 @@ v0.24 - Полностью бесплатные провайдеры + мони�
 """
 
 import httpx
-import json
 import logging
 from typing import Optional, List, Dict, Tuple
 import os
@@ -20,7 +19,6 @@ from dotenv import load_dotenv
 import time
 from datetime import datetime
 from collections import defaultdict
-import asyncio
 from threading import Lock
 
 load_dotenv()
@@ -586,7 +584,7 @@ def get_ai_response_sync(
 # ==================== ТЕСТИРОВАНИЕ ====================
 
 if __name__ == "__main__":
-    import sys
+    pass
     
     logging.basicConfig(
         level=logging.INFO,
