@@ -313,30 +313,30 @@ async def teach_lesson(
         # Получаем API URL для связи между сервисами
         from urllib.parse import urlparse
         
-        # Priority: env variable > auto-detection > localhost fallback
-        api_url_env = os.getenv("API_URL_NEWS")
-        if not api_url_env:
-            # На Railway используем переменную окружения API_URL
-            railway_api_url = os.getenv("API_URL")
-            if railway_api_url:
-                # Railway сервис - используем публичный URL
-                api_url_env = railway_api_url.rstrip('/') + "/explain_news"
-            elif os.getenv("RAILWAY_ENVIRONMENT"):
-                # Fallback: если RAILWAY_ENVIRONMENT но нет API_URL, используем localhost
-                # (это может работать если оба контейнера в одной сети)
-                api_url_env = "http://localhost:8080/explain_news"
-            else:
-                # Local development
-                api_url_env = "http://localhost:8000/explain_news"
+        # Priority 1: Explicit TEACH_API_URL env var (for override)
+        teach_api_url = os.getenv("TEACH_API_URL")
+        if not teach_api_url:
+            # Priority 2: API_BASE_URL env var (for Railway public URL)
+            api_base_url = os.getenv("API_BASE_URL")
+            if not api_base_url:
+                # Priority 3: API_URL env var (Railway service URL)
+                api_url = os.getenv("API_URL")
+                if api_url:
+                    api_base_url = api_url.rstrip('/')
+                elif os.getenv("RAILWAY_ENVIRONMENT"):
+                    # Priority 4: On Railway, try localhost first (if both in same network)
+                    api_base_url = "http://localhost:8080"
+                else:
+                    # Priority 5: Local development
+                    api_base_url = "http://localhost:8000"
+            
+            teach_api_url = f"{api_base_url}/teach_lesson"
         
-        parsed_url = urlparse(api_url_env)
-        # Строим базовый URL как scheme://netloc (без пути)
-        API_BASE_URL = f"{parsed_url.scheme}://{parsed_url.netloc}"
-        TEACH_API_URL = f"{API_BASE_URL}/teach_lesson"
+        logger.debug(f"🔗 TEACH_API_URL resolved to: {teach_api_url}")
+        logger.debug(f"🔗 RAILWAY_ENVIRONMENT: {os.getenv('RAILWAY_ENVIRONMENT')}")
+        logger.debug(f"🔗 API_URL env: {os.getenv('API_URL')}")
+        logger.debug(f"🔗 TEACH_API_URL env: {os.getenv('TEACH_API_URL')}")
         
-        logger.debug(f"🔗 API_URL_NEWS from env: {api_url_env}")
-        logger.debug(f"🔗 Parsed BASE_URL: {API_BASE_URL}")
-        logger.debug(f"🔗 TEACH_API_URL: {TEACH_API_URL}")
         
         # Отправляем запрос на новый endpoint
         try:
@@ -352,7 +352,8 @@ async def teach_lesson(
                 
                 if response.status_code != 200:
                     logger.error(f"❌ API ошибка {response.status_code}: {response.text[:200]}")
-                    return None
+                    logger.warning(f"⚠️ Использую fallback урок, так как API вернул ошибку")
+                    return _get_fallback_lesson(topic, difficulty_level)
                 
                 lesson_data = response.json()
                 

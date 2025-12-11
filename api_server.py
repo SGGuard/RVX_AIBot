@@ -7,7 +7,7 @@ import asyncio
 import base64
 from typing import Optional, Any, Dict, List
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI, HTTPException, Request, status, Query
 from fastapi.responses import JSONResponse, Response
@@ -1036,7 +1036,7 @@ async def call_gemini_with_retry(
 # LIFECYCLE MANAGEMENT
 # =============================================================================
 
-start_time = datetime.utcnow()
+start_time = datetime.now(timezone.utc)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -1245,7 +1245,7 @@ async def rate_limit_middleware(request: Request, call_next):
 @app.middleware("http")
 async def log_and_monitor_requests(request: Request, call_next):
     """✅ Logging and monitoring with security events."""
-    start = datetime.utcnow()
+    start = datetime.now(timezone.utc)
     request_counter["total"] += 1
     
     # Extract API key if present
@@ -1256,7 +1256,7 @@ async def log_and_monitor_requests(request: Request, call_next):
     
     try:
         response = await call_next(request)
-        duration = (datetime.utcnow() - start).total_seconds()
+        duration = (datetime.now(timezone.utc) - start).total_seconds()
         
         # Log successful requests
         if response.status_code < 400:
@@ -1274,7 +1274,7 @@ async def log_and_monitor_requests(request: Request, call_next):
         return response
         
     except Exception as e:
-        duration = (datetime.utcnow() - start).total_seconds()
+        duration = (datetime.now(timezone.utc) - start).total_seconds()
         logger.error(f"❌ Критическая ошибка в middleware: {e} | Длительность: {duration:.2f}s")
         request_counter["errors"] += 1
         
@@ -1318,7 +1318,7 @@ def verify_api_key(request: Request) -> str:
 @app.get("/")
 async def root():
     """Информация об API."""
-    uptime = (datetime.utcnow() - start_time).total_seconds()
+    uptime = (datetime.now(timezone.utc) - start_time).total_seconds()
     
     return {
         "service": "RVX AI Backend",
@@ -1342,7 +1342,7 @@ async def root():
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
     """Детальная проверка состояния сервиса."""
-    uptime = (datetime.utcnow() - start_time).total_seconds()
+    uptime = (datetime.now(timezone.utc) - start_time).total_seconds()
     cache_stats = response_cache.get_stats() if hasattr(response_cache, 'get_stats') else {}
     
     return HealthResponse(
@@ -1389,7 +1389,7 @@ async def create_api_key(request: Request):
     return {
         "success": True,
         "api_key": api_key,  # Only shown once
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "message": "Save your API key securely. It will not be shown again.",
         "usage": "Use as Authorization: Bearer <your_api_key> in requests to /explain_news"
     }
@@ -1479,7 +1479,7 @@ async def explain_news(payload: NewsPayload, request: Request):
     - ✅ API usage tracked in audit trail
     - ✅ Rate limiting per API key
     """
-    start_time_request = datetime.utcnow()
+    start_time_request = datetime.now(timezone.utc)
     
     # ✅ Verify API key
     api_key = verify_api_key(request)
@@ -1500,7 +1500,7 @@ async def explain_news(payload: NewsPayload, request: Request):
     if CACHE_ENABLED:
         cached = cache_manager.get(text_hash)
         if cached:
-            duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
+            duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
             logger.info(f"💾 Кэш HIT для {text_hash[:8]} ({duration_ms:.0f}ms)")
             structured_logger.log_request(
                 user_id=user_id if isinstance(user_id, int) else 0,
@@ -1545,7 +1545,7 @@ async def explain_news(payload: NewsPayload, request: Request):
         )
         
         if ai_response:
-            logger.info(f"✅ Анализ получен: {len(ai_response)} символов ({(datetime.utcnow() - start_time_request).total_seconds():.2f}s)")
+            logger.info(f"✅ Анализ получен: {len(ai_response)} символов ({(datetime.now(timezone.utc) - start_time_request).total_seconds():.2f}s)")
             
             # ⚡ HARD LIMIT: Ограничиваем ответ до 400 символов (v0.21.0)
             MAX_RESPONSE_CHARS = 400
@@ -1568,11 +1568,11 @@ async def explain_news(payload: NewsPayload, request: Request):
             
             # Кэшируем результат (Redis с TTL)
             if CACHE_ENABLED:
-                cache_data = {"text": ai_response, "timestamp": datetime.utcnow().isoformat()}
+                cache_data = {"text": ai_response, "timestamp": datetime.now(timezone.utc).isoformat()}
                 cache_manager.set(text_hash, cache_data, ttl_seconds=CACHE_TTL_SECONDS)
             
             request_counter["success"] += 1
-            duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
+            duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
             
             structured_logger.log_request(
                 user_id=user_id if isinstance(user_id, int) else 0,
@@ -1609,7 +1609,7 @@ async def explain_news(payload: NewsPayload, request: Request):
         logger.warning(f"⚠️ Переходим на финальный fallback...")
         try:
             fallback_data = fallback_analysis(news_text)
-            duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
+            duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
             
             request_counter["fallback"] += 1
             
@@ -1633,7 +1633,7 @@ async def explain_news(payload: NewsPayload, request: Request):
             
             # ПОСЛЕДНИЙ ВАРИАНТ: Очень простой анализ или сообщение об ошибке
             request_counter["errors"] += 1
-            duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
+            duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
             
             structured_logger.log_error(
                 error_type="fallback_failure",
@@ -1668,7 +1668,7 @@ async def analyze_image(payload: ImagePayload, request: Request):
     - image_base64: изображение в формате base64 (PNG, JPEG, GIF, WebP)
     - context: дополнительный контекст для анализа
     """
-    start_time_request = datetime.utcnow()
+    start_time_request = datetime.now(timezone.utc)
     request_counter["total"] += 1
     
     # Получаем user_id из заголовков
@@ -1784,7 +1784,7 @@ async def analyze_image(payload: ImagePayload, request: Request):
                 raise ValueError(f"Пропущены поля: {missing_fields}")
             
             # Подготавливаем ответ
-            duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
+            duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
             request_counter["success"] += 1
             
             return ImageAnalysisResponse(
@@ -1806,7 +1806,7 @@ async def analyze_image(payload: ImagePayload, request: Request):
             # Используем fallback анализ вместо ошибки
             try:
                 fallback_data = fallback_image_analysis("other")
-                duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
+                duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
                 
                 return ImageAnalysisResponse(
                     analysis=fallback_data["analysis"],
@@ -1848,7 +1848,7 @@ async def teach_lesson(payload: TeachingPayload):
     
     Возвращает структурированный урок с названием, содержанием, примерами и вопросом.
     """
-    start_time_request = datetime.utcnow()
+    start_time_request = datetime.now(timezone.utc)
     topic = payload.topic
     difficulty = payload.difficulty_level
     
@@ -1859,7 +1859,7 @@ async def teach_lesson(payload: TeachingPayload):
         logger.warning("⚠️ Gemini недоступен, использую fallback режим для урока")
         request_counter["fallback"] += 1
         
-        duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
+        duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
         
         return TeachingResponse(
             lesson_title=f"Введение в {topic.capitalize()}",
@@ -1983,7 +1983,7 @@ async def teach_lesson(payload: TeachingPayload):
                 else:
                     lesson_data[field] = ""
         
-        duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
+        duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
         
         logger.info(f"✅ Урок создан за {duration_ms:.0f}ms: {lesson_data.get('lesson_title', 'Без названия')}")
         request_counter["success"] += 1
@@ -2003,7 +2003,7 @@ async def teach_lesson(payload: TeachingPayload):
         request_counter["errors"] += 1
         request_counter["fallback"] += 1
         
-        duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
+        duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
         
         return TeachingResponse(
             lesson_title=f"Введение в {topic.capitalize()}",
@@ -2020,7 +2020,7 @@ async def teach_lesson(payload: TeachingPayload):
         request_counter["errors"] += 1
         request_counter["fallback"] += 1
         
-        duration_ms = (datetime.utcnow() - start_time_request).total_seconds() * 1000
+        duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
         
         return TeachingResponse(
             lesson_title=f"Введение в {topic.capitalize()}",
@@ -2050,7 +2050,7 @@ async def get_drops_endpoint(limit: int = 10, chain: str = "all"):
     """
     try:
         request_counter["total"] += 1
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         
         if chain.lower() == "all":
             drops = await get_nft_drops(limit)
@@ -2058,7 +2058,7 @@ async def get_drops_endpoint(limit: int = 10, chain: str = "all"):
             drops = await get_drops_by_chain(chain)
             drops = drops[:limit]
         
-        duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
         request_counter["success"] += 1
         
         return DropsResponse(
@@ -2094,7 +2094,7 @@ async def get_activities_endpoint():
     """
     try:
         request_counter["total"] += 1
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         
         activities = await get_activities()
         
@@ -2106,7 +2106,7 @@ async def get_activities_endpoint():
             len(activities.get("partnerships", []))
         )
         
-        duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
         request_counter["success"] += 1
         
         return ActivitiesResponse(
@@ -2140,11 +2140,11 @@ async def get_trending_endpoint(limit: int = 10):
     """
     try:
         request_counter["total"] += 1
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         
         trending = await get_trending_tokens(limit)
         
-        duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+        duration_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
         request_counter["success"] += 1
         
         return DropsResponse(
@@ -2177,7 +2177,7 @@ async def get_token_info_endpoint(token_id: str):
     """
     try:
         request_counter["total"] += 1
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         
         token_info = await get_token_info(token_id)
         
@@ -2220,7 +2220,7 @@ async def get_leaderboard_endpoint(
     """
     try:
         request_counter["total"] += 1
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         
         # Получаем базовые данные рейтинга
         leaderboard_data = []
