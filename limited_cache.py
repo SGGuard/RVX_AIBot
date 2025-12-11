@@ -75,3 +75,21 @@ class LimitedCache:
                 'utilization_percent': (len(self.cache) / self.max_size * 100) if self.max_size > 0 else 0,
                 'ttl_seconds': self.ttl_seconds
             }
+    
+    def __len__(self) -> int:
+        """Возвращает количество элементов в кэше"""
+        with self._lock:
+            return len(self.cache)
+    
+    def __delitem__(self, key: str) -> None:
+        """Удаляет элемент из кэша"""
+        with self._lock:
+            if key in self.cache:
+                del self.cache[key]
+                del self.timestamps[key]
+    
+    def items(self):
+        """Возвращает список (key, value) всех элементов кэша"""
+        with self._lock:
+            # Возвращаем копию для безопасного итерирования
+            return list(self.cache.items())

@@ -1084,20 +1084,11 @@ async def lifespan(app: FastAPI):
                 if not CACHE_ENABLED:
                     continue
                 
-                now = datetime.utcnow()
-                expired_keys = []
-                
-                for key, data in response_cache.items():
-                    if 'timestamp' in data:
-                        cache_age = (now - datetime.fromisoformat(data['timestamp'])).total_seconds()
-                        if cache_age > CACHE_TTL_SECONDS:
-                            expired_keys.append(key)
-                
-                for key in expired_keys:
-                    del response_cache[key]
-                
-                if expired_keys:
-                    logger.info(f"🧹 Cache cleanup: removed {len(expired_keys)} old entries (cache size: {len(response_cache)})")
+                # LimitedCache uses TTL internally, so we just monitor utilization
+                # The cache automatically expires items when accessed
+                cache_stats = response_cache.get_stats()
+                if cache_stats['size'] > cache_stats['max_size'] * 0.8:
+                    logger.warning(f"⚠️ Cache utilization high: {cache_stats['utilization_percent']:.1f}%")
             except Exception as e:
                 logger.error(f"Cache cleanup error: {e}")
     
