@@ -376,26 +376,12 @@ def get_ai_response_sync(
             logger.warning(f"⛔ Rate limit exceeded for user {user_id}")
             return limit_message  # Возвращаем сообщение об ограничении
     
-    # Формируем промпт
+    # Формируем промпт - ИСПОЛЬЗУЕТ ПРАВИЛЬНЫЙ промпт с полным контекстом
     context_str = build_context_for_prompt(context_history)
-    system_prompt = build_simple_dialogue_prompt()
+    system_prompt = build_dialogue_system_prompt()  # ✅ FIXED: Using correct full prompt instead of short version
     
-    # Добавляем информацию о RVX AI проекте в контекст
-    rvx_context = (
-        "О RVX AI:\n"
-        "- Образовательный Telegram бот для обучения криптовалютам\n"
-        "- Текущий функционал: анализ новостей, ответы на вопросы, обучение\n"
-        "- Проект активно развивается и совершенствуется\n"
-        "- Администратор проекта: @SV4096\n"
-        "- Проект пилится в соло разработке\n\n"
-        "⚠️ ЗАПРЕТЫ НА ВЫДУМКИ:\n"
-        "- Про финансирование: 'я не располагаю информацией'\n"
-        "- Про инвесторов: 'я не располагаю информацией'\n"
-        "- Про продукты: 'RVX AI - это Telegram бот для обучения, основной функционал - диалоги и анализ новостей'\n"
-        "- Про команду: 'Проект разрабатывается одним разработчиком'\n\n"
-    )
-    
-    full_prompt = f"{system_prompt}\n\n{rvx_context}{context_str}Пользователь: {user_message}"
+    # Формируем полный промпт с контекстом диалога (RVX context уже в system_prompt)
+    full_prompt = f"{system_prompt}\n\n{context_str}Пользователь: {user_message}"
     
     # ==================== ПОПЫТКА 1: GROQ ====================
     if GROQ_API_KEY:
@@ -415,9 +401,9 @@ def get_ai_response_sync(
                             {"role": "system", "content": system_prompt},
                             {"role": "user", "content": f"{context_str}Пользователь: {user_message}"}
                         ],
-                        "temperature": 0.8,
-                        "max_tokens": 1200,
-                        "top_p": 0.98
+                        "temperature": 0.4,
+                        "max_tokens": 2000,
+                        "top_p": 0.9
                     },
                     timeout=timeout
                 )
@@ -475,9 +461,9 @@ def get_ai_response_sync(
                             {"role": "system", "content": system_prompt},
                             {"role": "user", "content": f"{context_str}Пользователь: {user_message}"}
                         ],
-                        "temperature": 0.8,
-                        "max_tokens": 1200,
-                        "top_p": 0.98
+                        "temperature": 0.4,
+                        "max_tokens": 2000,
+                        "top_p": 0.9
                     },
                     timeout=timeout
                 )
