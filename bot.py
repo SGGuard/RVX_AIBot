@@ -28,7 +28,7 @@ load_dotenv()
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
-from telegram.error import TelegramError, TimedOut, NetworkError
+from telegram.error import TelegramError, TimedOut, NetworkError, Conflict
 from telegram.constants import ParseMode, ChatAction
 
 # ============================================================================
@@ -10646,10 +10646,26 @@ def main():
         try:
             # Run polling without closing loop (prevents "Event loop is closed" crash)
             loop.run_until_complete(application.run_polling())
+        except Conflict as e:
+            # Another bot instance is running - graceful exit
+            logger.warning(f"⚠️ Conflict detected: {e}. Another bot instance might be running. Exiting...")
+            try:
+                loop.run_until_complete(application.stop())
+            except Exception as stop_error:
+                logger.warning(f"⚠️ Error during graceful stop: {stop_error}")
         finally:
-            # Only close if we created it
-            if not loop.is_closed():
-                loop.close()
+            # Clean shutdown - don't close loop to prevent "Event loop is closed" error
+            try:
+                if not loop.is_closed():
+                    # Cancel all pending tasks
+                    pending = asyncio.all_tasks(loop)
+                    for task in pending:
+                        task.cancel()
+                    # Give time for cancellation
+                    loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+            except Exception as e:
+                logger.debug(f"⚠️ Error during task cleanup: {e}")
+            # Don't close the loop - let Python handle it
     except KeyboardInterrupt:
         logger.info("👋 Бот остановлен пользователем")
     except Exception as e:
