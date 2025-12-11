@@ -342,7 +342,7 @@ async def teach_lesson(
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
-                    TEACH_API_URL,
+                    teach_api_url,
                     json={
                         "topic": topic,
                         "difficulty_level": difficulty_level
@@ -377,11 +377,11 @@ async def teach_lesson(
                     return lesson_data
         
         except httpx.ConnectError as e:
-            logger.error(f"❌ Connection error при запросе к {TEACH_API_URL}: {e}")
+            logger.error(f"❌ Connection error при запросе к {teach_api_url}: {e}")
             logger.warning(f"⚠️ Использую fallback урок, так как API недоступен")
             return _get_fallback_lesson(topic, difficulty_level)
         except asyncio.TimeoutError:
-            logger.error(f"❌ Timeout при запросе к API /teach_lesson ({TEACH_API_URL})")
+            logger.error(f"❌ Timeout при запросе к API /teach_lesson ({teach_api_url})")
             logger.warning(f"⚠️ Использую fallback урок, так как API не ответил")
             return _get_fallback_lesson(topic, difficulty_level)
         except Exception as e:
