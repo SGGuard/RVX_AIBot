@@ -9528,6 +9528,28 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     msg_type = msg_context.get("type", "casual_chat")
     needs_analysis = msg_context.get("needs_crypto_analysis", False)
     
+    # ==================== ПРОСТЫЕ ОТВЕТЫ (ПРИВЕТСТВИЯ И ИНФО) ====================
+    # Для простых запросов (приветствия, справка) используем быстрые ответы
+    if msg_type in ["greeting", "info_request"]:
+        try:
+            simple_response = await get_smart_response(user.id, user_text, msg_type)
+            if simple_response:
+                await update.message.reply_text(
+                    simple_response,
+                    parse_mode=ParseMode.HTML
+                )
+                # Сохраняем в историю
+                try:
+                    save_conversation(user.id, "bot", simple_response, intent)
+                except Exception as e:
+                    logger.warning(f"⚠️ DB save failed (non-critical): {e}")
+                logger.info(f"✅ Simple response для {user.id}: {msg_type}")
+                return
+        except Exception as e:
+            logger.error(f"❌ Error in simple response: {e}", exc_info=True)
+            # Fallback to AI if simple response fails
+            pass
+    
     # ==================== НОВАЯ v0.22.0: РЕАЛЬНЫЙ ИИ ДЛЯ ВСЕХ ДИАЛОГОВ ====================
     # Если это НЕ крипто-новость (то есть это диалог) - используем ИИ!
     # Это НАСТОЯЩИЙ искусственный интеллект, не скрипты!
