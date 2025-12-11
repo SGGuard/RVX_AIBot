@@ -10792,15 +10792,14 @@ def main():
     
     try:
         logger.info("🚀 БОТ ПОЛНОСТЬЮ ЗАПУЩЕН И ГОТОВ К РАБОТЕ")
-        # ✅ CRITICAL FIX v6: Use application.run_polling() directly
-        # python-telegram-bot v21 manages its own event loop
-        # Works on both Railway and local environments
+        # ✅ CRITICAL FIX v7: Use asyncio.run with proper coroutine handling
+        # python-telegram-bot v21 requires awaitable
         if sys.platform == 'win32':
             asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         
-        # Let python-telegram-bot manage the event loop
-        # Don't wrap with asyncio.run() - it breaks PTB's loop management
-        application.run_polling(allowed_updates=Update.ALL_TYPES)
+        # Run the polling coroutine properly with asyncio.run()
+        # This handles the event loop correctly for PTB v21
+        asyncio.run(application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True))
     except Conflict as e:
         # Another bot instance is running - graceful exit
         logger.warning(f"⚠️ Conflict detected: {e}. Another bot instance might be running. Exiting...")
