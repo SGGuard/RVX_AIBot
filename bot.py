@@ -10797,32 +10797,24 @@ def main():
         if sys.platform == 'win32':
             asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         
-        # Create a new event loop explicitly
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        # Run polling directly without explicit loop handling
+        # This prevents "Event loop is closed" errors on Railway
         try:
-            # Run polling without closing loop (prevents "Event loop is closed" crash)
-            loop.run_until_complete(application.run_polling())
+            asyncio.run(application.run_polling())
         except Conflict as e:
             # Another bot instance is running - graceful exit
             logger.warning(f"⚠️ Conflict detected: {e}. Another bot instance might be running. Exiting...")
             try:
-                loop.run_until_complete(application.stop())
+                asyncio.run(application.stop())
             except Exception as stop_error:
                 logger.warning(f"⚠️ Error during graceful stop: {stop_error}")
-        finally:
-            # Clean shutdown - don't close loop to prevent "Event loop is closed" error
-            try:
-                if not loop.is_closed():
-                    # Cancel all pending tasks
-                    pending = asyncio.all_tasks(loop)
-                    for task in pending:
-                        task.cancel()
-                    # Give time for cancellation
-                    loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-            except Exception as e:
-                logger.debug(f"⚠️ Error during task cleanup: {e}")
-            # Don't close the loop - let Python handle it
+        except RuntimeError as e:
+            # Handle "Event loop is closed" error gracefully
+            if "Event loop is closed" in str(e):
+                logger.info("✅ Bot shutdown completed cleanly")
+                return
+            else:
+                logger.critical(f"❌ КРИТИЧЕСКАЯ ОШИБКА: {e}", exc_info=True)
     except KeyboardInterrupt:
         logger.info("👋 Бот остановлен пользователем")
     except Exception as e:
