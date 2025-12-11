@@ -2364,6 +2364,11 @@ def format_lesson_for_telegram(lesson_content: str, course_title: str, lesson_nu
     Форматирует урок для отправки в Telegram с ограничением по размеру.
     Возвращает (основной_текст, дополнительный_текст_если_длинный).
     
+    Включает:
+    - Визуальные индикаторы прогресса
+    - Информацию о сложности и времени
+    - Структурированное форматирование контента
+    
     Telegram имеет лимит 4096 символов, поэтому уроки могут быть разбиты на две части.
     """
     # Очищаем контент от лишних символов
@@ -2374,16 +2379,37 @@ def format_lesson_for_telegram(lesson_content: str, course_title: str, lesson_nu
     # Конвертируем Markdown в HTML для Telegram
     clean_content = markdown_to_html_for_telegram(clean_content)
     
-    # Заголовок урока
+    # Визуализация прогресса
+    progress_bar = ""
+    progress_percent = (completed / total * 100) if total > 0 else 0
+    filled_blocks = int(progress_percent / 10)
+    empty_blocks = 10 - filled_blocks
+    progress_bar = "█" * filled_blocks + "░" * empty_blocks
+    
+    # Выбираем эмодзи в зависимости от сложности
+    level_emoji = {
+        "beginner": "🌱",
+        "intermediate": "📚", 
+        "advanced": "🚀",
+        "expert": "👑"
+    }.get(course_level.lower(), "📖")
+    
+    # Оценка времени (примерно 8 минут на урок)
+    time_estimate = "⏱️ ~8 мин"
+    
+    # Формируем красивый заголовок с прогрессом
     header = (
-        f"📖 <b>{course_title} - Урок {lesson_num}</b>\n"
-        f"<i>Сложность: {course_level.upper()}</i>\n"
-        f"<code>Прогресс: {completed}/{total}</code>\n\n"
+        f"{level_emoji} <b>{course_title} — Урок {lesson_num}</b>\n"
+        f"─────────────────────────\n"
+        f"📊 Прогресс: <code>{progress_bar}</code>\n"
+        f"   <b>{completed}/{total}</b> ({progress_percent:.0f}%)\n"
+        f"{time_estimate} | Сложность: {course_level.upper()}\n"
+        f"─────────────────────────\n\n"
     )
     
-    # Первые 2500 символов контента (оставляем место для кнопок)
-    # Telegram лимит = 4096, минус заголовок, минус место для кнопок
-    max_content_length = 2800
+    # Первые 2300 символов контента (оставляем место для кнопок и заголовка)
+    # Telegram лимит = 4096, минус заголовок (~250), минус место для кнопок (~300)
+    max_content_length = 2300
     
     if len(clean_content) > max_content_length:
         # Урок слишком длинный - разбиваем
@@ -2398,7 +2424,7 @@ def format_lesson_for_telegram(lesson_content: str, course_title: str, lesson_nu
             cutoff_point = max_content_length
         
         main_content = clean_content[:cutoff_point].rstrip()
-        main_content += "\n\n<i>...(продолжение ниже)</i>"
+        main_content += "\n\n<i>▶️ (продолжение ниже)</i>"
         
         # Остаток контента начиная сразу после точки разрыва
         remaining_content = clean_content[cutoff_point:].lstrip()
@@ -5568,24 +5594,73 @@ async def learn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         level, xp = calculate_user_level_and_xp(cursor, user_id)
     
     learn_text = (
-        "📚 <b>КРИПТОВАЛЮТНАЯ АКАДЕМИЯ RVX v0.5.0</b>\n\n"
-        f"👤 <b>Ваш уровень:</b> Level {level} ({xp} XP)\n"
-        f"<b>Знания:</b> {knowledge_level}\n\n"
-        "<b>🎓 ДОСТУПНЫЕ КУРСЫ:</b>"
+        "🎓 <b>КРИПТОВАЛЮТНАЯ АКАДЕМИЯ RVX v0.5.1</b>\n"
+        f"───────────────────────────────────\n"
+        f"👤 <b>Ваш статус:</b> Level {level} ({xp} XP)\n"
+        f"📈 <b>Знание:</b> {knowledge_level}\n\n"
+        f"<b>📚 ДОСТУПНЫЕ КУРСЫ:</b>\n\n"
     )
     
-    # Создаем кнопки для каждого курса
+    # Получаем прогресс пользователя по курсам (если таблица существует)
+    user_courses_progress = {}
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT course_name, completed_lessons, started_at
+                FROM user_courses
+                WHERE user_id = ?
+            """, (user_id,))
+            for row in cursor.fetchall():
+                user_courses_progress[row[0]] = {
+                    'completed': row[1],
+                    'started': row[2] is not None
+                }
+    except Exception as e:
+        logger.debug(f"⚠️ Ошибка при получении прогресса курсов: {e}")
+    
+    # Создаем кнопки для каждого курса с улучшенной информацией
     keyboard = []
+    
     for course_key, course_data in COURSES_DATA.items():
         # Определяем эмодзи для уровня сложности
         level_emoji = {
             "beginner": "🌱",
             "intermediate": "📚",
-            "advanced": "🚀"
+            "advanced": "🚀",
+            "expert": "👑"
         }.get(course_data['level'], "📌")
         
-        button_label = f"{level_emoji} {course_data['title']} ({course_data['total_lessons']})"
+        # Проверяем прогресс
+        progress = user_courses_progress.get(course_key, {})
+        completed = progress.get('completed', 0)
+        is_started = progress.get('started', False)
+        
+        # Статус курса
+        if completed == course_data['total_lessons']:
+            status = "✅"  # Завершен
+        elif is_started:
+            status = f"▶️"  # В процессе
+        else:
+            status = "🔒"  # Не начат
+        
+        # Формируем текст кнопки с прогрессом
+        button_label = (
+            f"{level_emoji} {course_data['title']} "
+            f"({completed}/{course_data['total_lessons']}) {status}"
+        )
+        
         keyboard.append([InlineKeyboardButton(button_label, callback_data=f"start_course_{course_key}")])
+        
+        # Добавляем информацию о курсе в основной текст
+        course_time = course_data['total_lessons'] * 8
+        learn_text += (
+            f"{level_emoji} <b>{course_data['title']}</b>\n"
+            f"  • Уроков: {course_data['total_lessons']} (⏱️ ~{course_time} мин)\n"
+            f"  • XP: +{course_data['total_xp']} при завершении\n"
+            f"  • Прогресс: {completed}/{course_data['total_lessons']} ✅\n"
+            f"  <i>{course_data['description'][:100]}</i>\n\n"
+        )
     
     # Добавляем кнопку "Назад"
     keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")])
@@ -5599,7 +5674,11 @@ async def learn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         logger.error(f"Ошибка при отправке learn: {e}")
         # Fallback
         try:
-            fallback_text = f"📚 Криптовалютная академия\n\nУровень: Level {level} ({xp} XP)"
+            fallback_text = (
+                f"🎓 КРИПТОВАЛЮТНАЯ АКАДЕМИЯ\n\n"
+                f"Level {level} ({xp} XP)\n"
+                f"Знание: {knowledge_level}"
+            )
             if is_callback and query:
                 await query.edit_message_text(fallback_text)
             else:
@@ -5733,7 +5812,7 @@ async def lesson_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 async def handle_start_course_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, course_name: str, query):
-    """Обработчик для запуска курса через callback кнопку (интерактивный интерфейс)"""
+    """Обработчик для запуска курса через callback кнопку (интерактивный интерфейс с улучшенной UX)"""
     user_id = update.effective_user.id
     user = update.effective_user
     
@@ -5750,35 +5829,87 @@ async def handle_start_course_callback(update: Update, context: ContextTypes.DEF
     await bot_state.set_user_course(user_id, course_name)
     logger.info(f"📚 Пользователь {user_id} начал курс {course_name} через callback")
     
-    # Получаем информацию о пользователе
+    # Получаем информацию о пользователе и его прогресс
     with get_db() as conn:
         cursor = conn.cursor()
         level, xp = calculate_user_level_and_xp(cursor, user_id)
+        
+        # Получаем прогресс по этому курсу
+        cursor.execute("""
+            SELECT completed_lessons FROM user_courses
+            WHERE user_id = ? AND course_name = ?
+        """, (user_id, course_name))
+        row = cursor.fetchone()
+        completed_lessons = row[0] if row else 0
     
-    # Показываем информацию о курсе и первый урок
+    # Выбираем эмодзи для уровня
+    level_emoji = {
+        "beginner": "🌱",
+        "intermediate": "📚",
+        "advanced": "🚀",
+        "expert": "👑"
+    }.get(course_data['level'], "📖")
+    
+    # Вычисляем время завершения
+    total_time = course_data['total_lessons'] * 8
+    remaining_time = (course_data['total_lessons'] - completed_lessons) * 8
+    
+    # Формируем красивый текст с улучшенной информацией
     response = (
-        f"📚 <b>{course_data['title'].upper()}</b>\n\n"
-        f"<b>Уровень:</b> {course_data['level'].upper()}\n"
-        f"<b>Уроков:</b> {course_data['total_lessons']}\n"
-        f"<b>XP к получению:</b> {course_data['total_xp']}\n\n"
-        f"<b>Описание:</b>\n{course_data['description']}\n\n"
-        f"💡 <b>Твой прогресс:</b> Level {level} ({xp} XP)\n\n"
-        f"👇 <b>Выбери урок для начала:</b>"
+        f"{level_emoji} <b>{course_data['title'].upper()}</b>\n"
+        f"{'═' * 35}\n\n"
+        f"<b>📋 ИНФОРМАЦИЯ О КУРСЕ:</b>\n"
+        f"  • Сложность: {course_data['level'].upper()}\n"
+        f"  • Уроков: {course_data['total_lessons']}\n"
+        f"  • ⏱️ Время: ~{total_time} мин ({remaining_time} мин осталось)\n"
+        f"  • 🎁 XP: +{course_data['total_xp']} при завершении\n\n"
+        f"<b>📖 ОПИСАНИЕ:</b>\n{course_data['description']}\n\n"
+        f"<b>📊 ВАШ ПРОГРЕСС:</b>\n"
+        f"  • Завершено: {completed_lessons}/{course_data['total_lessons']} уроков\n"
+        f"  • Статус: Level {level} ({xp} XP)\n"
+        f"  • Следующий: Урок {completed_lessons + 1}\n\n"
+        f"<b>🎯 ВЫБЕРИТЕ УРОК:</b>"
     )
     
-    # Создаем кнопки для выбора урока (2 урока в строке)
+    # Создаем кнопки для выбора урока с улучшенным визуалом
     keyboard = []
+    
+    # Группируем уроки по 2 в строку
     for i in range(1, course_data['total_lessons'] + 1):
+        # Определяем статус урока
+        if i < completed_lessons:
+            status = "✅"  # Завершен
+        elif i == completed_lessons + 1:
+            status = "▶️"  # Текущий
+        elif i == completed_lessons:
+            status = "🔄"  # В процессе
+        else:
+            status = "🔒"  # Заблокирован
+        
         if (i - 1) % 2 == 0:  # Новая строка каждые 2 кнопки
             row = []
             keyboard.append(row)
         else:
             row = keyboard[-1]
         
-        row.append(InlineKeyboardButton(f"📖 Урок {i}", callback_data=f"lesson_{course_name}_{i}"))
+        button_text = f"Урок {i} {status}"
+        row.append(InlineKeyboardButton(button_text, callback_data=f"lesson_{course_name}_{i}"))
     
-    # Добавляем кнопку "Назад"
-    keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")])
+    # Добавляем кнопки навигации
+    nav_row = []
+    if completed_lessons < course_data['total_lessons']:
+        # Кнопка для начала со следующего урока
+        next_lesson = min(completed_lessons + 1, course_data['total_lessons'])
+        nav_row.append(InlineKeyboardButton("▶️ Продолжить", callback_data=f"lesson_{course_name}_{next_lesson}"))
+    
+    if completed_lessons == course_data['total_lessons']:
+        nav_row.append(InlineKeyboardButton("🏆 Пересдать курс", callback_data=f"lesson_{course_name}_1"))
+    
+    if nav_row:
+        keyboard.append(nav_row)
+    
+    # Кнопка "Назад" 
+    keyboard.append([InlineKeyboardButton("⬅️ К курсам", callback_data="start_learn")])
     
     await query.edit_message_text(
         response,
