@@ -4990,7 +4990,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         
         f"{quests_preview}"
         f"<b>═════════════════════════════════</b>\n"
-        f"<b>Выбери что-нибудь ниже 👇</b>\n"
+        f"<b>🚀 Начни с любой кнопки ниже!</b>\n"
     )
     
     if MANDATORY_CHANNEL_ID:
