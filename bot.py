@@ -4964,40 +4964,39 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         quests_preview += "\n"
     
     welcome_text = (
-        f"<b>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</b>\n"
-        f"{adaptive_greeting}\n"
-        f"<b>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</b>\n\n"
+        f"<b>╔═══════════════════════════════╗</b>\n"
+        f"<b>║   🤖 RVX AI v0.26.0           ║</b>\n"
+        f"<b>║   Твой персональный помощник  ║</b>\n"
+        f"<b>╚═══════════════════════════════╝</b>\n\n"
         
-        f"🤖 <b>RVX AI v0.21.0</b>\n"
-        f"Твой умный AI-помощник в крипто, Web3, AI и новых технологиях\n\n"
+        f"👋 {adaptive_greeting}\n\n"
         
-        f"<b>Что я делаю:</b>\n"
-        f"📰 Анализирую новости простым языком\n"
-        f"🎓 Учу: Криптовалюты • Web3 • AI • Трейдинг • DeFi • NFT\n"
-        f"🏆 Даю награды за обучение и активность\n"
-        f"📚 Собираю лучшие бесплатные ресурсы для обучения\n\n"
+        f"<b>📚 Я помогаю тебе в:</b>\n"
+        f"├ 📰 Анализ новостей крипто, AI, Web3\n"
+        f"├ 🎓 Обучение торговле & инвестициям\n"
+        f"├ 🏆 Награды за знания (XP & бейджи)\n"
+        f"└ 💡 Ресурсы для обучения\n\n"
         
-        f"<b>Мои возможности:</b>\n"
-        f"• 3 полных интерактивных курса\n"
-        f"• XP система & 6 бейджей за достижения\n"
-        f"• Лидерборд TOP-10 по знаниям\n"
-        f"• 5 ежедневных задач с бонусами\n"
-        f"• 📚 Каталог бесплатных ресурсов (крипто, AI, Web3, трейдинг)\n\n"
+        f"<b>🎯 Мои суперсилы:</b>\n"
+        f"✨ 3 курса + 50+ уроков\n"
+        f"✨ Ежедневные квесты (200+ XP/день)\n"
+        f"✨ Топ-10 лидерборд\n"
+        f"✨ Система достижений\n"
+        f"✨ Каталог лучших ресурсов\n\n"
         
+        f"<b>📊 Твоя статистика:</b>\n"
         f"{limits_text}\n"
-        f"📈 <b>Твой уровень:</b> <i>{level_name}</i> ({user_xp} XP)\n\n"
+        f"📈 <b>Уровень:</b> <i>{level_name}</i> ({user_xp} XP)\n\n"
         
-        f"<b>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</b>\n"
         f"{quests_preview}"
-        f"<b>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</b>\n"
-        f"<b>С чего хочешь начать?</b>\n"
-        f"<b>⬇️</b>\n"
+        f"<b>═════════════════════════════════</b>\n"
+        f"<b>Выбери что-нибудь ниже 👇</b>\n"
     )
     
     if MANDATORY_CHANNEL_ID:
-        welcome_text += f"\n📢 Подпишись: {MANDATORY_CHANNEL_LINK}"
+        welcome_text += f"\n📢 Подпишись: {MANDATORY_CHANNEL_LINK}\n"
     
-    # Интерактивные кнопки основных функций (v0.21.0 с Daily Quests)
+    # Интерактивные кнопки основных функций (v0.26.0 красивый дизайн)
     keyboard = [
         [
             InlineKeyboardButton("🎓 Учиться", callback_data="start_teach"),
@@ -5008,8 +5007,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             InlineKeyboardButton("🏆 Лидерборд", callback_data="start_leaderboard")
         ],
         [
-            InlineKeyboardButton("🎯 ЕЖЕДНЕВНЫЕ ЗАДАЧИ", callback_data="start_quests"),
-            InlineKeyboardButton("🎯 Ресурсы", callback_data="start_resources")
+            InlineKeyboardButton("🎯 Ежедневные задачи", callback_data="start_quests"),
+            InlineKeyboardButton("📚 Ресурсы", callback_data="start_resources")
         ],
         [
             InlineKeyboardButton("📌 Закладки", callback_data="start_bookmarks"),
