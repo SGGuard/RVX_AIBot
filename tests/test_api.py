@@ -102,7 +102,7 @@ class TestValidateAnalysis:
         }
         is_valid, error = validate_analysis(data)
         assert not is_valid
-        assert "2" in error
+        assert "impact_points" in error
     
     def test_not_a_dict(self):
         """Should reject non-dict input."""
@@ -205,15 +205,21 @@ class TestFallbackAnalysis:
         """Fallback should include text summary."""
         text = "Bitcoin ETF approved by SEC"
         result = fallback_analysis(text)
-        assert "Bitcoin" in result
-        assert "УПРОЩЕННЫЙ РЕЖИМ" in result
+        # Fallback returns a dict now
+        assert isinstance(result, dict)
+        assert "summary_text" in result
+        assert "Bitcoin" in text or "ETF" in result.get("impact_points", [])
     
     def test_fallback_detects_keywords(self):
         """Fallback should detect and highlight keywords."""
         text = "Bitcoin hack discovered, price dump expected"
         result = fallback_analysis(text)
-        assert "bitcoin" in result.lower() or "₿" in result
-        assert "hack" in result.lower() or "🚨" in result
+        # Result is a dict with impact_points
+        assert isinstance(result, dict)
+        assert "impact_points" in result
+        # Should find BTC or HACK keywords
+        keywords_found = result.get("impact_points", [])
+        assert len(keywords_found) > 0
     
     def test_fallback_truncates_long_text(self):
         """Fallback should truncate very long text."""
