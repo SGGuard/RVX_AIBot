@@ -333,9 +333,8 @@ async def teach_lesson(
             teach_api_url = f"{api_base_url}/teach_lesson"
         
         logger.debug(f"🔗 TEACH_API_URL resolved to: {teach_api_url}")
-        logger.debug(f"🔗 RAILWAY_ENVIRONMENT: {os.getenv('RAILWAY_ENVIRONMENT')}")
-        logger.debug(f"🔗 API_URL env: {os.getenv('API_URL')}")
-        logger.debug(f"🔗 TEACH_API_URL env: {os.getenv('TEACH_API_URL')}")
+        logger.info(f"🔗 Using TEACH_API_URL: {teach_api_url}")
+        logger.info(f"🔗 Environment: RAILWAY_ENVIRONMENT={os.getenv('RAILWAY_ENVIRONMENT')}, API_URL={os.getenv('API_URL')}, API_BASE_URL={os.getenv('API_BASE_URL')}")
         
         
         # Отправляем запрос на новый endpoint
@@ -377,12 +376,12 @@ async def teach_lesson(
                     return lesson_data
         
         except httpx.ConnectError as e:
-            logger.error(f"❌ Connection error при запросе к {teach_api_url}: {e}")
-            logger.warning(f"⚠️ Использую fallback урок, так как API недоступен")
+            logger.error(f"❌ Connection error при запросе к {teach_api_url}: {str(e)[:100]}")
+            logger.warning(f"⚠️ Используется fallback урок (API недоступен)")
             return _get_fallback_lesson(topic, difficulty_level)
         except asyncio.TimeoutError:
-            logger.error(f"❌ Timeout при запросе к API /teach_lesson ({teach_api_url})")
-            logger.warning(f"⚠️ Использую fallback урок, так как API не ответил")
+            logger.error(f"❌ Timeout (30s) при запросе к {teach_api_url}")
+            logger.warning(f"⚠️ Используется fallback урок (API не ответил)")
             return _get_fallback_lesson(topic, difficulty_level)
         except Exception as e:
             logger.error(f"❌ Ошибка при создании урока: {e}", exc_info=True)
