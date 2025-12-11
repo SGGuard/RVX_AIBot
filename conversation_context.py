@@ -102,7 +102,8 @@ class ConversationContextManager:
     def init_database(self):
         """Инициализирует базу данных и схему"""
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = sqlite3.connect(self.db_path, timeout=10.0)  # ✅ FIX: Increase timeout
+            conn.execute('PRAGMA journal_mode=WAL;')  # ✅ FIX: Enable WAL mode
             cursor = conn.cursor()
             
             # ✅ FIX: Only drop tables if they exist AND need migration
@@ -136,7 +137,8 @@ class ConversationContextManager:
     
     def get_connection(self) -> sqlite3.Connection:
         """Получает соединение с БД"""
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path, timeout=10.0)  # ✅ FIX: Increase timeout
+        conn.execute('PRAGMA journal_mode=WAL;')  # ✅ FIX: Enable WAL mode
         conn.row_factory = sqlite3.Row
         return conn
     

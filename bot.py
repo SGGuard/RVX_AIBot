@@ -1964,6 +1964,20 @@ def init_database() -> None:
             )
         """)
         
+        # ✅ FIX: Таблица статистики диалогов (fixes: no such table: conversation_stats)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS conversation_stats (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                message_count INTEGER DEFAULT 0,
+                average_response_time REAL DEFAULT 0.0,
+                last_message_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+                UNIQUE(user_id)
+            )
+        """)
+        
         # Таблица профилей пользователей (для персонализации)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS user_profiles (
@@ -10558,17 +10572,14 @@ def main():
     
     try:
         logger.info("🚀 БОТ ПОЛНОСТЬЮ ЗАПУЩЕН И ГОТОВ К РАБОТЕ")
-        # ✅ CRITICAL FIX v2: For python-telegram-bot v21+
-        # Must create event loop explicitly in Python 3.12+
+        # ✅ CRITICAL FIX v3: Prevent "Event loop is closed" on Railway
+        # Use asyncio.run() for proper event loop lifecycle management
+        # This is the correct pattern for Python 3.12 + python-telegram-bot v21+
         if sys.platform == 'win32':
             asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(application.run_polling())
-        finally:
-            loop.close()
+        # asyncio.run() creates and closes event loop automatically
+        asyncio.run(application.run_polling())
     except KeyboardInterrupt:
         logger.info("👋 Бот остановлен пользователем")
     except Exception as e:
