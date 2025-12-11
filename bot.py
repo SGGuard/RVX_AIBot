@@ -1683,6 +1683,30 @@ def migrate_database() -> None:
         except Exception as e:
             logger.debug(f"⚠️ Не удалось проверить schema conversation_history: {e}")
         
+        # Migration v0.26: Fix conversation_stats schema to match conversation_context.py expectations
+        try:
+            cursor.execute("PRAGMA table_info(conversation_stats)")
+            columns = {row[1] for row in cursor.fetchall()}
+            
+            # If old schema exists, recreate it with correct columns
+            if 'message_count' in columns or 'average_response_time' in columns:
+                logger.info("  • Миграция схемы conversation_stats на новые колонки...")
+                cursor.execute("DROP TABLE IF EXISTS conversation_stats")
+                cursor.execute("""
+                    CREATE TABLE conversation_stats (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL UNIQUE,
+                        total_messages INTEGER DEFAULT 0,
+                        total_tokens INTEGER DEFAULT 0,
+                        last_message_time INTEGER,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                    )
+                """)
+                migrations_needed = True
+        except Exception as e:
+            logger.debug(f"⚠️ Не удалось проверить schema conversation_stats: {e}")
+        
         if migrations_needed:
             logger.info("✅ Миграция успешно завершена")
         else:
@@ -1968,13 +1992,12 @@ def init_database() -> None:
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS conversation_stats (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                message_count INTEGER DEFAULT 0,
-                average_response_time REAL DEFAULT 0.0,
-                last_message_at TIMESTAMP,
+                user_id INTEGER NOT NULL UNIQUE,
+                total_messages INTEGER DEFAULT 0,
+                total_tokens INTEGER DEFAULT 0,
+                last_message_time INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-                UNIQUE(user_id)
+                FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
             )
         """)
         
