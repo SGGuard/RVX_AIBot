@@ -10792,25 +10792,39 @@ def main():
     
     try:
         logger.info("🚀 БОТ ПОЛНОСТЬЮ ЗАПУЩЕН И ГОТОВ К РАБОТЕ")
-        # ✅ CRITICAL FIX v7: Use asyncio.run with proper coroutine handling
-        # python-telegram-bot v21 requires awaitable
+        # ✅ CRITICAL FIX v7: Explicit event loop for Railway compatibility
+        # Don't use asyncio.run() - it closes loop immediately (breaks PTB)
+        # Create explicit loop and DON'T close it - let Python handle cleanup
         if sys.platform == 'win32':
             asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         
-        # Run the polling coroutine properly with asyncio.run()
-        # This handles the event loop correctly for PTB v21
-        asyncio.run(application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True))
-    except Conflict as e:
-        # Another bot instance is running - graceful exit
-        logger.warning(f"⚠️ Conflict detected: {e}. Another bot instance might be running. Exiting...")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            # Run polling without closing loop (prevents "Event loop is closed" crash)
+            loop.run_until_complete(application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True))
+        except Conflict as e:
+            # Another bot instance is running - graceful exit
+            logger.warning(f"⚠️ Conflict detected: {e}. Another bot instance might be running. Exiting...")
+            try:
+                loop.run_until_complete(application.stop())
+            except Exception as stop_error:
+                logger.warning(f"⚠️ Error during graceful stop: {stop_error}")
+        finally:
+            # Clean shutdown - don't close loop to prevent "Event loop is closed" error
+            try:
+                if not loop.is_closed():
+                    # Cancel all pending tasks
+                    pending = asyncio.all_tasks(loop)
+                    for task in pending:
+                        task.cancel()
+                    # Give time for cancellation
+                    loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+            except Exception as e:
+                logger.debug(f"⚠️ Error during task cleanup: {e}")
+            # Don't close the loop - let Python handle it
     except KeyboardInterrupt:
         logger.info("👋 Бот остановлен пользователем")
-    except RuntimeError as e:
-        # Handle event loop errors gracefully on Railway
-        if "Event loop is closed" in str(e) or "no current event loop" in str(e).lower():
-            logger.info("✅ Bot shutdown completed cleanly")
-        else:
-            logger.critical(f"❌ КРИТИЧЕСКАЯ ОШИБКА: {e}", exc_info=True)
     except Exception as e:
         logger.critical(f"❌ КРИТИЧЕСКАЯ ОШИБКА: {e}", exc_info=True)
 
