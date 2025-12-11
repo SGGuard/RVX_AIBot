@@ -141,16 +141,23 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 # Определяем API URL - с поддержкой Railway environment
-# На Railway используем 127.0.0.1:8080, на локал localhost:8000
+# Priority: env variable > Railway public URL > localhost fallback
 _api_url_env = os.getenv("API_URL_NEWS")
 if _api_url_env:
     API_URL_NEWS = _api_url_env
-elif os.getenv("RAILWAY_ENVIRONMENT"):
-    # На Railway API в отдельном web dyno на порту 8080
-    API_URL_NEWS = "http://127.0.0.1:8080/explain_news"
 else:
-    # Локальная разработка
-    API_URL_NEWS = "http://localhost:8000/explain_news"
+    # Try API_URL (Railway public service URL)
+    _api_url = os.getenv("API_URL")
+    if _api_url:
+        API_URL_NEWS = _api_url.rstrip('/') + "/explain_news"
+    elif _api_base_url := os.getenv("API_BASE_URL"):
+        API_URL_NEWS = _api_base_url.rstrip('/') + "/explain_news"
+    elif os.getenv("RAILWAY_ENVIRONMENT"):
+        # Fallback: On Railway, try localhost (assumes same network)
+        API_URL_NEWS = "http://localhost:8080/explain_news"
+    else:
+        # Local development
+        API_URL_NEWS = "http://localhost:8000/explain_news"
 
 logger_init = logging.getLogger("config_loader")
 logger_init.info(f"🔗 API_URL_NEWS configured: {API_URL_NEWS}")
