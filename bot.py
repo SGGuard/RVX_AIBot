@@ -1741,7 +1741,27 @@ def migrate_database() -> None:
             logger.info("✅ Миграция не требуется, схема актуальна")
 
 def init_database() -> None:
-    """Инициализация базы данных с расширенной схемой v0.5.0."""
+    """
+    Инициализирует SQLite базу данных с полной схемой.
+    
+    Создает все необходимые таблицы и выполняет миграции схемы.
+    Выполняется при запуске бота, безопасна для повторных вызовов.
+    
+    Tables Created:
+        - users: Профили пользователей
+        - conversations: История разговоров
+        - conversation_stats: Статистика по разговорам
+        - analysis_cache: Кэш анализов
+        - feedback: Обратная связь
+        - learning_progress: Прогресс обучения
+        - events: Для аналитики
+        
+    Features:
+        - Idempotent: безопасно вызывать много раз
+        - Auto-migration: автомиграция схемы
+        - WAL mode: для лучшей производительности
+        - Indexes: оптимизированы на часто используемые колонки
+    """
     with get_db() as conn:
         cursor = conn.cursor()
         
@@ -9385,7 +9405,37 @@ async def get_smart_response(user_id: int, text: str, msg_type: str) -> str:
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик изображений (графики, скриншоты) для анализа."""
+    """
+    Обработчик изображений (графики, скриншоты, диаграммы) для анализа.
+    
+    Позволяет пользователям отправлять графики, скриншоты или диаграммы
+    криптовалютных трейдов для анализа. Извлекает текст из изображения
+    (если есть) и анализирует его через AI.
+    
+    Args:
+        update (Update): Telegram Update с фото от пользователя
+        context (ContextTypes.DEFAULT_TYPE): Telegram context
+        
+    Side Effects:
+        - Скачивает изображение с Telegram серверов
+        - Сохраняет пользователя в БД
+        - Проверяет бан пользователя
+        - Проверяет rate limits
+        - Анализирует изображение через OCR/AI
+        - Отправляет анализ пользователю
+        
+    Supported Image Types:
+        - Trading charts (TradingView, Binance screenshots)
+        - Crypto news screenshots
+        - Market analysis images
+        - Custom diagrams
+        
+    Error Handling:
+        - User is banned: "⛔ Вы заблокированы"
+        - Rate limit exceeded: "⏰ Исчерпан лимит запросов"
+        - Bad image: "❌ Не удалось обработать изображение"
+        - API error: Shows error with retry option
+    """
     user = update.effective_user
     
     if not update.message.photo:
