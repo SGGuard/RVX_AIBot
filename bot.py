@@ -62,7 +62,7 @@ from admin_dashboard import get_admin_dashboard
 # ✅ v0.26.0: Conversation Context Manager - контекст разговора
 from conversation_context import (
     get_context_manager, add_user_message, add_ai_message, 
-    get_user_context, clear_user_history, get_context_stats
+    get_user_context, get_context_messages, clear_user_history, get_context_stats
 )
 
 # ✅ CRITICAL FIX #2: Input Validators - валидация входных данных
@@ -9539,8 +9539,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             
             logger.info(f"🤖 AI диалог для {user.id}: '{user_text[:50]}...'")
             
-            # ✅ v0.26.0: Получаем контекст из истории разговора
-            dialogue_context = get_user_context(user.id)
+            # ✅ v0.26.0: Получаем контекст из истории разговора В ПРАВИЛЬНОМ ФОРМАТЕ (List[dict])
+            dialogue_context = get_context_messages(user.id, limit=10)
             
             # ✅ Добавляем сообщение пользователя в контекст
             add_user_message(user.id, user_text, intent)
@@ -9553,8 +9553,28 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             )
             
             if ai_response:
-                # ✅ v0.27.0: REMOVED arbitrary 500-char limit - now fully respects AI response length
-                # ✅ AI returns 2000 tokens max (~4000 symbols), will be split by Telegram limit (4096)
+                # ✅ Обрезаем до 500 символов - компактный ответ без воды
+                MAX_RESPONSE = 500
+                
+                if len(ai_response) > MAX_RESPONSE:
+                    # Обрезаем по полным словам, не посередине
+                    truncated = ai_response[:MAX_RESPONSE]
+                    
+                    # Ищем последнюю точку (конец предложения)
+                    last_period = truncated.rfind('.')
+                    
+                    # Если есть точка - обрезаем после неё
+                    if last_period > MAX_RESPONSE * 0.7:  # Точка в последних 30%
+                        ai_response = truncated[:last_period + 1]
+                    elif last_period > 0:  # Если точка есть хотя бы где-то
+                        ai_response = truncated[:last_period + 1]
+                    else:
+                        # Если точки нет - ищем последний пробел
+                        last_space = truncated.rfind(' ')
+                        if last_space > 0:
+                            ai_response = truncated[:last_space] + "..."
+                        else:
+                            ai_response = truncated + "..."
                 
                 # Очищаем markdown символы (**, __, --, ~~) которые ИИ может добавить
                 ai_response = ai_response.replace("**", "").replace("__", "").replace("--", "").replace("~~", "")
