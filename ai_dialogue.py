@@ -363,10 +363,14 @@ def get_ai_response_sync(
     system_prompt = build_dialogue_system_prompt()  # ✅ FIXED: Using correct full prompt instead of short version
     
     # ✅ DEBUG: Логируем что попадает в контекст
-    if context_str:
-        logger.debug(f"📝 Context ({len(context_str)} chars): {context_str[:200]}...")
+    if context_history:
+        logger.info(f"📝 Context received: {len(context_history)} messages")
+        if context_str:
+            logger.debug(f"   History ({len(context_str)} chars): {context_str[:150]}...")
+        else:
+            logger.warning(f"⚠️ Context is EMPTY despite {len(context_history)} messages in list!")
     else:
-        logger.debug(f"⚠️ Context is EMPTY - no history passed!")
+        logger.debug(f"ℹ️ No context history (first message or empty)")
     
     # Формируем полный промпт с контекстом диалога (RVX context уже в system_prompt)
     full_prompt = f"{system_prompt}\n\n{context_str}Пользователь: {user_message}"
