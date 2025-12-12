@@ -1,0 +1,65 @@
+# Bot files (not needed for API-only deployment)
+bot.py
+main.py
+
+# Database files
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Tests
+tests/
+test_*.py
+*_test.py
+pytest.ini
+.pytest_cache/
+
+# Documentation
+*.md
+docs/
+AUDIT_*.md
+CHANGELOG.md
+DEPLOYMENT*.md
+README*.md
+
+# Development files
+.env
+.env.local
+.env.*.local
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+.github/
+
+# Railway/Docker (not needed for Vercel)
+Dockerfile
+docker-compose.yml
+railway.json
+Procfile
+
+# Scripts
+run_tests.py
+run_tests.sh
+
+# Logs
+*.log
+logs/
