@@ -5,12 +5,12 @@ import re
 import hashlib
 import asyncio
 import base64
-from typing import Optional, Any, Dict, List
+from typing import Optional, Any, Dict, List, AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI, HTTPException, Request, status, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 from dotenv import load_dotenv
@@ -27,6 +27,9 @@ from tier1_optimizations import cache_manager, structured_logger
 
 # Limited Cache (v1.0) - исправление утечки памяти
 from limited_cache import LimitedCache
+
+# AI Quality Fixer - улучшение качества ответов AI (v0.1.0)
+from ai_quality_fixer import AIQualityValidator, get_improved_system_prompt
 
 # Drops Tracker - для информации о дропах и активностях (v0.15.0)
 from drops_tracker import (
@@ -114,7 +117,7 @@ class NewsPayload(BaseModel):
     
     @field_validator('text_content')
     @classmethod
-    def validate_and_sanitize(cls, v):
+    def validate_and_sanitize(cls, v: str) -> str:
         if not v.strip():
             raise ValueError("Текст не может быть пустым")
         return sanitize_input(v.strip())
@@ -126,14 +129,14 @@ class TeachingPayload(BaseModel):
     
     @field_validator('topic')
     @classmethod
-    def validate_topic(cls, v):
+    def validate_topic(cls, v: str) -> str:
         if not v.strip():
             raise ValueError("Тема не может быть пустой")
         return v.strip().lower()
     
     @field_validator('difficulty_level')
     @classmethod
-    def validate_difficulty(cls, v):
+    def validate_difficulty(cls, v: str) -> str:
         valid_levels = ["beginner", "intermediate", "advanced", "expert"]
         if v.lower() not in valid_levels:
             raise ValueError(f"Уровень должен быть одним из: {', '.join(valid_levels)}")
@@ -767,7 +770,7 @@ def fallback_image_analysis(asset_type: str = "other") -> dict:
         "mentioned_assets": []
     }
 
-def cleanup_expired_cache():
+def cleanup_expired_cache() -> int:
     """Удаляет кэш записи с истёкшим TTL (Redis TTL автоматический)."""
     # Redis автоматически удаляет ключи с истёкшим TTL
     # Эта функция теперь используется только для статистики
@@ -778,56 +781,8 @@ def cleanup_expired_cache():
         logger.debug(f"📊 In-memory cache size: {stats.get('in_memory_size', 0)} items")
 
 def build_gemini_config() -> dict:
-    """Создает оптимизированную конфигурацию для Gemini - интеллигентно-доступный анализ с долларами/евро."""
-    system_prompt = (
-        "⚠️ КРИТИЧНОЕ ПРАВИЛО: Отвечай ТОЛЬКО JSON в <json></json> тегах. БЕЗ ИСКЛЮЧЕНИЙ.\n\n"
-        
-        "Ты — финансовый аналитик для новостей о крипто, акциях и финтехе.\n"
-        "🎯 ГЛАВНОЕ: Анализируй профессионально и доступно - как эксперт, объясняющий умному новичку.\n\n"
-        
-        "ОБЯЗАТЕЛЬНЫЕ ПОЛЯ:\n"
-        "- summary_text: Суть новости + почему важна для рынка (2-3 предложения)\n"
-        "- impact_points: 2-4 КОНКРЕТНЫХ последствия для цен, спроса, инвесторов\n\n"
-        
-        "ОПЦИОНАЛЬНЫЕ ПОЛЯ (если применимо):\n"
-        "- action: BUY, HOLD, SELL, WATCH\n"
-        "- risk_level: Low, Medium, High\n"
-        "- timeframe: day, week, month\n"
-        "- learning_question: вопрос для обучения\n"
-        "- related_topics: смежные темы\n\n"
-        
-        "💵 ВАЛЮТЫ И ПРИМЕРЫ:\n"
-        "✅ ИСПОЛЬЗУЙ: USD (доллары), EUR (евро), BTC, ETH, международные примеры, конкретные цифры\n"
-        "❌ НЕ ИСПОЛЬЗУЙ: рубли, российские примеры, детские аналогии\n\n"
-        
-        "🚀 КАК ОБЪЯСНЯТЬ (ПРИМЕРЫ):\n"
-        "❌ НЕПРАВИЛЬНО: 'Это как когда ты... представь...'\n"
-        "✅ ПРАВИЛЬНО: 'ФРБ повысила ставку до 5.5% - это удорожает кредиты, замедляет инвестиции, давит на акции технологических компаний'\n\n"
-        
-        "ПРИМЕРЫ ОТВЕТОВ:\n"
-        "ПРИМЕР 1 (крипто):\n"
-        "<json>{\"summary_text\":\"Bitcoin достиг $100k. Это показывает растущее институциональное признание - крупные инвесторы видят крипто как нормальный актив. Больше спроса = цена растет быстрее.\",\"action\":\"BUY\",\"risk_level\":\"Medium\",\"timeframe\":\"week\",\"impact_points\":[\"Альткойны следуют за Bitcoin - они тоже растут\",\"Биржи получают больше торговых объемов - коммиссии растут\",\"Инвесторы переводят деньги из традиционных активов\"],\"related_topics\":[\"Регуляция крипто\",\"Макроэкономика\"]}</json>\n\n"
-        
-        "ПРИМЕР 2 (акция):\n"
-        "<json>{\"summary_text\":\"Apple уведомила о снижении выручки на 15%. Меньше продаж = меньше доходов, меньше денег для инвесторов. Цена акции упадет.\",\"impact_points\":[\"Прибыль компании упадет - инвесторы продают акции\",\"Компания может снизить дивиденды или скорость выкупа акций\",\"Конкуренты могут захватить долю рынка\"],\"risk_level\":\"High\",\"timeframe\":\"month\",\"related_topics\":[\"Смартфон-рынок\",\"Потребительские расходы\"]}</json>\n\n"
-        
-        "ПРАВИЛА:\n"
-        "1. ТОЛЬКО JSON между <json> и </json>\n"
-        "2. summary_text: факты + практическое значение для рынка, БЕЗ аналогий\n"
-        "3. impact_points: ВСЕГДА покажи реальные следствия (цены, спрос, деньги инвесторов)\n"
-        "4. Язык: профессиональный но доступный, без жаргона без объяснения\n"
-        "5. Используй USD/EUR и конкретные цифры\n"
-        "6. Если не уверен в action/risk - пропусти\n\n"
-        
-        "ЗАПОМНИ:\n"
-        "✅ Анализируй как финансист - фактично и по существу\n"
-        "✅ Показывай реальное влияние на доходы, цены, инвесторов\n"
-        "✅ Используй конкретные цифры когда есть\n"
-        "✅ summary_text и impact_points ВСЕГДА обязательны\n"
-        "❌ Не используй детские аналогии\n"
-        "❌ Не придумывай цифры которых не знаешь\n"
-        "❌ Не используй рубли/российские примеры"
-    )
+    """Создает оптимизированную конфигурацию для Gemini с улучшенным промптом v3.1."""
+    system_prompt = get_improved_system_prompt()
     
     return {
         "system_instruction": system_prompt,
@@ -836,7 +791,6 @@ def build_gemini_config() -> dict:
         "top_p": 0.95,
         "top_k": 40
     }
-
 # ==================== ДИАЛОГОВАЯ СИСТЕМА v0.21.0 ====================
 
 def build_conversation_context(user_id: int) -> str:
@@ -1136,7 +1090,7 @@ async def call_gemini_with_retry(
 start_time = datetime.now(timezone.utc)
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Управление жизненным циклом приложения."""
     global client, deepseek_client
     
@@ -1275,7 +1229,7 @@ app.add_middleware(
 # =============================================================================
 
 @app.middleware("http")
-async def security_headers_middleware(request: Request, call_next):
+async def security_headers_middleware(request: Request, call_next) -> Response:
     """✅ Apply security headers to all responses."""
     response = await call_next(request)
     
@@ -1290,7 +1244,7 @@ async def security_headers_middleware(request: Request, call_next):
     return response
 
 @app.middleware("http")
-async def request_validation_middleware(request: Request, call_next):
+async def request_validation_middleware(request: Request, call_next) -> Response:
     """✅ Validate requests before processing."""
     # Skip validation for health checks and docs
     if request.url.path in ["/health", "/docs", "/redoc", "/openapi.json"]:
@@ -1313,7 +1267,7 @@ async def request_validation_middleware(request: Request, call_next):
     return await call_next(request)
 
 @app.middleware("http")
-async def rate_limit_middleware(request: Request, call_next):
+async def rate_limit_middleware(request: Request, call_next) -> Response:
     """✅ Rate limiting middleware with per-IP support."""
     if request.url.path in ["/health", "/docs", "/redoc", "/openapi.json"]:
         return await call_next(request)
@@ -1340,7 +1294,7 @@ async def rate_limit_middleware(request: Request, call_next):
     return await call_next(request)
 
 @app.middleware("http")
-async def log_and_monitor_requests(request: Request, call_next):
+async def log_and_monitor_requests(request: Request, call_next) -> Response:
     """✅ Logging and monitoring with security events."""
     start = datetime.now(timezone.utc)
     request_counter["total"] += 1
@@ -1413,7 +1367,7 @@ def verify_api_key(request: Request) -> str:
 # =============================================================================
 
 @app.get("/")
-async def root():
+async def root() -> Dict[str, Any]:
     """Информация об API."""
     uptime = (datetime.now(timezone.utc) - start_time).total_seconds()
     
@@ -1437,7 +1391,7 @@ async def root():
     }
 
 @app.get("/health", response_model=HealthResponse)
-async def health_check():
+async def health_check() -> HealthResponse:
     """
     System health check endpoint для мониторинга.
     
@@ -1493,7 +1447,7 @@ async def health_check():
 # =============================================================================
 
 @app.post("/auth/create_api_key")
-async def create_api_key(request: Request):
+async def create_api_key(request: Request) -> Dict[str, Any]:
     """✅ Create a new API key for programmatic access.
     
     Requires:
@@ -1526,7 +1480,7 @@ async def create_api_key(request: Request):
     }
 
 @app.post("/auth/verify_api_key")
-async def verify_api_key_endpoint(request: Request):
+async def verify_api_key_endpoint(request: Request) -> Dict[str, bool]:
     """✅ Verify if an API key is valid.
     
     Requires:
@@ -1560,7 +1514,7 @@ async def verify_api_key_endpoint(request: Request):
 
 
 @app.get("/security/status")
-async def security_status(request: Request):
+async def security_status(request: Request) -> Dict[str, Any]:
     """✅ Get security status and recent events.
     
     Requires:
@@ -1592,7 +1546,7 @@ async def security_status(request: Request):
     }
 
 @app.post("/explain_news", response_model=SimplifiedResponse)
-async def explain_news(payload: NewsPayload, request: Request):
+async def explain_news(payload: NewsPayload, request: Request) -> JSONResponse:
     """
     Основной API endpoint для анализа криптоновостей и финансовых событий.
     
@@ -1827,7 +1781,7 @@ async def explain_news(payload: NewsPayload, request: Request):
 # =============================================================================
 
 @app.post("/analyze_image", response_model=ImageAnalysisResponse)
-async def analyze_image(payload: ImagePayload, request: Request):
+async def analyze_image(payload: ImagePayload, request: Request) -> JSONResponse:
     """
     Анализирует изображение (график, скриншот, мем) с помощью Gemini Vision.
     
@@ -1943,6 +1897,21 @@ async def analyze_image(payload: ImagePayload, request: Request):
                 logger.error(f"❌ JSON не найден в ответе Gemini: {response_text[:200]}")
                 raise ValueError("JSON не найден в ответе")
             
+            # ✅ NEW: Проверяем качество анализа с помощью AIQualityValidator
+            quality = AIQualityValidator.validate_analysis(analysis_data)
+            logger.info(f"📊 Качество анализа: {quality.score:.1f}/10 | Проблемы: {quality.issues}")
+            
+            # Если качество плохое, пытаемся исправить
+            if quality.score < 5.0:
+                logger.warning(f"⚠️ Низкое качество анализа ({quality.score:.1f}/10), пытаемся исправить...")
+                fixed_data = AIQualityValidator.fix_analysis(analysis_data)
+                if fixed_data:
+                    analysis_data = fixed_data
+                    quality = AIQualityValidator.validate_analysis(analysis_data)
+                    logger.info(f"✅ Анализ исправлен: качество теперь {quality.score:.1f}/10")
+                else:
+                    logger.warning(f"⚠️ Не удалось исправить анализ, используем как есть")
+            
             # Проверяем обязательные поля
             required_fields = ["summary_text", "analysis", "asset_type", "confidence", "mentioned_assets"]
             missing_fields = [f for f in required_fields if f not in analysis_data]
@@ -2010,7 +1979,7 @@ async def analyze_image(payload: ImagePayload, request: Request):
 # =============================================================================
 
 @app.post("/teach_lesson", response_model=TeachingResponse)
-async def teach_lesson(payload: TeachingPayload):
+async def teach_lesson(payload: TeachingPayload) -> JSONResponse:
     """
     Создает интерактивный учебный урок по криптографии.
     
@@ -2141,6 +2110,21 @@ async def teach_lesson(payload: TeachingPayload):
             logger.error("❌ Не удалось извлечь JSON из ответа урока")
             raise ValueError("Некорректный формат ответа AI")
         
+        # ✅ NEW: Проверяем качество урока с помощью AIQualityValidator
+        quality = AIQualityValidator.validate_analysis(lesson_data)
+        logger.info(f"📊 Качество урока: {quality.score:.1f}/10 | Проблемы: {quality.issues}")
+        
+        # Если качество плохое, пытаемся исправить
+        if quality.score < 5.0:
+            logger.warning(f"⚠️ Низкое качество урока ({quality.score:.1f}/10), пытаемся исправить...")
+            fixed_data = AIQualityValidator.fix_analysis(lesson_data)
+            if fixed_data:
+                lesson_data = fixed_data
+                quality = AIQualityValidator.validate_analysis(lesson_data)
+                logger.info(f"✅ Урок исправлен: качество теперь {quality.score:.1f}/10")
+            else:
+                logger.warning(f"⚠️ Не удалось исправить урок, используем как есть")
+        
         # Валидация структуры
         required_fields = ["lesson_title", "content", "key_points", "real_world_example", "practice_question", "next_topics"]
         for field in required_fields:
@@ -2205,7 +2189,7 @@ async def teach_lesson(payload: TeachingPayload):
 # =============================================================================
 
 @app.get("/get_drops", response_model=DropsResponse, tags=["Drops"])
-async def get_drops_endpoint(limit: int = 10, chain: str = "all"):
+async def get_drops_endpoint(limit: int = 10, chain: str = "all") -> Dict[str, Any]:
     """
     Получить информацию о свежих NFT дропах.
     
@@ -2246,7 +2230,7 @@ async def get_drops_endpoint(limit: int = 10, chain: str = "all"):
 
 
 @app.get("/get_activities", response_model=ActivitiesResponse, tags=["Drops"])
-async def get_activities_endpoint():
+async def get_activities_endpoint() -> Dict[str, Any]:
     """
     Получить информацию об активностях в топ-проектах.
     
