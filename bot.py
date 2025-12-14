@@ -9,7 +9,7 @@ import asyncio
 import re
 import html
 import time
-from typing import Optional, List, Tuple, Dict, Any
+from typing import Optional, List, Tuple, Dict, Any, Callable
 from datetime import datetime, timedelta
 from contextlib import contextmanager
 from functools import wraps
@@ -195,7 +195,7 @@ def get_user_auth_level(user_id: int) -> AuthLevel:
     else:
         return AuthLevel.ANYONE
 
-def require_auth(required_level: AuthLevel):
+def require_auth(required_level: AuthLevel) -> Callable:
     """
     Декоратор для проверки прав доступа.
     ✅ CRITICAL FIX #5: Centralized authorization check
@@ -268,7 +268,7 @@ class APIResponse(BaseModel):
     
     @field_validator('simplified_text', 'summary_text', mode='before')
     @classmethod
-    def validate_text_not_empty(cls, v, info: ValidationInfo):
+    def validate_text_not_empty(cls, v: str, info: ValidationInfo) -> str:
         """Проверяет что текст не пуст и валиден (Pydantic V2 style)"""
         if v is not None:
             if not isinstance(v, str):
@@ -573,7 +573,7 @@ async def send_channel_post(
         return False
 
 
-async def notify_version_update(context: ContextTypes.DEFAULT_TYPE, version: str, changelog: str):
+async def notify_version_update(context: ContextTypes.DEFAULT_TYPE, version: str, changelog: str) -> None:
     """
     Отправляет уведомление об обновлении версии в канал.
     """
@@ -589,7 +589,7 @@ async def notify_version_update(context: ContextTypes.DEFAULT_TYPE, version: str
     await send_channel_post(context, post)
 
 
-async def notify_new_quests(context: ContextTypes.DEFAULT_TYPE):
+async def notify_new_quests(context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Отправляет уведомление о новых ежедневных квестах.
     """
@@ -609,7 +609,7 @@ async def notify_new_quests(context: ContextTypes.DEFAULT_TYPE):
     await send_channel_post(context, post)
 
 
-async def notify_system_maintenance(context: ContextTypes.DEFAULT_TYPE, duration_minutes: int = 5):
+async def notify_system_maintenance(context: ContextTypes.DEFAULT_TYPE, duration_minutes: int = 5) -> None:
     """
     Отправляет уведомление об обслуживании системы.
     """
@@ -626,7 +626,7 @@ async def notify_system_maintenance(context: ContextTypes.DEFAULT_TYPE, duration
     await send_channel_post(context, post)
 
 
-async def notify_milestone_reached(context: ContextTypes.DEFAULT_TYPE, milestone: str, count: int):
+async def notify_milestone_reached(context: ContextTypes.DEFAULT_TYPE, milestone: str, count: int) -> None:
     """
     Отправляет уведомление о достижении вехи (например, 100 пользователей).
     """
@@ -641,7 +641,7 @@ async def notify_milestone_reached(context: ContextTypes.DEFAULT_TYPE, milestone
     await send_channel_post(context, post)
 
 
-async def notify_new_feature(context: ContextTypes.DEFAULT_TYPE, feature_name: str, description: str):
+async def notify_new_feature(context: ContextTypes.DEFAULT_TYPE, feature_name: str, description: str) -> None:
     """
     Отправляет уведомление о новой функции.
     """
@@ -656,7 +656,7 @@ async def notify_new_feature(context: ContextTypes.DEFAULT_TYPE, feature_name: s
     await send_channel_post(context, post)
 
 
-async def notify_stats_milestone(context: ContextTypes.DEFAULT_TYPE, stat_name: str, value: str):
+async def notify_stats_milestone(context: ContextTypes.DEFAULT_TYPE, stat_name: str, value: str) -> None:
     """
     Отправляет уведомление о статистическом рекорде.
     """
@@ -1374,7 +1374,7 @@ async def send_success_with_next_steps(
 # Global pool instance (using optimized DatabaseConnectionPool from tier1_optimizations)
 db_pool: Optional[DatabaseConnectionPool] = None
 
-def init_db_pool():
+def init_db_pool() -> None:
     """Initialize database pool on bot startup with TIER 1 optimization."""
     global db_pool
     db_pool = DatabaseConnectionPool(DB_PATH, pool_size=DB_POOL_SIZE)
@@ -1429,32 +1429,32 @@ def get_db() -> contextmanager:
                 if conn:
                     try:
                         conn.close()
-                    except:
-                        pass
+                    except Exception as close_err:
+                        logger.debug(f"Could not close locked connection: {close_err}")
                 continue
             else:
                 # Not a lock error or final attempt
                 if conn:
                     try:
                         conn.rollback()
-                    except:
-                        pass
+                    except Exception as rollback_err:
+                        logger.debug(f"Could not rollback on error: {rollback_err}")
                 logger.error(f"❌ DB ошибка: {e}", exc_info=True)
                 raise
         except sqlite3.Error as e:
             if conn:
                 try:
                     conn.rollback()
-                except:
-                    pass
+                except Exception as rollback_err:
+                    logger.debug(f"Could not rollback: {rollback_err}")
             logger.error(f"❌ DB ошибка: {e}", exc_info=True)
             raise
         except Exception as e:
             if conn:
                 try:
                     conn.rollback()
-                except:
-                    pass
+                except Exception as rollback_err:
+                    logger.debug(f"Could not rollback: {rollback_err}")
             logger.error(f"❌ Неожиданная ошибка БД: {e}", exc_info=True)
             raise
         finally:
@@ -1462,7 +1462,7 @@ def get_db() -> contextmanager:
             if conn and db_pool:
                 db_pool.return_connection(conn)
 
-def check_column_exists(cursor, table: str, column: str) -> bool:
+def check_column_exists(cursor: sqlite3.Cursor, table: str, column: str) -> bool:
     """Проверяет существование колонки в таблице.
     
     ✅ CRITICAL FIX #1: SQL Injection protection via whitelist validation
@@ -2200,29 +2200,26 @@ def init_database() -> None:
         
         # Дополнительные индексы для production (v0.21.0 - Production Ready)
         # WITH SAFE CHECKS - некоторые таблицы могут быть созданы в других местах
-        try:
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_requests_user_id ON requests(user_id)")
-        except: pass
+        indices = [
+            ("idx_requests_user_id", "CREATE INDEX IF NOT EXISTS idx_requests_user_id ON requests(user_id)"),
+            ("idx_requests_created_at", "CREATE INDEX IF NOT EXISTS idx_requests_created_at ON requests(created_at)"),
+            ("idx_cache_created_at", "CREATE INDEX IF NOT EXISTS idx_cache_created_at ON cache(created_at)"),
+            ("idx_user_xp_user_id", "CREATE INDEX IF NOT EXISTS idx_user_xp_user_id ON user_xp(user_id)"),
+            ("idx_quests_user_id", "CREATE INDEX IF NOT EXISTS idx_quests_user_id ON user_daily_quests(user_id)"),
+            ("idx_bookmarks_user_id", "CREATE INDEX IF NOT EXISTS idx_bookmarks_user_id ON bookmarks(user_id)")
+        ]
         
-        try:
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_requests_created_at ON requests(created_at)")
-        except: pass
-        
-        try:
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_cache_created_at ON cache(created_at)")
-        except: pass
-        
-        try:
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_xp_user_id ON user_xp(user_id)")
-        except: pass
-        
-        try:
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_quests_user_id ON user_daily_quests(user_id)")
-        except: pass
-        
-        try:
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_bookmarks_user_id ON bookmarks(user_id)")
-        except: pass
+        for idx_name, idx_query in indices:
+            try:
+                cursor.execute(idx_query)
+                logger.debug(f"✅ Index {idx_name} created/verified")
+            except sqlite3.OperationalError as e:
+                if "no such table" in str(e):
+                    logger.debug(f"⚠️ Index {idx_name} skipped (table may not exist yet)")
+                else:
+                    logger.warning(f"⚠️ Could not create index {idx_name}: {e}")
+            except Exception as e:
+                logger.warning(f"⚠️ Unexpected error creating index {idx_name}: {e}")
         
         # ============ ТАБЛИЦА ПРОГРЕССА КУРСОВ (КРИТИЧНО) ============
         cursor.execute("""
@@ -2696,7 +2693,7 @@ def set_cache(cache_key: str, response_text: str) -> None:
                 hit_count = hit_count + 1
         """, (cache_key, response_text))
 
-def cleanup_old_cache():
+def cleanup_old_cache() -> None:
     """Удаляет старый и неиспользуемый кэш."""
     with get_db() as conn:
         cursor = conn.cursor()
@@ -3218,7 +3215,7 @@ DAILY_TASKS_TEMPLATES = {
     }
 }
 
-def init_daily_tasks(user_id: int):
+def init_daily_tasks(user_id: int) -> None:
     """Инициализирует ежедневные задачи для пользователя. v0.11.0"""
     with get_db() as conn:
         cursor = conn.cursor()
@@ -3283,7 +3280,7 @@ def get_user_daily_tasks(user_id: int) -> List[dict]:
         
         return tasks
 
-def update_task_progress(user_id: int, task_type: str, increment: int = 1):
+def update_task_progress(user_id: int, task_type: str, increment: int = 1) -> None:
     """Обновляет прогресс задачи. v0.11.0"""
     with get_db() as conn:
         cursor = conn.cursor()
@@ -3322,7 +3319,7 @@ def update_task_progress(user_id: int, task_type: str, increment: int = 1):
         conn.commit()
         return is_completed
 
-def log_analytics_event(event_type: str, user_id: Optional[int] = None, data: Optional[dict] = None):
+def log_analytics_event(event_type: str, user_id: Optional[int] = None, data: Optional[dict] = None) -> None:
     """Логирует аналитическое событие."""
     if not ENABLE_ANALYTICS:
         return
@@ -4151,7 +4148,7 @@ def admin_only(func):
         return await func(update, context)
     return wrapper
 
-def log_command(func):
+def log_command(func: Callable) -> Callable:
     """Декоратор для логирования использования команд."""
     @wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -6538,8 +6535,10 @@ async def ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             # Добавляем в FAQ если это хороший ответ
             try:
                 add_question_to_faq(cursor, question, simplified_text, "general")
-            except:
-                pass  # Вопрос уже в FAQ
+            except ValueError as e:
+                logger.debug(f"FAQ: {e}")  # Вопрос уже в FAQ
+            except Exception as e:
+                logger.warning(f"Failed to add question to FAQ: {e}")
         
         await status_msg.edit_text(
             f"❓ **Ваш вопрос:** {question}\n\n"
