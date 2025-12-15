@@ -16,6 +16,9 @@ COPY --from=builder /root/.local /root/.local
 # Copy application code
 COPY . .
 
+# Make deployment scripts executable
+RUN chmod +x railway.sh run_api.sh || true
+
 # Set Python environment variables
 ENV PATH=/root/.local/bin:$PATH \
     PYTHONUNBUFFERED=1 \
