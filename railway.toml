@@ -1,5 +1,0 @@
-[build]
-builder = "nixpacks"
-
-[deploy]
-startCommand = "python3 api_server.py"
