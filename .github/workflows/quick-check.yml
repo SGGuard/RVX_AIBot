@@ -113,5 +113,33 @@ jobs:
         print(f"  {'TOTAL':20s} {total:5d} lines")
         EOF
     
+    - name: 🔍 Python Syntax Validation
+      run: |
+        python << 'EOF'
+        import ast
+        import sys
+        
+        files_to_check = ['bot.py', 'api_server.py', 'ai_dialogue.py']
+        errors = []
+        
+        for fname in files_to_check:
+            try:
+                with open(fname, 'r', encoding='utf-8') as f:
+                    code = f.read()
+                ast.parse(code)
+                print(f"✅ {fname}: Valid Python syntax")
+            except SyntaxError as e:
+                print(f"❌ {fname}: Syntax error at line {e.lineno}: {e.msg}")
+                errors.append(fname)
+            except Exception as e:
+                print(f"⚠️  {fname}: {type(e).__name__}: {e}")
+        
+        if errors:
+            print(f"\n❌ Syntax errors in: {', '.join(errors)}")
+            sys.exit(1)
+        else:
+            print(f"\n✅ All files have valid Python syntax")
+        EOF
+    
     - name: ✅ All Checks Complete
       run: echo "✅ Health check passed!"
