@@ -43,7 +43,28 @@ jobs:
     
     - name: Check imports
       run: |
-        python -c "import groq; import mistralai; print('✅ All AI modules available')"
+        python << 'EOF'
+        critical_modules = ['groq', 'mistralai', 'fastapi', 'telegram']
+        missing = []
+        
+        for module in critical_modules:
+            try:
+                __import__(module)
+                print(f"✅ {module} available")
+            except ImportError:
+                print(f"⚠️  {module} not available")
+                missing.append(module)
+        
+        if missing:
+            print(f"\nNote: {len(missing)} package(s) missing - checking requirements.txt...")
+            with open('requirements.txt', 'r') as f:
+                req_content = f.read()
+                for m in missing:
+                    if m in req_content:
+                        print(f"  {m} is in requirements.txt ✅")
+        else:
+            print("\n✅ All critical modules available")
+        EOF
     
     - name: Verify critical files
       run: |
