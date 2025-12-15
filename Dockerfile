@@ -30,5 +30,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:8080/health')" || exit 1
 
-# Start API server with explicit logging
-CMD ["python3", "-u", "api_server.py"]
+# Start API server with uvicorn directly (Railway-compatible)
+CMD ["uvicorn", "api_server:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]
