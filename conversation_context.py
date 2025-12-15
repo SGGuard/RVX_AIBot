@@ -66,9 +66,9 @@ CREATE TABLE IF NOT EXISTS conversation_stats (
 # CONFIGURATION
 # ============================================================================
 
-MAX_MESSAGES_PER_USER = 50  # Максимум сообщений в истории на пользователя
-MAX_CONTEXT_TOKENS = 2000  # Максимум токенов в контексте
-MESSAGE_RETENTION_DAYS = 7  # Хранить сообщения 7 дней
+MAX_MESSAGES_PER_USER = 200  # Максимум сообщений в истории на пользователя (increased from 50 for better context)
+MAX_CONTEXT_TOKENS = 4000  # Максимум токенов в контексте (increased from 2000 for richer context)
+MESSAGE_RETENTION_DAYS = 30  # Хранить сообщения 30 дней (increased from 7 for longer memory)
 CLEANUP_INTERVAL_HOURS = 24  # Очистка каждые 24 часа
 MIN_MESSAGE_LENGTH = 10  # Минимальная длина сообщения для сохранения
 MAX_MESSAGE_LENGTH = 2000  # Максимальная длина сохраняемого сообщения
