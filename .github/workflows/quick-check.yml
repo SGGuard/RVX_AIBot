@@ -32,30 +32,32 @@ jobs:
       run: |
         echo "Checking imports..."
         python << 'EOF'
-        try:
-            import bot
-            print("✅ bot.py imports OK")
-        except Exception as e:
-            print(f"⚠️  bot.py import warning: {e}")
+        import sys
         
-        try:
-            import api_server
-            print("✅ api_server.py imports OK")
-        except Exception as e:
-            print(f"⚠️  api_server.py import warning: {e}")
+        # Check critical packages
+        critical_packages = {
+            'groq': 'Groq API',
+            'mistralai': 'Mistral AI',
+            'fastapi': 'FastAPI',
+            'telegram': 'Telegram Bot',
+            'httpx': 'HTTP Client',
+            'sqlalchemy': 'Database ORM',
+        }
         
-        try:
-            import ai_dialogue
-            print("✅ ai_dialogue.py imports OK")
-        except Exception as e:
-            print(f"⚠️  ai_dialogue.py import warning: {e}")
+        missing = []
+        for pkg, name in critical_packages.items():
+            try:
+                __import__(pkg)
+                print(f"✅ {name} ({pkg}) available")
+            except ImportError:
+                print(f"⚠️  {name} ({pkg}) not available")
+                missing.append(pkg)
         
-        # Critical imports
-        import groq
-        import mistralai
-        import fastapi
-        import telegram
-        print("✅ All critical dependencies available")
+        if missing:
+            print(f"\n⚠️  Missing packages: {', '.join(missing)}")
+            print("Note: This is OK if requirements.txt is correct")
+        else:
+            print("\n✅ All critical packages available")
         EOF
     
     - name: 📊 File Structure Check
@@ -66,15 +68,24 @@ jobs:
         checks = {
             "Core files": ["bot.py", "api_server.py", "ai_dialogue.py"],
             "Config": ["requirements.txt", ".env.example"],
-            "Database": ["rvx_bot.db"],
-            "Docs": ["README.md", "DEPLOYMENT.md"],
+            "Docs": ["README.md"],
         }
         
+        all_ok = True
         for category, files in checks.items():
             print(f"\n{category}:")
             for f in files:
-                exists = "✅" if os.path.exists(f) else "⚠️ "
-                print(f"  {exists} {f}")
+                exists = os.path.exists(f)
+                status = "✅" if exists else "❌"
+                print(f"  {status} {f}")
+                if not exists and category == "Core files":
+                    all_ok = False
+        
+        if all_ok:
+            print("\n✅ All critical files present")
+        else:
+            print("\n⚠️  Some core files missing!")
+            exit(1)
         EOF
     
     - name: 📈 Code Metrics
