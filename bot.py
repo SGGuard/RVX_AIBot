@@ -9427,9 +9427,14 @@ def analyze_message_context(text: str) -> dict:
     """
     text_lower = text.lower().strip()
     
+    # ✅ DEBUG: Логируем входящий текст
+    logger.debug(f"📊 analyze_message_context for text ({len(text)} chars): {text[:80]}...")
+    
     # Приветствие
     if any(g in text_lower for g in ["привет", "hello", "hi", "пока", "bye", "привееет", "yo", "хай"]):
-        return {"type": "greeting", "needs_crypto_analysis": False}
+        result = {"type": "greeting", "needs_crypto_analysis": False}
+        logger.debug(f"   → {result['type']}")
+        return result
     
     # Вопрос о боте / возможностях (только если в начале/конце или явно вопрос)
     if any(c in text_lower for c in ["что ты", "что умеешь", "кто ты", "возможности", 
@@ -9452,6 +9457,9 @@ def analyze_message_context(text: str) -> dict:
     has_geopolitical = any(g in text_lower for g in geopolitical_words)
     has_action = any(a in text_lower for a in action_words)
     
+    # DEBUG логирование флагов
+    logger.debug(f"   Flags: crypto={has_crypto}, tech={has_tech}, finance={has_finance}, geo={has_geopolitical}, action={has_action}")
+    
     # ПРОВЕРКА РЕГУЛЯРНЫХ ВЫРАЖЕНИЙ - это самая мощная проверка новостей
     matches_pattern = any(pattern.search(text) for pattern in news_patterns)
     
@@ -9459,33 +9467,40 @@ def analyze_message_context(text: str) -> dict:
     # ПЕРВАЯ ПРОВЕРКА: Новость по регулярным выражениям (САМАЯ НАДЕЖНАЯ)
     if matches_pattern:
         msg_type = "finance_news" if has_finance else "crypto_news" if has_crypto else "geopolitical_news" if has_geopolitical else "tech_news"
-        return {
+        result = {
             "type": msg_type,
             "needs_crypto_analysis": True,
             "is_tech": has_tech,
             "is_finance": has_finance,
             "is_geopolitical": has_geopolitical
         }
+        logger.info(f"✅ News pattern matched → {result}")
+        return result
+        }
     
     # ВТОРАЯ ПРОВЕРКА: Явный финансовый контекст + действие = АНАЛИЗИРОВАТЬ
     if has_finance and has_action:
-        return {
+        result = {
             "type": "finance_news",
             "needs_crypto_analysis": True,
             "is_tech": has_tech,
             "is_finance": True,
             "is_geopolitical": has_geopolitical
         }
+        logger.info(f"✅ Finance news (has_finance + has_action) → {result}")
+        return result
     
     # ВТОРОЙ-Б ПРОВЕРКА: Явный геополитический контекст + действие = АНАЛИЗИРОВАТЬ
     if has_geopolitical and has_action:
-        return {
+        result = {
             "type": "geopolitical_news",
             "needs_crypto_analysis": True,
             "is_tech": has_tech,
             "is_finance": has_finance,
             "is_geopolitical": True
         }
+        logger.info(f"✅ Geopolitical news (has_geopolitical + has_action) → {result}")
+        return result
     
     # ТРЕТЬЯ ПРОВЕРКА: Явный крипто/tech контекст + действие = АНАЛИЗИРОВАТЬ
     if (has_crypto or has_tech) and has_action:
