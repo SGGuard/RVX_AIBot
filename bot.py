@@ -9318,8 +9318,78 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # Меню выбора тем обучения
 
 # =============================================================================
+# CONTEXT ANALYSIS KEYWORDS & PATTERNS (v0.27)
+# =============================================================================
+
+# Криптовалютные ключевые слова
+crypto_words = [
+    "bitcoin", "btc", "ethereum", "eth", "крипто", "криптовалюта", "криптовалютой",
+    "блокчейн", "blockchain", "altcoin", "alt", "dex", "decentralized", "defi",
+    "nft", "токен", "token", "токены", "crypto", "coin", "монета", "монеты",
+    "wallet", "кошелек", "exchange", "биржа", "mining", "майнинг", "hash",
+    "consensus", "fork", "upgrade", "gas fee", "tx", "transaction"
+]
+
+# Технологические ключевые слова
+tech_keywords = [
+    "ai", "искусственный интеллект", "ml", "machine learning", "algorithm",
+    "api", "server", "cloud", "web", "app", "application", "система",
+    "интеграция", "интегрированн", "технолог", "фича", "feature", "update",
+    "bug", "баг", "fix", "фикс", "deploy", "развертыв", "сервис"
+]
+
+# Финансовые ключевые слова
+finance_words = [
+    "цена", "price", "курс", "rate", "трейдинг", "trading", "trade", "продать",
+    "купить", "покупка", "продажа", "инвест", "investment", "портфель", "wallet",
+    "доход", "прибыль", "убыток", "loss", "profit", "margin", "leverage",
+    "акция", "stock", "облигация", "bond", "индекс", "index", "валюта",
+    "фонд", "fund", "ставка", "rate", "процент", "dividend", "дивиденд",
+    "котировка", "котировок", "мировой рынок", "рынок", "market", "падение",
+    "взлет", "взлетел", "вырос", "упал", "вырастет", "упадет", "скачок"
+]
+
+# Геополитические ключевые слова
+geopolitical_words = [
+    "война", "war", "конфликт", "conflict", "тензия", "tension", "переговор",
+    "negotiate", "санкция", "sanctions", "эмбарго", "embargo", "блокада",
+    "экспорт", "импорт", "торговля", "trade", "таможня", "таможен", "пошлина",
+    "дипломат", "diplomat", "международн", "international", "политик", "политичес",
+    "президент", "премьер", "government", "правительство", "государство", "state",
+    "союз", "alliance", "договор", "treaty", "соглашение", "agreement",
+    "страна", "страны", "государств", "регион", "region", "народ",
+    "армия", "военн", "army", "military", "флот", "navy", "граница",
+    "граница", "border", "территори", "территория", "оккупация", "occupation",
+    "беженец", "refugee", "мигрант", "migrant", "иммигрант", "эмигрант"
+]
+
+# Слова, указывающие на действие/происшествие
+action_words = [
+    "объявила", "объявил", "объявили", "запустила", "запустил", "запустили",
+    "закрыла", "закрыл", "закрыли", "запустил", "хакнула", "хакнули",
+    "поддержала", "одобрила", "запретила", "запретил", "введен", "введена",
+    "отменена", "отменен", "вводит", "вводят", "запускает", "запускают",
+    "поддерживает", "поддерживает", "отвергает", "отвергает", "объявляет",
+    "объявляют", "призывает", "призывают", "предостерегает", "предостерегают",
+    "анонсирует", "анонсируют", "раскрыла", "раскрыли", "выпустил", "выпустили",
+    "обновила", "обновил", "обновили", "интегрировала", "интегрировал",
+    "партнер", "сотрудничество", "сделка", "сделки", "соглашение"
+]
+
+# Регулярные выражения для детектирования новостей (самый надежный способ)
+news_patterns = [
+    re.compile(r"(новост|news|объявл|announce|запуск|launch|компани|company|проект|project)", re.IGNORECASE),
+    re.compile(r"(цена|price|курс|rate|поднялась|упала|выросла|выросл|взлет|взлетел)", re.IGNORECASE),
+    re.compile(r"(криптовалют|cryptocurrency|bitcoin|ethereum|ETH|BTC|altcoin|token)", re.IGNORECASE),
+    re.compile(r"(санкц|embargo|война|conflict|договор|treaty|международ|international)", re.IGNORECASE),
+    re.compile(r"(инвестиц|investment|фонд|fund|капитал|capital|трейдинг|trading)", re.IGNORECASE),
+    re.compile(r"(регулятор|regulatory|sec|фца|центробанк|央行|regulat|compliance)", re.IGNORECASE)
+]
+
+# =============================================================================
 # ГЛАВНЫЙ ОБРАБОТЧИК СООБЩЕНИЙ
 # =============================================================================
+
 
 def analyze_message_context(text: str) -> dict:
     """
@@ -9343,9 +9413,9 @@ def analyze_message_context(text: str) -> dict:
                                              "переход", "миграция", "интеграция"]):
             return {"type": "info_request", "needs_crypto_analysis": False}
     
+    # ✅ FIXED: REMOVED EARLY RETURN - Analysis logic continues below
     # Ключевые слова для анализа контекста (встроено, не требует отдельного файла)
     # Для сложных сценариев используйте ai_dialogue.py
-    return {"type": "general", "needs_crypto_analysis": False}
     
     has_crypto = any(c in text_lower for c in crypto_words)
     has_tech = any(t in text_lower for t in tech_keywords)
@@ -9883,7 +9953,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             ai_response = get_ai_response_sync(
                 user_text,
                 dialogue_context,
-                user_id=user.id
+                user_id=user.id,
+                message_context=msg_context  # ✅ v0.27: Pass message context for prompt selection
             )
             
             if ai_response:
