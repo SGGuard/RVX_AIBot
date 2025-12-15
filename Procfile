@@ -1,2 +1,2 @@
-web: python3 api_server.py
+web: bash run_api.sh
 worker: python3 bot.py
