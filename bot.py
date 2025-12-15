@@ -9476,7 +9476,6 @@ def analyze_message_context(text: str) -> dict:
         }
         logger.info(f"✅ News pattern matched → {result}")
         return result
-        }
     
     # ВТОРАЯ ПРОВЕРКА: Явный финансовый контекст + действие = АНАЛИЗИРОВАТЬ
     if has_finance and has_action:
