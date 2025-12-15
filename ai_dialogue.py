@@ -569,8 +569,13 @@ def get_ai_response_sync(
     if message_context and message_context.get("is_geopolitical"):
         system_prompt = build_geopolitical_analysis_prompt()
         logger.info(f"🌍 Using GEOPOLITICAL prompt for question type: {message_context.get('type')}")
+        logger.info(f"   Message context: {message_context}")
+        logger.debug(f"   Geopolitical prompt length: {len(system_prompt)} chars")
     else:
         system_prompt = build_dialogue_system_prompt()  # ✅ FIXED: Using correct full prompt instead of short version
+        logger.info(f"💬 Using DIALOGUE prompt")
+        if message_context:
+            logger.debug(f"   Message context: {message_context}")
     
     # ✅ DEBUG: Логируем что попадает в контекст
     if context_history:
