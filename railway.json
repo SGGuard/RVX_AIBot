@@ -1,6 +1,6 @@
 {
   "builder": "dockerfile",
   "deploy": {
-    "startCommand": "uvicorn api_server:app --host 0.0.0.0 --port $PORT"
+    "startCommand": "python run_both.py"
   }
 }
