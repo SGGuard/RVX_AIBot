@@ -230,7 +230,8 @@ API_RETRY_DELAY = float(os.getenv("API_RETRY_DELAY", "0.5"))  # Оптимизи
 
 # Контроль доступа
 ALLOWED_USERS = set(map(int, filter(None, os.getenv("ALLOWED_USERS", "").split(","))))
-ADMIN_USERS = set(map(int, filter(None, os.getenv("ADMIN_USERS", "").split(","))))
+# Use BOT_ADMIN_IDS from config.py which includes 7216426044 (creator)
+ADMIN_USERS = set(BOT_ADMIN_IDS) if BOT_ADMIN_IDS else set(map(int, filter(None, os.getenv("ADMIN_USERS", "").split(","))))
 UNLIMITED_ADMIN_USERS = set(map(int, filter(None, os.getenv("UNLIMITED_ADMIN_USERS", "").split(","))))  # Админы без лимитов
 FLOOD_COOLDOWN_SECONDS = int(os.getenv("FLOOD_COOLDOWN_SECONDS", "3"))
 MAX_REQUESTS_PER_DAY = int(os.getenv("MAX_REQUESTS_PER_DAY", "50"))
