@@ -6872,6 +6872,28 @@ async def teach_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 @admin_only
 @log_command
+async def test_digest_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Команда для тестирования крипто дайджеста
+    Отправляет дайджест в канал сразу же
+    """
+    try:
+        await update.message.reply_text("⏳ Сбираю данные для крипто дайджеста...", parse_mode=ParseMode.HTML)
+        
+        # Отправляем дайджест
+        await send_crypto_digest(context)
+        
+        await update.message.reply_text("✅ Крипто дайджест отправлен в канал!", parse_mode=ParseMode.HTML)
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка при тестировании дайджеста: {e}", exc_info=True)
+        await update.message.reply_text(
+            f"❌ Ошибка: {str(e)}",
+            parse_mode=ParseMode.HTML
+        )
+
+@admin_only
+@log_command
 async def admin_stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Детальная статистика для администраторов."""
     stats = get_global_stats()
@@ -11102,6 +11124,7 @@ def main():
     
     # Админские команды
     application.add_handler(CommandHandler("admin_stats", admin_stats_command))
+    application.add_handler(CommandHandler("test_digest", test_digest_command))  # 📊 Тест крипто дайджеста
     application.add_handler(CommandHandler("ban", ban_user_command))
     application.add_handler(CommandHandler("unban", unban_user_command))
     application.add_handler(CommandHandler("clear_cache", clear_cache_command))
