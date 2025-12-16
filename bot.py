@@ -9,6 +9,7 @@ import asyncio
 import re
 import html
 import time
+import subprocess
 from typing import Optional, List, Tuple, Dict, Any, Callable
 from datetime import datetime, timedelta
 from contextlib import contextmanager
@@ -16,6 +17,33 @@ from functools import wraps
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, field_validator, ValidationInfo, ValidationError, Field
+
+# ============================================================================
+# 🔧 CRITICAL: Clean up old bot processes on startup
+# ============================================================================
+def cleanup_stale_bot_processes():
+    """Kill all other bot.py and api_server processes to prevent 409 Conflicts"""
+    try:
+        current_pid = os.getpid()
+        result = subprocess.run(
+            ["pgrep", "-f", "python.*bot\\.py|python.*api_server"],
+            capture_output=True,
+            text=True
+        )
+        if result.stdout:
+            old_pids = [pid for pid in result.stdout.strip().split('\n') 
+                       if pid and pid.strip() and int(pid.strip()) != current_pid]
+            for pid in old_pids:
+                try:
+                    os.kill(int(pid), 9)
+                    print(f"🗑️ Killed stale process {pid}")
+                except (ProcessLookupError, ValueError):
+                    pass
+    except Exception as e:
+        print(f"⚠️ Cleanup warning: {e}")
+
+# Run cleanup before anything else
+cleanup_stale_bot_processes()
 
 # Fix SQLite3 datetime adapter deprecation warning (Python 3.12+)
 def _adapt_datetime(val: datetime) -> str:
