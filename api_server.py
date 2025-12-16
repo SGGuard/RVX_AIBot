@@ -1104,7 +1104,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         try:
             deepseek_client = OpenAI(
                 api_key=DEEPSEEK_API_KEY,
-                base_url="https://api.deepseek.com"
+                base_url="https://api.deepseek.com",
+                timeout=30.0
             )
             logger.info(f"✅ Клиент DeepSeek успешно инициализирован (key: {mask_secret(DEEPSEEK_API_KEY)})")
         except Exception as e:

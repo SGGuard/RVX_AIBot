@@ -10,6 +10,7 @@ import logging
 import time
 import os
 import signal
+import psutil
 
 # Setup logging
 logging.basicConfig(
@@ -20,6 +21,28 @@ logger = logging.getLogger(__name__)
 
 # Track child processes
 processes = []
+
+def cleanup_orphaned_processes():
+    """Kill any orphaned bot or uvicorn processes that might conflict"""
+    logger.info("🧹 Cleaning up any orphaned processes...")
+    try:
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                cmdline = ' '.join(proc.info['cmdline'] or [])
+                # Kill any orphaned uvicorn or bot.py processes (but not this script)
+                if ('uvicorn' in cmdline or 'bot.py' in cmdline) and proc.pid != os.getpid():
+                    # Don't kill if it's our child process
+                    if proc.ppid() != os.getpid():
+                        logger.info(f"⚠️ Killing orphaned process: {proc.pid} - {proc.info['name']}")
+                        try:
+                            proc.kill()
+                            proc.wait(timeout=2)
+                        except Exception as e:
+                            logger.debug(f"Could not kill {proc.pid}: {e}")
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+    except Exception as e:
+        logger.warning(f"Could not clean up orphaned processes: {e}")
 
 def signal_handler(signum, frame):
     """Handle graceful shutdown"""
@@ -88,6 +111,12 @@ def main():
     logger.info("⏳ Initializing dual-service startup...")
     logger.info(f"📍 Environment: {'Railway' if os.getenv('RAILWAY_ENVIRONMENT') else 'Local'}")
     
+    # CRITICAL: Kill any orphaned processes from previous deployment
+    cleanup_orphaned_processes()
+    
+    # Give time for cleanup
+    time.sleep(1)
+    
     # Setup signal handlers for graceful shutdown
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
@@ -118,16 +147,38 @@ def main():
         # Monitor processes - if either dies, terminate all
         while True:
             # Check if API is still running
-            if api_proc.poll() is not None:
-                logger.error("❌ API Server crashed!")
+            api_exit_code = api_proc.poll()
+            if api_exit_code is not None:
+                logger.error(f"❌ API Server crashed with exit code {api_exit_code}!")
                 signal_handler(None, None)
                 sys.exit(1)
             
             # Check if Bot is still running
-            if bot_proc.poll() is not None:
-                logger.error("❌ Telegram Bot crashed!")
-                signal_handler(None, None)
-                sys.exit(1)
+            bot_exit_code = bot_proc.poll()
+            if bot_exit_code is not None:
+                if bot_exit_code == 1:
+                    # Bot exited due to conflict - try to restart it
+                    logger.warning(f"⚠️ Telegram Bot exited (code {bot_exit_code}). This might be due to conflict.")
+                    logger.info("🔄 Attempting to restart Telegram Bot...")
+                    time.sleep(5)  # Wait 5 seconds before restarting
+                    
+                    # Kill any orphaned processes
+                    cleanup_orphaned_processes()
+                    time.sleep(1)
+                    
+                    # Restart bot
+                    bot_proc = run_bot_service()
+                    if bot_proc:
+                        processes[1] = bot_proc
+                        logger.info("✅ Telegram Bot restarted")
+                    else:
+                        logger.error("❌ Failed to restart Telegram Bot")
+                        signal_handler(None, None)
+                        sys.exit(1)
+                else:
+                    logger.error(f"❌ Telegram Bot crashed with exit code {bot_exit_code}!")
+                    signal_handler(None, None)
+                    sys.exit(1)
             
             time.sleep(5)
             
