@@ -23,39 +23,80 @@ from pydantic import BaseModel, field_validator, ValidationInfo, ValidationError
 # 🔧 CRITICAL: Clean up old bot processes on startup
 # ============================================================================
 def cleanup_stale_bot_processes():
-    """Kill all other bot.py and api_server processes to prevent 409 Conflicts"""
+    """
+    ULTRA-AGGRESSIVE cleanup to prevent 409 Conflicts
+    - Kills ALL bot.py processes except current
+    - Kills ALL api_server/uvicorn processes
+    - Kills ALL Python processes with 'telegram' in them
+    - Sleeps 2 seconds to let Telegram API release the lock
+    """
     try:
         current_pid = os.getpid()
+        print(f"🔧 CLEANUP: Current PID = {current_pid}")
         
-        # Kill any uvicorn/api_server process
+        # 1. Kill ALL api_server/uvicorn processes (should not run in Railway)
+        subprocess.run(["pkill", "-9", "-f", "api_server"], 
+                      capture_output=True, timeout=2)
+        subprocess.run(["pkill", "-9", "-f", "uvicorn"], 
+                      capture_output=True, timeout=2)
+        print("🗑️ Killed all api_server/uvicorn processes")
+        
+        # 2. Kill OTHER bot.py instances
         try:
-            subprocess.run(["pkill", "-9", "-f", "uvicorn|api_server"], 
-                         capture_output=True, timeout=2)
-            print("🗑️ Killed all uvicorn/api_server processes")
-        except:
-            pass
+            result = subprocess.run(
+                ["ps", "aux"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            for line in result.stdout.split('\n'):
+                if 'bot.py' in line and 'grep' not in line:
+                    parts = line.split()
+                    if len(parts) > 1:
+                        pid_str = parts[1]
+                        try:
+                            pid = int(pid_str)
+                            if pid != current_pid:
+                                os.kill(pid, 9)
+                                print(f"🗑️ Killed stale bot process PID={pid}")
+                        except (ValueError, ProcessLookupError):
+                            pass
+        except Exception as e:
+            print(f"⚠️ Bot cleanup warning: {e}")
         
-        # Kill other bot instances
-        result = subprocess.run(
-            ["pgrep", "-f", "python.*bot\\.py"],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-        if result.stdout:
-            old_pids = [pid for pid in result.stdout.strip().split('\n') 
-                       if pid and pid.strip() and int(pid.strip()) != current_pid]
-            for pid in old_pids:
-                try:
-                    os.kill(int(pid), 9)
-                    print(f"🗑️ Killed stale bot process {pid}")
-                except (ProcessLookupError, ValueError):
-                    pass
+        # 3. Kill OTHER python processes with 'telegram' in command
+        try:
+            result = subprocess.run(
+                ["ps", "aux"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            for line in result.stdout.split('\n'):
+                if 'telegram' in line.lower() and 'grep' not in line:
+                    parts = line.split()
+                    if len(parts) > 1:
+                        pid_str = parts[1]
+                        try:
+                            pid = int(pid_str)
+                            if pid != current_pid:
+                                os.kill(pid, 9)
+                                print(f"🗑️ Killed stale telegram process PID={pid}")
+                        except (ValueError, ProcessLookupError):
+                            pass
+        except Exception as e:
+            print(f"⚠️ Telegram cleanup warning: {e}")
+        
+        # 4. CRITICAL: Sleep to let Telegram release the polling lock
+        print("⏳ Waiting 3 seconds for Telegram polling lock to release...")
+        time.sleep(3)
+        
     except Exception as e:
-        print(f"⚠️ Cleanup warning: {e}")
+        print(f"❌ Critical cleanup error: {e}")
 
-# Run cleanup before anything else
+# Run cleanup BEFORE anything else - this is the very first thing that runs
 cleanup_stale_bot_processes()
+print("✅ Process cleanup completed")
 
 # Fix SQLite3 datetime adapter deprecation warning (Python 3.12+)
 def _adapt_datetime(val: datetime) -> str:
@@ -11047,6 +11088,41 @@ def main():
             logger.error(f"❌ Ошибка при получении подписок: {e}")
             await update.message.reply_text("❌ Ошибка при получении подписок")
     
+    # ================================================================
+    # 🔧 CRITICAL: Pre-Application Cleanup
+    # Kill all stale processes before creating the Application instance
+    # This prevents "409 Conflict: terminated by other getUpdates"
+    # ================================================================
+    print("\n🔧 PRE-APPLICATION CLEANUP")
+    print("   Killing any competing bot/api processes...")
+    
+    # Kill all bot.py instances except this one
+    try:
+        result = subprocess.run(["ps", "aux"], capture_output=True, text=True, timeout=5)
+        current_pid = os.getpid()
+        for line in result.stdout.split('\n'):
+            if 'bot.py' in line and 'grep' not in line:
+                parts = line.split()
+                if len(parts) > 1:
+                    try:
+                        pid = int(parts[1])
+                        if pid != current_pid:
+                            os.kill(pid, 9)
+                            print(f"   🗑️ Killed old bot process PID={pid}")
+                    except (ValueError, ProcessLookupError):
+                        pass
+    except Exception as e:
+        print(f"   ⚠️ Pre-cleanup warning: {e}")
+    
+    # Kill api_server
+    subprocess.run(["pkill", "-9", "-f", "api_server"], capture_output=True, timeout=2)
+    subprocess.run(["pkill", "-9", "-f", "uvicorn"], capture_output=True, timeout=2)
+    
+    # Wait for Telegram polling lock to release
+    print("   ⏳ Waiting 2 seconds for Telegram polling lock to release...")
+    time.sleep(2)
+    print("✅ Pre-application cleanup completed\n")
+    
     # Создание приложения
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
     
@@ -11219,20 +11295,49 @@ def main():
         if sys.platform == 'win32':
             asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         
+        # CRITICAL: Before starting polling, kill ALL other bot processes one more time
+        print("🔧 PRE-POLLING CLEANUP: Killing any competing bot instances...")
+        subprocess.run(["pkill", "-9", "-f", "bot\\.py"], capture_output=True, timeout=2)
+        time.sleep(1)  # Wait for kill signal to propagate
+        
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
+            # CRITICAL: Delete any webhook to ensure polling mode works
+            print("🔧 Ensuring polling mode (removing webhook if any)...")
+            try:
+                async def delete_webhook():
+                    await application.bot.delete_webhook(drop_pending_updates=True)
+                loop.run_until_complete(delete_webhook())
+                print("✅ Webhook deleted successfully")
+            except Exception as e:
+                print(f"⚠️ Webhook deletion warning: {e}")
+            
             # Run polling without closing loop (prevents "Event loop is closed" crash)
+            print("🚀 Starting polling...")
             loop.run_until_complete(application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True))
         except Conflict as e:
             # Another bot instance is running - graceful exit
             logger.error(f"💥 CONFLICT: {e}")
-            logger.error("⚠️ Another bot instance is running. Terminating this instance...")
+            logger.error("⚠️ Another bot instance is running. Killing this process to restart...")
             try:
                 loop.run_until_complete(application.stop())
             except Exception as stop_error:
                 logger.warning(f"⚠️ Error during graceful stop: {stop_error}")
-            sys.exit(1)  # Exit with error code so process manager knows something went wrong
+            # Kill current process to restart fresh (Railway will restart)
+            print("💥 Terminating process...")
+            os.kill(os.getpid(), 9)
+        except RuntimeError as e:
+            if "Event loop" in str(e):
+                # Event loop crashed - restart needed
+                logger.error(f"❌ Event loop crashed: {e}")
+                logger.error("💥 Restarting process...")
+                os.kill(os.getpid(), 9)
+            else:
+                raise
+        except Exception as e:
+            logger.error(f"❌ Polling error: {e}", exc_info=True)
+            raise
         finally:
             # Clean shutdown - don't close loop to prevent "Event loop is closed" error
             try:
