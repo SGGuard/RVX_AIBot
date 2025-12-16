@@ -9,20 +9,31 @@ import feedparser
 from typing import Dict, List, Optional
 from datetime import datetime, timezone, timedelta
 import asyncio
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# COINGECKO API - Бесплатный API без ключа
+# COINGECKO API - С поддержкой API ключа для увеличенных лимитов
 # ============================================================================
 
+COINGECKO_API_KEY = os.getenv('COINGECKO_API_KEY', '')
+COINGECKO_BASE = "https://api.coingecko.com/api/v3"
+COINGECKO_PRO_BASE = "https://pro-api.coingecko.com/api/v3"  # Pro API с ключом
+
 class CryptoDigestCollector:
-    """Собирает данные для крипто дайджеста"""
+    """Собирает данные для крипто дайджеста с поддержкой API ключа"""
     
-    COINGECKO_BASE = "https://api.coingecko.com/api/v3"
+    # Выбираем базу в зависимости от наличия ключа
+    BASE_URL = COINGECKO_PRO_BASE if COINGECKO_API_KEY else COINGECKO_BASE
     
     def __init__(self):
         self.session: Optional[aiohttp.ClientSession] = None
+        self.api_key = COINGECKO_API_KEY
+        self.base_url = self.BASE_URL
     
     async def __aenter__(self):
         self.session = aiohttp.ClientSession()
@@ -32,39 +43,51 @@ class CryptoDigestCollector:
         if self.session:
             await self.session.close()
     
-    async def get_market_data(self) -> Dict:
+    async def get_market_data(self) -> List[Dict]:
         """Получить данные о рынке: BTC, ETH и топ альты"""
         try:
-            url = f"{self.COINGECKO_BASE}/coins/markets"
+            url = f"{self.base_url}/coins/markets"
+            # aiohttp requires string values for params, not booleans
             params = {
                 "vs_currency": "usd",
                 "order": "market_cap_desc",
-                "per_page": 15,
-                "sparkline": False,
+                "per_page": "15",
+                "sparkline": "false",
                 "locale": "ru"
             }
             
+            # Добавляем API ключ если он есть (для Pro API)
+            if self.api_key:
+                params["x_cg_pro_api_key"] = self.api_key
+            
             async with self.session.get(url, params=params, timeout=aiohttp.ClientTimeout(10)) as resp:
                 if resp.status == 200:
-                    return await resp.json()
+                    data = await resp.json()
+                    logger.info(f"✅ Market data fetched: {len(data)} coins")
+                    return data
                 else:
-                    logger.error(f"CoinGecko API error: {resp.status}")
+                    logger.error(f"❌ CoinGecko API error: {resp.status}")
                     return []
         except Exception as e:
-            logger.error(f"Error fetching market data: {e}")
+            logger.error(f"❌ Error fetching market data: {e}")
             return []
     
     async def get_fear_greed_index(self) -> Optional[Dict]:
-        """Получить Fear & Greed Index"""
+        """Получить Fear & Greed Index (только с Pro API ключом)"""
+        if not self.api_key:
+            logger.debug("⚠️ Fear & Greed Index требует Pro API ключ")
+            return None
+        
         try:
-            url = f"{self.COINGECKO_BASE}/fear_and_greed"
+            url = f"{self.base_url}/fear_and_greed"
+            params = {"x_cg_pro_api_key": self.api_key}
             
-            async with self.session.get(url, timeout=aiohttp.ClientTimeout(10)) as resp:
+            async with self.session.get(url, params=params, timeout=aiohttp.ClientTimeout(10)) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     return data.get("data", {})
                 else:
-                    logger.error(f"Fear & Greed API error: {resp.status}")
+                    logger.warning(f"⚠️ Fear & Greed API error: {resp.status} (требуется Pro API)")
                     return None
         except Exception as e:
             logger.error(f"Error fetching fear & greed: {e}")
@@ -73,14 +96,16 @@ class CryptoDigestCollector:
     async def get_gainers_losers(self) -> Dict:
         """Получить топ gainers и losers за 24h"""
         try:
-            url = f"{self.COINGECKO_BASE}/coins/markets"
+            url = f"{self.base_url}/coins/markets"
+            base_params = {"x_cg_pro_api_key": self.api_key} if self.api_key else {}
             
             # Gainers
             gainers_params = {
                 "vs_currency": "usd",
                 "order": "percent_change_24h_desc",
                 "per_page": 5,
-                "sparkline": False
+                "sparkline": False,
+                **base_params
             }
             
             async with self.session.get(url, params=gainers_params, timeout=aiohttp.ClientTimeout(10)) as resp:
@@ -91,7 +116,8 @@ class CryptoDigestCollector:
                 "vs_currency": "usd",
                 "order": "percent_change_24h_asc",
                 "per_page": 5,
-                "sparkline": False
+                "sparkline": False,
+                **base_params
             }
             
             async with self.session.get(url, params=losers_params, timeout=aiohttp.ClientTimeout(10)) as resp:
@@ -105,9 +131,10 @@ class CryptoDigestCollector:
     async def get_global_market_data(self) -> Dict:
         """Получить глобальные данные рынка (total market cap, volume, BTC dominance)"""
         try:
-            url = f"{self.COINGECKO_BASE}/global"
+            url = f"{self.base_url}/global"
+            params = {"x_cg_pro_api_key": self.api_key} if self.api_key else {}
             
-            async with self.session.get(url, timeout=aiohttp.ClientTimeout(10)) as resp:
+            async with self.session.get(url, params=params, timeout=aiohttp.ClientTimeout(10)) as resp:
                 if resp.status == 200:
                     return await resp.json()
                 else:
