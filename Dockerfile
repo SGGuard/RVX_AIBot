@@ -16,22 +16,10 @@ COPY --from=builder /root/.local /root/.local
 # Copy application code
 COPY . .
 
-# Make scripts executable
-RUN chmod +x entrypoint.sh railway.sh run_api.sh || true
-
 # Set Python environment variables
 ENV PATH=/root/.local/bin:$PATH \
     PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PORT=8080 \
-    API_HOST=0.0.0.0
+    PYTHONDONTWRITEBYTECODE=1
 
-# Expose API port
-EXPOSE 8080
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8080/health')" || exit 1
-
-# Use entrypoint script to manage both services
-ENTRYPOINT ["/app/entrypoint.sh"]
+# Run only the bot
+CMD ["python", "bot.py"]
