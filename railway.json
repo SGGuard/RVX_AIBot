@@ -1,6 +1,1 @@
-{
-  "builder": "dockerfile",
-  "deploy": {
-    "startCommand": "python run_both.py"
-  }
-}
+{}

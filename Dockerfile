@@ -16,8 +16,8 @@ COPY --from=builder /root/.local /root/.local
 # Copy application code
 COPY . .
 
-# Make deployment scripts executable
-RUN chmod +x railway.sh run_api.sh || true
+# Make scripts executable
+RUN chmod +x entrypoint.sh railway.sh run_api.sh || true
 
 # Set Python environment variables
 ENV PATH=/root/.local/bin:$PATH \
@@ -33,5 +33,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:8080/health')" || exit 1
 
-# Start both API server and Telegram bot
-CMD ["python", "run_both.py"]
+# Use entrypoint script to manage both services
+ENTRYPOINT ["/app/entrypoint.sh"]
