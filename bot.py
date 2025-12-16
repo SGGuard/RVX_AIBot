@@ -127,6 +127,9 @@ from input_validators import validate_user_input, UserMessageInput
 
 # ✅ CRITICAL FIX #1: SQL Validator - защита от SQL injection
 
+# ✅ v0.28.0: Daily Digest Scheduler - ежедневный крипто-дайджест в 9:00
+from daily_digest_scheduler import initialize_digest_scheduler, stop_digest_scheduler
+
 # Новый модуль для обучения (v0.5.0)
 from education import (
     COURSES_DATA, XP_REWARDS, LEVEL_THRESHOLDS, BADGES,
@@ -10507,14 +10510,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 async def send_crypto_digest(context: ContextTypes.DEFAULT_TYPE):
     """
-    Ежедневный крипто дайджест в 9:00 по Киеву
-    Отправляет в канал @RVX_AI красивый пост с данными о крипте
+    ✅ v0.28.0: Ежедневный крипто дайджест в 9:00 UTC
+    Теперь использует daily_digest_scheduler для консистентной отправки
+    Отправляет в канал красивый пост с данными о крипте
     """
     if not CRYPTO_DIGEST_ENABLED:
         logger.warning("⚠️ Crypto digest disabled - modules not available")
         return
     
-    CHANNEL_ID = -1003228919683  # @RVX_AI канал
+    # ✅ v0.28.0: Используем канал из конфига или дефолт
+    CHANNEL_ID = os.getenv('DIGEST_CHANNEL_ID', '@RVX_AI')  # Может быть @username или ID
     
     try:
         logger.info("📊 Начинаю сбор данных для крипто дайджеста...")
@@ -10533,7 +10538,7 @@ async def send_crypto_digest(context: ContextTypes.DEFAULT_TYPE):
             disable_web_page_preview=True
         )
         
-        logger.info("✅ Крипто дайджест успешно отправлен")
+        logger.info(f"✅ Крипто дайджест успешно отправлен в {CHANNEL_ID}")
         
     except Exception as e:
         logger.error(f"❌ Ошибка при отправке дайджеста: {e}", exc_info=True)
@@ -11310,6 +11315,18 @@ def main():
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
+            # ✅ v0.28.0: Initialize daily digest scheduler BEFORE polling
+            try:
+                async def init_scheduler():
+                    print("🚀 Initializing daily digest scheduler...")
+                    await initialize_digest_scheduler()
+                    print("✅ Daily digest scheduler started")
+                
+                loop.run_until_complete(init_scheduler())
+            except Exception as e:
+                logger.error(f"⚠️ Failed to initialize digest scheduler: {e}")
+                # Don't fail if digest scheduler fails - bot should still work
+            
             # CRITICAL: Delete any webhook to ensure polling mode works
             print("🔧 Ensuring polling mode (removing webhook if any)...")
             try:
@@ -11346,6 +11363,16 @@ def main():
             logger.error(f"❌ Polling error: {e}", exc_info=True)
             raise
         finally:
+            # ✅ v0.28.0: Stop daily digest scheduler
+            try:
+                if not loop.is_closed():
+                    async def shutdown_scheduler():
+                        await stop_digest_scheduler()
+                    loop.run_until_complete(shutdown_scheduler())
+                    logger.info("✅ Daily digest scheduler stopped")
+            except Exception as e:
+                logger.debug(f"⚠️ Error stopping digest scheduler: {e}")
+            
             # Clean shutdown - don't close loop to prevent "Event loop is closed" error
             try:
                 if not loop.is_closed():
