@@ -1,4 +1,5 @@
 import os
+import sys
 import logging
 import json
 import re
@@ -8,6 +9,15 @@ import base64
 from typing import Optional, Any, Dict, List, AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
+
+# ============================================================================
+# CRITICAL: Prevent API server from running in Railway
+# ============================================================================
+if os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('RAILWAY_PROJECT_ID'):
+    print("❌ ERROR: API server cannot run in Railway environment!")
+    print("    Railway is configured to run BOT ONLY via bot.py")
+    print("    This file (api_server.py) must NOT be executed")
+    sys.exit(1)
 
 from fastapi import FastAPI, HTTPException, Request, status, Query
 from fastapi.responses import JSONResponse, Response

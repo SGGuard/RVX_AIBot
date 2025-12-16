@@ -25,10 +25,21 @@ def cleanup_stale_bot_processes():
     """Kill all other bot.py and api_server processes to prevent 409 Conflicts"""
     try:
         current_pid = os.getpid()
+        
+        # Kill any uvicorn/api_server process
+        try:
+            subprocess.run(["pkill", "-9", "-f", "uvicorn|api_server"], 
+                         capture_output=True, timeout=2)
+            print("🗑️ Killed all uvicorn/api_server processes")
+        except:
+            pass
+        
+        # Kill other bot instances
         result = subprocess.run(
-            ["pgrep", "-f", "python.*bot\\.py|python.*api_server"],
+            ["pgrep", "-f", "python.*bot\\.py"],
             capture_output=True,
-            text=True
+            text=True,
+            timeout=5
         )
         if result.stdout:
             old_pids = [pid for pid in result.stdout.strip().split('\n') 
@@ -36,7 +47,7 @@ def cleanup_stale_bot_processes():
             for pid in old_pids:
                 try:
                     os.kill(int(pid), 9)
-                    print(f"🗑️ Killed stale process {pid}")
+                    print(f"🗑️ Killed stale bot process {pid}")
                 except (ProcessLookupError, ValueError):
                     pass
     except Exception as e:
