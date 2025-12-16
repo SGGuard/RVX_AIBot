@@ -24,78 +24,60 @@ from pydantic import BaseModel, field_validator, ValidationInfo, ValidationError
 # ============================================================================
 def cleanup_stale_bot_processes():
     """
-    ULTRA-AGGRESSIVE cleanup to prevent 409 Conflicts
+    ULTRA-AGGRESSIVE cleanup to prevent 409 Conflicts (Python-only, no external commands)
     - Kills ALL bot.py processes except current
     - Kills ALL api_server/uvicorn processes
-    - Kills ALL Python processes with 'telegram' in them
-    - Sleeps 2 seconds to let Telegram API release the lock
+    - Sleeps 3 seconds to let Telegram API release the lock
+    
+    Note: Uses Python's psutil/os module only - no external pkill/ps commands
+    which may not exist in Docker slim images
     """
     try:
         current_pid = os.getpid()
         print(f"🔧 CLEANUP: Current PID = {current_pid}")
         
-        # 1. Kill ALL api_server/uvicorn processes (should not run in Railway)
-        subprocess.run(["pkill", "-9", "-f", "api_server"], 
-                      capture_output=True, timeout=2)
-        subprocess.run(["pkill", "-9", "-f", "uvicorn"], 
-                      capture_output=True, timeout=2)
-        print("🗑️ Killed all api_server/uvicorn processes")
-        
-        # 2. Kill OTHER bot.py instances
+        # Try to use psutil if available, otherwise skip process killing
         try:
-            result = subprocess.run(
-                ["ps", "aux"],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            for line in result.stdout.split('\n'):
-                if 'bot.py' in line and 'grep' not in line:
-                    parts = line.split()
-                    if len(parts) > 1:
-                        pid_str = parts[1]
+            import psutil
+            
+            # Kill processes matching patterns
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    cmdline = ' '.join(proc.info['cmdline'] or [])
+                    pid = proc.info['pid']
+                    
+                    # Kill other bot.py instances
+                    if 'bot.py' in cmdline and pid != current_pid:
                         try:
-                            pid = int(pid_str)
-                            if pid != current_pid:
-                                os.kill(pid, 9)
-                                print(f"🗑️ Killed stale bot process PID={pid}")
-                        except (ValueError, ProcessLookupError):
+                            os.kill(pid, 9)
+                            print(f"🗑️ Killed stale bot process PID={pid}")
+                        except ProcessLookupError:
                             pass
-        except Exception as e:
-            print(f"⚠️ Bot cleanup warning: {e}")
-        
-        # 3. Kill OTHER python processes with 'telegram' in command
-        try:
-            result = subprocess.run(
-                ["ps", "aux"],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            for line in result.stdout.split('\n'):
-                if 'telegram' in line.lower() and 'grep' not in line:
-                    parts = line.split()
-                    if len(parts) > 1:
-                        pid_str = parts[1]
+                    
+                    # Kill api_server
+                    if 'api_server' in cmdline or 'uvicorn' in cmdline:
                         try:
-                            pid = int(pid_str)
-                            if pid != current_pid:
-                                os.kill(pid, 9)
-                                print(f"🗑️ Killed stale telegram process PID={pid}")
-                        except (ValueError, ProcessLookupError):
+                            os.kill(pid, 9)
+                            print(f"🗑️ Killed api_server/uvicorn process PID={pid}")
+                        except ProcessLookupError:
                             pass
-        except Exception as e:
-            print(f"⚠️ Telegram cleanup warning: {e}")
+                            
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    pass
+        except ImportError:
+            # psutil not available - just skip process killing
+            print("⚠️ psutil not available, skipping process killing")
         
-        # 4. CRITICAL: Sleep to let Telegram release the polling lock
+        # CRITICAL: Sleep to let Telegram release the polling lock
         print("⏳ Waiting 3 seconds for Telegram polling lock to release...")
         time.sleep(3)
         
     except Exception as e:
-        print(f"❌ Critical cleanup error: {e}")
+        print(f"⚠️ Cleanup warning: {e}")
 
 # Run cleanup BEFORE anything else - this is the very first thing that runs
 cleanup_stale_bot_processes()
+print("✅ Process cleanup completed")
 print("✅ Process cleanup completed")
 
 # Fix SQLite3 datetime adapter deprecation warning (Python 3.12+)
@@ -11096,27 +11078,27 @@ def main():
     print("\n🔧 PRE-APPLICATION CLEANUP")
     print("   Killing any competing bot/api processes...")
     
-    # Kill all bot.py instances except this one
+    # Try psutil-based cleanup
     try:
-        result = subprocess.run(["ps", "aux"], capture_output=True, text=True, timeout=5)
+        import psutil
         current_pid = os.getpid()
-        for line in result.stdout.split('\n'):
-            if 'bot.py' in line and 'grep' not in line:
-                parts = line.split()
-                if len(parts) > 1:
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                cmdline = ' '.join(proc.info['cmdline'] or [])
+                pid = proc.info['pid']
+                
+                if 'bot.py' in cmdline and pid != current_pid:
                     try:
-                        pid = int(parts[1])
-                        if pid != current_pid:
-                            os.kill(pid, 9)
-                            print(f"   🗑️ Killed old bot process PID={pid}")
-                    except (ValueError, ProcessLookupError):
+                        os.kill(pid, 9)
+                        print(f"   🗑️ Killed old bot process PID={pid}")
+                    except ProcessLookupError:
                         pass
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
+    except ImportError:
+        print("   ⚠️ psutil not available for pre-app cleanup")
     except Exception as e:
         print(f"   ⚠️ Pre-cleanup warning: {e}")
-    
-    # Kill api_server
-    subprocess.run(["pkill", "-9", "-f", "api_server"], capture_output=True, timeout=2)
-    subprocess.run(["pkill", "-9", "-f", "uvicorn"], capture_output=True, timeout=2)
     
     # Wait for Telegram polling lock to release
     print("   ⏳ Waiting 2 seconds for Telegram polling lock to release...")
@@ -11297,7 +11279,26 @@ def main():
         
         # CRITICAL: Before starting polling, kill ALL other bot processes one more time
         print("🔧 PRE-POLLING CLEANUP: Killing any competing bot instances...")
-        subprocess.run(["pkill", "-9", "-f", "bot\\.py"], capture_output=True, timeout=2)
+        try:
+            import psutil
+            current_pid = os.getpid()
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    cmdline = ' '.join(proc.info['cmdline'] or [])
+                    pid = proc.info['pid']
+                    if 'bot.py' in cmdline and pid != current_pid:
+                        try:
+                            os.kill(pid, 9)
+                            print(f"   🗑️ Killed bot process PID={pid}")
+                        except ProcessLookupError:
+                            pass
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                    pass
+        except ImportError:
+            print("   ⚠️ psutil not available")
+        except Exception as e:
+            print(f"   ⚠️ Pre-polling cleanup warning: {e}")
+        
         time.sleep(1)  # Wait for kill signal to propagate
         
         loop = asyncio.new_event_loop()
