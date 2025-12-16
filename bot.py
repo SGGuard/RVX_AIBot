@@ -11101,11 +11101,13 @@ def main():
             loop.run_until_complete(application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True))
         except Conflict as e:
             # Another bot instance is running - graceful exit
-            logger.warning(f"⚠️ Conflict detected: {e}. Another bot instance might be running. Exiting...")
+            logger.error(f"💥 CONFLICT: {e}")
+            logger.error("⚠️ Another bot instance is running. Terminating this instance...")
             try:
                 loop.run_until_complete(application.stop())
             except Exception as stop_error:
                 logger.warning(f"⚠️ Error during graceful stop: {stop_error}")
+            sys.exit(1)  # Exit with error code so process manager knows something went wrong
         finally:
             # Clean shutdown - don't close loop to prevent "Event loop is closed" error
             try:
