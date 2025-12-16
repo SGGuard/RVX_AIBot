@@ -1,0 +1,15 @@
+# Don't copy these files to Docker container
+api_server.py
+.git
+.github
+__pycache__
+*.pyc
+.pytest_cache
+.env.local
+.env.railway
+*.log
+tests/
+README.md
+docs/
+.gitignore
+.dockerignore
