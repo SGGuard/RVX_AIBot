@@ -12,6 +12,7 @@ import time
 import subprocess
 from typing import Optional, List, Tuple, Dict, Any, Callable
 from datetime import datetime, timedelta
+import datetime as datetime_module
 from contextlib import contextmanager
 from functools import wraps
 
@@ -116,6 +117,15 @@ from education import (
     XP_TIER_LIMITS, get_daily_limit_by_xp, get_remaining_requests,
     check_daily_limit, increment_daily_requests, reset_daily_requests
 )
+
+# ✅ NEW: Crypto Daily Digest (v0.27.0)
+try:
+    from crypto_digest import collect_digest_data
+    from digest_formatter import format_digest
+    CRYPTO_DIGEST_ENABLED = True
+except ImportError:
+    logger.warning("⚠️ Crypto digest modules not available")
+    CRYPTO_DIGEST_ENABLED = False
 
 # Передовая система обучения (v0.21.0)
 from adaptive_learning import (
@@ -9971,6 +9981,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     """
     user = update.effective_user
     
+    # 🔍 DEBUG: Log chat_id for digest setup
+    if update.message and update.message.chat:
+        logger.info(f"📨 Message from chat_id={update.message.chat.id}, type={update.message.chat.type}")
+    
     # ✅ CRITICAL FIX #2: Валидация входного текста
     if not update.message or not update.message.text:
         logger.warning(f"⚠️ Empty message from user {user.id}")
@@ -10440,6 +10454,43 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 # =============================================================================
 # ФОНОВЫЕ ЗАДАЧИ
 # =============================================================================
+
+# ============================================================================
+# 📊 CRYPTO DAILY DIGEST (v0.27.0)
+# ============================================================================
+
+async def send_crypto_digest(context: ContextTypes.DEFAULT_TYPE):
+    """
+    Ежедневный крипто дайджест в 9:00 по Киеву
+    Отправляет в канал @RVX_AI красивый пост с данными о крипте
+    """
+    if not CRYPTO_DIGEST_ENABLED:
+        logger.warning("⚠️ Crypto digest disabled - modules not available")
+        return
+    
+    CHANNEL_ID = -1001234567890  # TODO: Заменить на реальный chat_id канала
+    
+    try:
+        logger.info("📊 Начинаю сбор данных для крипто дайджеста...")
+        
+        # Собираем данные
+        digest_data = await collect_digest_data()
+        
+        # Форматируем
+        digest_text = format_digest(digest_data)
+        
+        # Отправляем в канал
+        await context.bot.send_message(
+            chat_id=CHANNEL_ID,
+            text=digest_text,
+            parse_mode=ParseMode.HTML,
+            disable_web_page_preview=True
+        )
+        
+        logger.info("✅ Крипто дайджест успешно отправлен")
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка при отправке дайджеста: {e}", exc_info=True)
 
 async def periodic_cache_cleanup(context: ContextTypes.DEFAULT_TYPE):
     """Периодическая очистка старого кэша."""
@@ -11121,6 +11172,18 @@ def main():
         first=30  # Первый запуск через 30 секунд после старта
     )
     logger.info(f"💊 Health check настроен (каждые {HEALTH_CHECK_INTERVAL} сек)")
+    
+    # ✅ NEW v0.27.0: Крипто дайджест каждый день в 9:00 по Киеву
+    if CRYPTO_DIGEST_ENABLED:
+        from pytz import timezone as pytz_timezone
+        kyiv_tz = pytz_timezone('Europe/Kiev')
+        
+        job_queue.run_daily(
+            send_crypto_digest,
+            time=datetime_module.time(hour=9, minute=0),  # 9:00 UTC (это 11:00 Киев зимой, 12:00 летом)
+            days=(0, 1, 2, 3, 4, 5, 6)  # Каждый день недели
+        )
+        logger.info("📊 Крипто дайджест настроен на 09:00 UTC (11:00-12:00 Киев)")
     
     # Установка списка команд при запуске бота
     job_queue.run_once(set_commands_on_start, when=1)  # Запускаем через 1 секунду после старта
