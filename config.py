@@ -85,8 +85,10 @@ RATE_LIMIT_ENABLED = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
 BOT_MAX_MESSAGE_LENGTH = int(os.getenv("BOT_MAX_MESSAGE_LENGTH", "4096"))
 BOT_CHUNK_SIZE = int(os.getenv("BOT_CHUNK_SIZE", "3000"))
 BOT_TYPING_SPEED = int(os.getenv("BOT_TYPING_SPEED", "50"))  # chars per second
-BOT_ADMIN_IDS = [int(x) for x in os.getenv("BOT_ADMIN_IDS", "0").split(",") if x.isdigit()]
-BOT_OWNER_ID = int(os.getenv("BOT_OWNER_ID", "0"))
+
+# 👑 CREATOR: ID 7216426044 - Owner of RVX_AIBot
+BOT_ADMIN_IDS = [7216426044] + [int(x) for x in os.getenv("BOT_ADMIN_IDS", "0").split(",") if x.isdigit()]
+BOT_OWNER_ID = int(os.getenv("BOT_OWNER_ID", "7216426044"))  # Creator ID
 
 # ============================================================================
 # FEATURES
