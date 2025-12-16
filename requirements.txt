@@ -58,3 +58,6 @@ psutil>=5.9.0
 feedparser==6.0.11  # RSS парсер для новостей
 pytz==2024.1  # Часовые пояса
 beautifulsoup4==4.12.3  # Веб-скрейпинг (опционально)
+
+# ⏰ Task Scheduler (v0.28.0)
+apscheduler==3.10.4  # Job scheduling for daily digest
