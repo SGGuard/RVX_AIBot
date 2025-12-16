@@ -10468,7 +10468,7 @@ async def send_crypto_digest(context: ContextTypes.DEFAULT_TYPE):
         logger.warning("⚠️ Crypto digest disabled - modules not available")
         return
     
-    CHANNEL_ID = -1001234567890  # TODO: Заменить на реальный chat_id канала
+    CHANNEL_ID = -1003228919683  # @RVX_AI канал
     
     try:
         logger.info("📊 Начинаю сбор данных для крипто дайджеста...")
