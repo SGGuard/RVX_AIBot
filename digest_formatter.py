@@ -101,12 +101,10 @@ class DigestFormatter:
         text = "📊 <b>Обзор рынка</b>\n\n"
         
         if btc:
-            btc_link = self.create_coingecko_link("bitcoin", "Bitcoin")
-            text += f"₿ {btc_link}: {self.format_price(btc['current_price'])} {self.format_percent(btc['price_change_percentage_24h'])}\n"
+            text += f"₿ <b>Bitcoin</b>: {self.format_price(btc['current_price'])} {self.format_percent(btc['price_change_percentage_24h'])}\n"
         
         if eth:
-            eth_link = self.create_coingecko_link("ethereum", "Ethereum")
-            text += f"Ξ {eth_link}: {self.format_price(eth['current_price'])} {self.format_percent(eth['price_change_percentage_24h'])}\n"
+            text += f"Ξ <b>Ethereum</b>: {self.format_price(eth['current_price'])} {self.format_percent(eth['price_change_percentage_24h'])}\n"
         
         # Market Cap
         if global_data.get("total_market_cap", {}).get("usd"):
@@ -139,14 +137,16 @@ class DigestFormatter:
             g for g in gainers 
             if g.get("symbol", "").upper() not in {'BTC', 'ETH'} and
             not self.is_stablecoin(g.get("name", ""), g.get("symbol", "")) and
-            not self.is_excluded_type(g.get("name", ""), g.get("symbol", ""))
+            not self.is_excluded_type(g.get("name", ""), g.get("symbol", "")) and
+            g.get("price_change_percentage_24h", 0) > 0  # Только положительные изменения!
         ][:10]
         
         losers = [
             l for l in losers 
             if l.get("symbol", "").upper() not in {'BTC', 'ETH'} and
             not self.is_stablecoin(l.get("name", ""), l.get("symbol", "")) and
-            not self.is_excluded_type(l.get("name", ""), l.get("symbol", ""))
+            not self.is_excluded_type(l.get("name", ""), l.get("symbol", "")) and
+            l.get("price_change_percentage_24h", 0) < 0  # Только отрицательные изменения!
         ][:10]
         
         if gainers:
@@ -154,14 +154,14 @@ class DigestFormatter:
             for coin in gainers[:5]:  # Показываем топ 5
                 symbol = coin.get("symbol", "").upper()
                 percent = coin.get("price_change_percentage_24h", 0)
-                text += f"• <b>{symbol}</b>: +{percent:.2f}%\n"
+                text += f"• <b>{symbol}</b>: <b>+{percent:.2f}%</b>\n"
         
         if losers:
             text += "\n📉 <b>Топ Losers альтов (24h)</b>\n"
             for coin in losers[:5]:  # Показываем топ 5
                 symbol = coin.get("symbol", "").upper()
                 percent = coin.get("price_change_percentage_24h", 0)
-                text += f"• <b>{symbol}</b>: {percent:.2f}%\n"
+                text += f"• <b>{symbol}</b>: <b>{percent:.2f}%</b>\n"
         
         return text
     

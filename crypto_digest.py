@@ -63,7 +63,7 @@ class CryptoDigestCollector:
             params = {
                 "vs_currency": "usd",
                 "order": "market_cap_desc",
-                "per_page": "25",  # Увеличили с 15 на 25 чтобы гарантировать все whitelist монеты
+                "per_page": "50",  # Увеличили с 25 на 50 чтобы гарантировать все whitelist монеты включая TON
                 "sparkline": "false",
             }
             
