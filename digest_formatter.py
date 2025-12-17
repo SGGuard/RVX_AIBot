@@ -1,10 +1,11 @@
 """
 Digest Formatter - Красивое форматирование крипто дайджеста
-Улучшенная версия v0.5.0:
-- Исключение стейблкоинов из топ монет
-- Фильтрация мертвых ссылок в новостях
-- Информативные события с указанием влияния
-- Лучшая обработка ошибок Fear & Greed
+Улучшенная версия v0.6.0:
+- ❌ Удален Fear & Greed Index (требует Pro API, не нужен обычному пользователю)
+- ❌ Удален раздел новостей (RSS ссылки часто ломаются, лучше через AI в диалоге)
+- ✅ Упрощенный формат: обзор рынка → gainers/losers → рейтинг топ7 → события
+- ✅ Рейтинг показывает реальные данные: BTC, ETH, BNB, SOL, XRP, ADA, DOGE и т.д.
+- ✅ Исключение стейблкоинов из всех показателей
 """
 
 from typing import Dict, List, Optional
@@ -101,30 +102,7 @@ class DigestFormatter:
         
         return text
     
-    def format_fear_greed(self, fear_greed: Optional[Dict]) -> str:
-        """Форматировать Fear & Greed Index"""
-        if not fear_greed:
-            return "\n⚠️ <b>Fear & Greed Index:</b> <i>Недоступен на Demo API ключе</i>\n"
-        
-        try:
-            value = int(fear_greed.get("value", 0))
-            text = fear_greed.get("value_classification", "")
-            
-            # Эмодзи в зависимости от значения
-            if value < 20:
-                emoji = "😨"
-            elif value < 40:
-                emoji = "😟"
-            elif value < 50:
-                emoji = "😐"
-            elif value < 70:
-                emoji = "🙂"
-            else:
-                emoji = "🤑"
-            
-            return f"\n{emoji} <b>Fear & Greed Index:</b> {value}/100 ({text})\n"
-        except (TypeError, ValueError):
-            return "\n⚠️ <b>Fear & Greed Index:</b> <i>Ошибка загрузки</i>\n"
+    # Fear & Greed Index удален - требует Pro API ключ, не нужен обычному пользователю
     
     def format_gainers_losers(self, gainers_losers: Dict) -> str:
         """Форматировать gainers и losers (без стейблкоинов)"""
@@ -154,60 +132,29 @@ class DigestFormatter:
         return text
     
     def format_top_coins(self, market_data: List[Dict]) -> str:
-        """Форматировать топ 10 монет (без стейблкоинов)"""
+        """Форматировать топ криптовалют по рейтингу (без стейблкоинов)"""
         if not market_data:
             return ""
         
-        text = "\n📊 <b>Топ 10 монет по рыночной капитализации</b>\n"
+        text = "\n📊 <b>Рейтинг криптовалют</b>\n"
         
-        # Фильтруем стейблкоины и берем первые 10
+        # Фильтруем стейблкоины и берем первые 7 (BTC, ETH, BNB, SOL, XRP, ADA и т.д.)
         non_stable = [
             coin for coin in market_data 
             if not self.is_stablecoin(coin.get("name", ""), coin.get("symbol", ""))
-        ][:10]
+        ][:7]
         
         for i, coin in enumerate(non_stable, 1):
-            coin_link = self.create_coingecko_link(coin["id"], coin["name"])
+            coin_symbol = coin.get("symbol", "").upper()
             price = self.format_price(coin["current_price"])
             percent = coin.get("price_change_percentage_24h", 0)
             
             emoji = "📈" if percent > 0 else "📉"
-            text += f"{i}. {coin_link}: {price} {emoji} <b>{percent:.2f}%</b>\n"
+            text += f"{i}. <b>{coin_symbol}</b>: {price} {emoji} {percent:+.2f}%\n"
         
         return text
     
-    def format_news(self, news: List[Dict]) -> str:
-        """Форматировать новости (только с валидными ссылками)"""
-        if not news:
-            return ""
-        
-        # Фильтруем новости с валидными ссылками
-        valid_news = [
-            item for item in news 
-            if self.is_valid_news_url(item.get("link", ""))
-        ]
-        
-        if not valid_news:
-            return "\n📰 <b>Последние новости крипто</b>\nℹ️ <i>Новости временно недоступны</i>\n"
-        
-        text = "\n📰 <b>Последние новости крипто</b>\n"
-        
-        for item in valid_news[:5]:
-            title = item.get("title", "")[:75]  # Обрезаем до 75 символов
-            link = item.get("link", "")
-            source = item.get("source", "Cointelegraph")
-            
-            # Убираем HTML теги из заголовка если есть
-            title = (title.replace("<b>", "")
-                         .replace("</b>", "")
-                         .replace("&amp;", "&")
-                         .replace("&quot;", '"')
-                         .replace("&#x27;", "'")
-                         .strip())
-            
-            text += f"• <a href='{link}'>{title}</a>\n  <i>({source})</i>\n"
-        
-        return text
+    # Раздел новостей удален - RSS ссылки часто ломаются, лучше получать через AI в диалоге
     
     def format_events(self, events: List[Dict]) -> str:
         """Форматировать важные события с деталями"""
@@ -242,17 +189,11 @@ class DigestFormatter:
         # Обзор рынка
         digest += self.format_market_overview(data)
         
-        # Fear & Greed
-        digest += self.format_fear_greed(data.get("fear_greed"))
-        
-        # Gainers/Losers
+        # Gainers/Losers (топ выросших/упавших)
         digest += self.format_gainers_losers(data.get("gainers_losers", {}))
         
-        # Топ монеты
+        # Рейтинг топ криптовалют
         digest += self.format_top_coins(data.get("market_data", []))
-        
-        # Новости
-        digest += self.format_news(data.get("news", []))
         
         # События
         digest += self.format_events(data.get("events", []))
@@ -300,9 +241,12 @@ if __name__ == "__main__":
                 "market_cap": 120000000000
             }
         ],
-        "fear_greed": None,
         "gainers_losers": {
-            "gainers": [],
+            "gainers": [
+                {"id": "bitcoin", "name": "Bitcoin", "symbol": "btc", "price_change_percentage_24h": 1.99},
+                {"id": "ethereum", "name": "Ethereum", "symbol": "eth", "price_change_percentage_24h": 0.23},
+                {"id": "solana", "name": "Solana", "symbol": "sol", "price_change_percentage_24h": 2.50}
+            ],
             "losers": []
         },
         "global_data": {
@@ -312,19 +256,18 @@ if __name__ == "__main__":
                 "btc_market_cap_percentage": 54.2
             }
         },
-        "news": [
-            {
-                "title": "Bitcoin hits new record high",
-                "link": "https://cointelegraph.com/news/bitcoin-record",
-                "source": "Cointelegraph"
-            }
-        ],
         "events": [
             {
                 "time": "14:30 UTC",
                 "title": "FOMC Meeting Minutes",
                 "importance": "High",
                 "impact": "USD, Crypto"
+            },
+            {
+                "time": "16:00 UTC",
+                "title": "EIA Natural Gas Report",
+                "importance": "Medium",
+                "impact": "Energy, USD"
             }
         ]
     }

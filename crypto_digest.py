@@ -338,27 +338,21 @@ class FinanceNewsCollector:
 
 async def collect_digest_data() -> Dict:
     """
-    Собрать все данные для дайджеста
+    Собрать данные для дайджеста (без новостей и Fear & Greed Index)
     """
     try:
         async with CryptoDigestCollector() as collector:
             market_data = await collector.get_market_data()
-            fear_greed = await collector.get_fear_greed_index()
             gainers_losers = await collector.get_gainers_losers()
             global_data = await collector.get_global_market_data()
-        
-        news_collector = NewsCollector()
-        news = await news_collector.get_top_news(5)
         
         finance_collector = FinanceNewsCollector()
         events = await finance_collector.get_important_events()
         
         return {
             "market_data": market_data,
-            "fear_greed": fear_greed,
             "gainers_losers": gainers_losers,
             "global_data": global_data,
-            "news": news,
             "events": events,
             "timestamp": datetime.now(timezone.utc)
         }
@@ -366,10 +360,8 @@ async def collect_digest_data() -> Dict:
         logger.error(f"Error collecting digest data: {e}")
         return {
             "market_data": [],
-            "fear_greed": None,
             "gainers_losers": {"gainers": [], "losers": []},
             "global_data": {},
-            "news": [],
             "events": [],
             "timestamp": datetime.now(timezone.utc)
         }
@@ -382,7 +374,7 @@ if __name__ == "__main__":
     async def test():
         data = await collect_digest_data()
         print("BTC Price:", data["market_data"][0]["current_price"] if data["market_data"] else "N/A")
-        print("Fear & Greed:", data["fear_greed"])
-        print("Events:", data["events"])
+        print("Gainers:", len(data["gainers_losers"].get("gainers", [])))
+        print("Events:", len(data["events"]))
     
     asyncio.run(test())
