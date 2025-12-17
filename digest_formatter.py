@@ -20,6 +20,9 @@ class DigestFormatter:
     # Жесткий whitelist монет для публичного дайджеста (исключает stETH, wrapped, synthetic)
     WHITELIST_COINS = {'BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'ADA', 'DOGE', 'TRX', 'TON'}
     
+    # Whitelist альтов для раздела gainers/losers (только реальные альты, исключает мусор)
+    ALTCOIN_WHITELIST = {'BNB', 'SOL', 'XRP', 'ADA', 'DOGE', 'TRX', 'TON', 'AVAX', 'POLKADOT', 'LINK', 'MATIC', 'NEAR', 'FTT', 'ATOM', 'ARBITRUM'}
+    
     # Список стейблкоинов которые нужно исключить
     STABLECOINS = {'USDT', 'USDC', 'BUSD', 'DAI', 'USDP', 'TUSD', 'GUSD', 'USDD', 'FRAX', 'LUSD', 'EURS', 'SUSD'}
     
@@ -126,39 +129,35 @@ class DigestFormatter:
     # Fear & Greed Index удален - требует Pro API ключ, не нужен обычному пользователю
     
     def format_gainers_losers(self, gainers_losers: Dict) -> str:
-        """Форматировать gainers и losers (только альты, исключить BTC/ETH и stablecoins)"""
+        """Форматировать gainers и losers (только whitelisted альты, исключить BTC/ETH и мусор)"""
         text = ""
         
         gainers = gainers_losers.get("gainers", [])[:15]  # Берем больше для фильтрации
         losers = gainers_losers.get("losers", [])[:15]
         
-        # Фильтруем: исключаем BTC, ETH, stablecoins, wrapped версии
+        # Фильтруем: берем ТОЛЬКО whitelisted альты
         gainers = [
             g for g in gainers 
-            if g.get("symbol", "").upper() not in {'BTC', 'ETH'} and
-            not self.is_stablecoin(g.get("name", ""), g.get("symbol", "")) and
-            not self.is_excluded_type(g.get("name", ""), g.get("symbol", "")) and
-            g.get("price_change_percentage_24h", 0) > 0  # Только положительные изменения!
-        ][:10]
+            if g.get("symbol", "").upper() in self.ALTCOIN_WHITELIST and
+            g.get("price_change_percentage_24h", 0) > 0
+        ][:5]  # Берем до 5 после фильтрации
         
         losers = [
             l for l in losers 
-            if l.get("symbol", "").upper() not in {'BTC', 'ETH'} and
-            not self.is_stablecoin(l.get("name", ""), l.get("symbol", "")) and
-            not self.is_excluded_type(l.get("name", ""), l.get("symbol", "")) and
-            l.get("price_change_percentage_24h", 0) < 0  # Только отрицательные изменения!
-        ][:10]
+            if l.get("symbol", "").upper() in self.ALTCOIN_WHITELIST and
+            l.get("price_change_percentage_24h", 0) < 0
+        ][:5]  # Берем до 5 после фильтрации
         
         if gainers:
             text += "\n📈 <b>Топ Gainers альтов (24h)</b>\n"
-            for coin in gainers[:5]:  # Показываем топ 5
+            for coin in gainers:
                 symbol = coin.get("symbol", "").upper()
                 percent = coin.get("price_change_percentage_24h", 0)
                 text += f"• <b>{symbol}</b>: <b>+{percent:.2f}%</b>\n"
         
         if losers:
             text += "\n📉 <b>Топ Losers альтов (24h)</b>\n"
-            for coin in losers[:5]:  # Показываем топ 5
+            for coin in losers:
                 symbol = coin.get("symbol", "").upper()
                 percent = coin.get("price_change_percentage_24h", 0)
                 text += f"• <b>{symbol}</b>: <b>{percent:.2f}%</b>\n"
