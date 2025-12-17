@@ -22,18 +22,26 @@ logger = logging.getLogger(__name__)
 
 COINGECKO_API_KEY = os.getenv('COINGECKO_API_KEY', '')
 COINGECKO_BASE = "https://api.coingecko.com/api/v3"
+COINGECKO_BASE = "https://api.coingecko.com/api/v3"
 COINGECKO_PRO_BASE = "https://pro-api.coingecko.com/api/v3"  # Pro API с ключом
 
 class CryptoDigestCollector:
     """Собирает данные для крипто дайджеста с поддержкой API ключа"""
     
-    # Выбираем базу в зависимости от наличия ключа
-    BASE_URL = COINGECKO_PRO_BASE if COINGECKO_API_KEY else COINGECKO_BASE
+    # ⚠️ ВАЖНО: Demo/Trial ключи работают ТОЛЬКО с обычным API (api.coingecko.com)
+    # Не переходим на про-api даже если есть ключ!
+    BASE_URL = COINGECKO_BASE  # Всегда используем бесплатный API
     
     def __init__(self):
         self.session: Optional[aiohttp.ClientSession] = None
         self.api_key = COINGECKO_API_KEY
         self.base_url = self.BASE_URL
+        
+        # Логируем какой режим используется
+        if self.api_key:
+            logger.info(f"📌 CoinGecko API mode: Free API с ключом (Demo/Trial ключи требуют api.coingecko.com)")
+        else:
+            logger.info(f"📌 CoinGecko API mode: Free API без ключа")
     
     async def __aenter__(self):
         self.session = aiohttp.ClientSession()
@@ -53,12 +61,12 @@ class CryptoDigestCollector:
                 "order": "market_cap_desc",
                 "per_page": "15",
                 "sparkline": "false",
-                "locale": "ru"
             }
             
-            # Добавляем API ключ если он есть (для Pro API)
+            # ⚠️ Для Demo API ключей НЕ используем x_cg_pro_api_key
+            # Используем просто x_cg_api_key если ключ есть
             if self.api_key:
-                params["x_cg_pro_api_key"] = self.api_key
+                params["x_cg_api_key"] = self.api_key
             
             async with self.session.get(url, params=params, timeout=aiohttp.ClientTimeout(10)) as resp:
                 if resp.status == 200:
@@ -77,21 +85,22 @@ class CryptoDigestCollector:
             return []
     
     async def get_fear_greed_index(self) -> Optional[Dict]:
-        """Получить Fear & Greed Index (только с Pro API ключом)"""
+        """Получить Fear & Greed Index (требует API ключ)"""
         if not self.api_key:
-            logger.debug("⚠️ Fear & Greed Index требует Pro API ключ")
+            logger.debug("⚠️ Fear & Greed Index требует API ключ")
             return None
         
         try:
             url = f"{self.base_url}/fear_and_greed"
-            params = {"x_cg_pro_api_key": self.api_key}
+            params = {"x_cg_api_key": self.api_key}
             
             async with self.session.get(url, params=params, timeout=aiohttp.ClientTimeout(10)) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     return data.get("data", {})
                 else:
-                    logger.warning(f"⚠️ Fear & Greed API error: {resp.status} (требуется Pro API)")
+                    error_text = await resp.text()
+                    logger.warning(f"⚠️ Fear & Greed API error: {resp.status} - {error_text[:200]}")
                     return None
         except Exception as e:
             logger.error(f"Error fetching fear & greed: {e}")
@@ -101,7 +110,7 @@ class CryptoDigestCollector:
         """Получить топ gainers и losers за 24h"""
         try:
             url = f"{self.base_url}/coins/markets"
-            base_params = {"x_cg_pro_api_key": self.api_key} if self.api_key else {}
+            base_params = {"x_cg_api_key": self.api_key} if self.api_key else {}
             
             # Gainers
             gainers_params = {
@@ -156,7 +165,7 @@ class CryptoDigestCollector:
         """Получить глобальные данные рынка (total market cap, volume, BTC dominance)"""
         try:
             url = f"{self.base_url}/global"
-            params = {"x_cg_pro_api_key": self.api_key} if self.api_key else {}
+            params = {"x_cg_api_key": self.api_key} if self.api_key else {}
             
             async with self.session.get(url, params=params, timeout=aiohttp.ClientTimeout(10)) as resp:
                 if resp.status == 200:
