@@ -40,7 +40,7 @@ class DigestFormatter:
     
     @staticmethod
     def format_percent(percent: Optional[float]) -> str:
-        """Форматировать процент с цветом"""
+        """Форматировать процент с эмодзи"""
         if percent is None:
             return "N/A"
         
