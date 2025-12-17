@@ -90,39 +90,29 @@ class DigestFormatter:
         return not any(pattern in url.lower() for pattern in invalid_patterns)
     
     def format_market_overview(self, data: Dict) -> str:
-        """Форматировать обзор рынка"""
+        """Форматировать обзор рынка (только BTC/ETH с ценами)"""
         if not data.get("market_data"):
             return "❌ <b>Обзор рынка:</b> Данные недоступны\n"
         
         market = data["market_data"]
-        global_data = data.get("global_data", {}).get("data", {})
         
         # Основные монеты
         btc = next((m for m in market if m["symbol"].upper() == "BTC"), None)
         eth = next((m for m in market if m["symbol"].upper() == "ETH"), None)
         
-        text = "📊 <b>Обзор рынка</b>\n\n"
+        text = "📊 <b>Обзор рынка</b>\n"
         
         if btc:
-            text += f"₿ <b>Bitcoin</b>: {self.format_price(btc['current_price'])} {self.format_percent(btc['price_change_percentage_24h'])}\n"
+            btc_price = self.format_price(btc['current_price'])
+            btc_change = btc.get('price_change_percentage_24h', 0)
+            emoji_btc = "📈" if btc_change > 0 else "📉"
+            text += f"₿ BTC: {btc_price} {btc_change:+.2f}% {emoji_btc}\n"
         
         if eth:
-            text += f"Ξ <b>Ethereum</b>: {self.format_price(eth['current_price'])} {self.format_percent(eth['price_change_percentage_24h'])}\n"
-        
-        # Market Cap
-        if global_data.get("total_market_cap", {}).get("usd"):
-            market_cap = global_data["total_market_cap"]["usd"]
-            text += f"\n💰 Market Cap: ${market_cap/1e12:.2f}T\n"
-        
-        # BTC Dominance
-        if global_data.get("btc_market_cap_percentage"):
-            btc_dom = global_data["btc_market_cap_percentage"]
-            text += f"🔗 BTC Dominance: {btc_dom:.1f}%\n"
-        
-        # Volume
-        if global_data.get("total_volume", {}).get("usd"):
-            volume = global_data["total_volume"]["usd"]
-            text += f"📊 24h Volume: ${volume/1e9:.2f}B\n"
+            eth_price = self.format_price(eth['current_price'])
+            eth_change = eth.get('price_change_percentage_24h', 0)
+            emoji_eth = "📈" if eth_change > 0 else "📉"
+            text += f"Ξ ETH: {eth_price} {eth_change:+.2f}% {emoji_eth}\n"
         
         return text
     
@@ -165,7 +155,7 @@ class DigestFormatter:
         return text
     
     def format_market_sentiment(self, data: Dict) -> str:
-        """Добавить аналитику настроения рынка"""
+        """Добавить аналитику настроения рынка с выводом для трейдера"""
         if not data.get("market_data"):
             return ""
         
@@ -184,51 +174,46 @@ class DigestFormatter:
         bnb_change = bnb.get("price_change_percentage_24h", 0) if bnb else 0
         
         # Анализируем тренд
-        text = "\n🧠 <b>Настроение рынка</b>\n"
+        text = "\n🧠 <b>Рынок и ваша позиция</b>\n"
         
-        if btc_change < -2 or eth_change < -3:
-            text += "📉 <b>Давление продавцов</b>\n"
-            text += "• Альты падают быстрее BTC → risk-off сценарий\n"
-            text += "• Объемы на покупку ниже среднего\n"
-        elif btc_change > 2 and eth_change > 2:
-            text += "📈 <b>Рост основных монет</b>\n"
-            text += "• Альты растут синхронно → риск на\n"
-            text += "• Хороший момент для альтов\n"
-        else:
-            text += "➡️ <b>Боковой тренд</b>\n"
-            text += "• Рынок в ожидании сигналов\n"
-            text += "• Альты движутся независимо\n"
+        # Логика анализа на основе реальных цифр
+        avg_change = (btc_change + eth_change + bnb_change) / 3 if bnb else (btc_change + eth_change) / 2
         
-        # Добавим вывод про альты vs BTC
-        if abs(eth_change - btc_change) > 2:
-            if eth_change < btc_change:
-                text += f"⚠️ ETH (-{abs(eth_change):.1f}%) отстает от BTC\n"
-            else:
-                text += f"✅ ETH (+{eth_change:.1f}%) лидирует перед BTC\n"
+        if avg_change < -1:  # Падающий рынок
+            text += "📉 <b>Risk-OFF сценарий</b>\n"
+            text += "→ Альты теряют быстрее BTC\n"
+            text += "→ Избегайте лонги, смотрите в поддержку\n"
+        elif avg_change > 1:  # Растущий рынок
+            text += "📈 <b>Risk-ON сценарий</b>\n"
+            text += "→ Альты растут синхронно с BTC\n"
+            text += "→ Хороший момент для лонгов\n"
+        else:  # Консолидация
+            text += "⏸️ <b>Консолидация</b>\n"
+            text += "→ Рынок в режиме ожидания\n"
+            text += "→ Альты движутся независимо\n"
         
         return text
     
     def format_top_coins(self, market_data: List[Dict]) -> str:
-        """Форматировать только whitelisted монеты по рейтингу"""
+        """Форматировать только top-5 альтов (исключая BTC/ETH)"""
         if not market_data:
             return ""
         
-        text = "\n📊 <b>Основные монеты</b>\n"
+        text = "\n📊 <b>Основные альты</b>\n"
         
-        # Берем только whitelisted монеты в порядке появления
-        whitelisted = [
+        # Берем только altcoins (исключаем BTC, ETH, stablecoins)
+        alt_coins = [
             coin for coin in market_data 
-            if self.is_whitelisted(coin.get("symbol", "")) and
+            if coin.get("symbol", "").upper() in self.ALTCOIN_WHITELIST and
             not self.is_excluded_type(coin.get("name", ""), coin.get("symbol", ""))
-        ][:9]  # BTC, ETH, BNB, SOL, XRP, ADA, DOGE, TRX, TON
+        ][:5]  # Максимум 5 альтов для компактности
         
-        for i, coin in enumerate(whitelisted, 1):
+        for i, coin in enumerate(alt_coins, 1):
             coin_symbol = coin.get("symbol", "").upper()
-            price = self.format_price(coin["current_price"])
             percent = coin.get("price_change_percentage_24h", 0)
-            
+            # Только проценты для альтов, цены скрыты для компактности
             emoji = "📈" if percent > 0 else "📉"
-            text += f"{i}. <b>{coin_symbol}</b>: {price} {emoji} {percent:+.2f}%\n"
+            text += f"{i}. <b>{coin_symbol}</b>: {percent:+.2f}% {emoji}\n"
         
         return text
     
@@ -295,7 +280,7 @@ class DigestFormatter:
         digest = "🚀 <b>КРИПТО ДАЙДЖЕСТ НА ДЕНЬ</b>\n"
         digest += "=" * 40 + "\n\n"
         
-        # Обзор рынка
+        # Обзор рынка (только BTC/ETH с ценами)
         digest += self.format_market_overview(data)
         
         # Настроение и аналитика
@@ -304,11 +289,14 @@ class DigestFormatter:
         # Gainers/Losers альтов
         digest += self.format_gainers_losers(data.get("gainers_losers", {}))
         
-        # Основные монеты whitelisted
+        # Основные альты (только 5 штук, без BTC/ETH)
         digest += self.format_top_coins(data.get("market_data", []))
         
         # События с аналитикой
         digest += self.format_events(data.get("events", []))
+        
+        # ✨ НОВОЕ: Финальный вывод - зачем вся эта информация
+        digest += self.format_executive_summary(data)
         
         # Подпись
         digest += "\n" + "=" * 40 + "\n"
@@ -316,6 +304,42 @@ class DigestFormatter:
         digest += "💬 <i>RVX AI - Your Crypto Intelligence</i>\n"
         
         return digest
+    
+    def format_executive_summary(self, data: Dict) -> str:
+        """Финальный вывод - что мне делать с этой информацией?"""
+        if not data.get("market_data"):
+            return ""
+        
+        market = data["market_data"]
+        btc = next((m for m in market if m["symbol"].upper() == "BTC"), None)
+        eth = next((m for m in market if m["symbol"].upper() == "ETH"), None)
+        
+        if not btc or not eth:
+            return ""
+        
+        btc_change = btc.get("price_change_percentage_24h", 0)
+        eth_change = eth.get("price_change_percentage_24h", 0)
+        avg_change = (btc_change + eth_change) / 2
+        
+        text = "\n💡 <b>На что это влияет</b>\n"
+        
+        if avg_change < -2:
+            text += "🚨 <b>Риск высокий</b>\n"
+            text += "• Продавцы в контроле\n"
+            text += "• Берите только проверенные альты\n"
+            text += "• Следите за основаниями (Support)\n"
+        elif avg_change > 2:
+            text += "✅ <b>Это растущий рынок</b>\n"
+            text += "• Покупайте альты из списка выше\n"
+            text += "• Давайте позициям расти\n"
+            text += "• Ждите пробоев сопротивления\n"
+        else:
+            text += "⚠️ <b>Неопределенность</b>\n"
+            text += "• Не спешите с большими позициями\n"
+            text += "• Ждите ясного сигнала\n"
+            text += "• Смотрите события в календаре\n"
+        
+        return text
 
 
 def format_digest(data: Dict) -> str:
