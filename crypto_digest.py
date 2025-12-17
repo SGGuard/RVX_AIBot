@@ -66,10 +66,14 @@ class CryptoDigestCollector:
                     logger.info(f"✅ Market data fetched: {len(data)} coins")
                     return data
                 else:
-                    logger.error(f"❌ CoinGecko API error: {resp.status}")
+                    try:
+                        error_text = await resp.text()
+                        logger.error(f"❌ CoinGecko API error: {resp.status} - {error_text[:200]}")
+                    except:
+                        logger.error(f"❌ CoinGecko API error: {resp.status}")
                     return []
         except Exception as e:
-            logger.error(f"❌ Error fetching market data: {e}")
+            logger.error(f"❌ Error fetching market data: {e}", exc_info=True)
             return []
     
     async def get_fear_greed_index(self) -> Optional[Dict]:
@@ -108,8 +112,18 @@ class CryptoDigestCollector:
                 **base_params
             }
             
-            async with self.session.get(url, params=gainers_params, timeout=aiohttp.ClientTimeout(10)) as resp:
-                gainers = await resp.json() if resp.status == 200 else []
+            try:
+                async with self.session.get(url, params=gainers_params, timeout=aiohttp.ClientTimeout(10)) as resp:
+                    if resp.status == 200:
+                        gainers = await resp.json()
+                        logger.info(f"✅ Gainers fetched: {len(gainers)} coins")
+                    else:
+                        error_text = await resp.text()
+                        logger.error(f"❌ Gainers API error: {resp.status} - {error_text[:200]}")
+                        gainers = []
+            except Exception as e:
+                logger.error(f"Error fetching gainers: {e}", exc_info=True)
+                gainers = []
             
             # Losers
             losers_params = {
@@ -120,12 +134,22 @@ class CryptoDigestCollector:
                 **base_params
             }
             
-            async with self.session.get(url, params=losers_params, timeout=aiohttp.ClientTimeout(10)) as resp:
-                losers = await resp.json() if resp.status == 200 else []
+            try:
+                async with self.session.get(url, params=losers_params, timeout=aiohttp.ClientTimeout(10)) as resp:
+                    if resp.status == 200:
+                        losers = await resp.json()
+                        logger.info(f"✅ Losers fetched: {len(losers)} coins")
+                    else:
+                        error_text = await resp.text()
+                        logger.error(f"❌ Losers API error: {resp.status} - {error_text[:200]}")
+                        losers = []
+            except Exception as e:
+                logger.error(f"Error fetching losers: {e}", exc_info=True)
+                losers = []
             
             return {"gainers": gainers, "losers": losers}
         except Exception as e:
-            logger.error(f"Error fetching gainers/losers: {e}")
+            logger.error(f"Error in get_gainers_losers: {e}", exc_info=True)
             return {"gainers": [], "losers": []}
     
     async def get_global_market_data(self) -> Dict:
@@ -136,12 +160,18 @@ class CryptoDigestCollector:
             
             async with self.session.get(url, params=params, timeout=aiohttp.ClientTimeout(10)) as resp:
                 if resp.status == 200:
-                    return await resp.json()
+                    data = await resp.json()
+                    logger.info(f"✅ Global market data fetched")
+                    return data
                 else:
-                    logger.error(f"Global market API error: {resp.status}")
+                    try:
+                        error_text = await resp.text()
+                        logger.error(f"❌ Global market API error: {resp.status} - {error_text[:200]}")
+                    except:
+                        logger.error(f"❌ Global market API error: {resp.status}")
                     return {}
         except Exception as e:
-            logger.error(f"Error fetching global market data: {e}")
+            logger.error(f"Error fetching global market data: {e}", exc_info=True)
             return {}
 
 
