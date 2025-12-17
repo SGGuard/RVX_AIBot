@@ -195,25 +195,38 @@ class DigestFormatter:
         return text
     
     def format_top_coins(self, market_data: List[Dict]) -> str:
-        """Форматировать только top-5 альтов (исключая BTC/ETH)"""
+        """Форматировать top-5 gainers и losers альтов с четким разделением"""
         if not market_data:
             return ""
-        
-        text = "\n📊 <b>Основные альты</b>\n"
         
         # Берем только altcoins (исключаем BTC, ETH, stablecoins)
         alt_coins = [
             coin for coin in market_data 
             if coin.get("symbol", "").upper() in self.ALTCOIN_WHITELIST and
             not self.is_excluded_type(coin.get("name", ""), coin.get("symbol", ""))
-        ][:5]  # Максимум 5 альтов для компактности
+        ]
         
-        for i, coin in enumerate(alt_coins, 1):
-            coin_symbol = coin.get("symbol", "").upper()
-            percent = coin.get("price_change_percentage_24h", 0)
-            # Только проценты для альтов, цены скрыты для компактности
-            emoji = "📈" if percent > 0 else "📉"
-            text += f"{i}. <b>{coin_symbol}</b>: {percent:+.2f}% {emoji}\n"
+        # Разделяем на gainers и losers
+        gainers = [c for c in alt_coins if c.get("price_change_percentage_24h", 0) > 0][:5]
+        losers = [c for c in alt_coins if c.get("price_change_percentage_24h", 0) < 0][:5]
+        
+        text = ""
+        
+        # Показываем gainers если есть
+        if gainers:
+            text += "\n📈 <b>Топ альтов (gains)</b>\n"
+            for i, coin in enumerate(gainers, 1):
+                symbol = coin.get("symbol", "").upper()
+                percent = coin.get("price_change_percentage_24h", 0)
+                text += f"{i}. <b>{symbol}</b>: +{percent:.2f}%\n"
+        
+        # Показываем losers если есть
+        if losers:
+            text += "\n📉 <b>Топ альтов (losses)</b>\n"
+            for i, coin in enumerate(losers, 1):
+                symbol = coin.get("symbol", "").upper()
+                percent = coin.get("price_change_percentage_24h", 0)
+                text += f"{i}. <b>{symbol}</b>: {percent:.2f}%\n"
         
         return text
     
@@ -286,10 +299,8 @@ class DigestFormatter:
         # Настроение и аналитика
         digest += self.format_market_sentiment(data)
         
-        # Gainers/Losers альтов
-        digest += self.format_gainers_losers(data.get("gainers_losers", {}))
-        
         # Основные альты (только 5 штук, без BTC/ETH)
+        # Убираем отдельный раздел gainers/losers - альты показывают и то и другое
         digest += self.format_top_coins(data.get("market_data", []))
         
         # События с аналитикой
@@ -323,20 +334,31 @@ class DigestFormatter:
         
         text = "\n💡 <b>На что это влияет</b>\n"
         
+        # Логика на основе реального движения рынка
         if avg_change < -2:
-            text += "🚨 <b>Риск высокий</b>\n"
-            text += "• Продавцы в контроле\n"
+            text += "🚨 <b>Сильное давление продавцов</b>\n"
+            text += "• Закрывайте длинные позиции\n"
+            text += "• Ищите Support уровни\n"
+            text += "• Готовьтесь к дальнейшему падению\n"
+        elif avg_change < -0.5:
+            text += "⚠️ <b>Риск повышен</b>\n"
             text += "• Берите только проверенные альты\n"
-            text += "• Следите за основаниями (Support)\n"
+            text += "• Используйте стоп-лосы\n"
+            text += "• Не увеличивайте позиции\n"
         elif avg_change > 2:
-            text += "✅ <b>Это растущий рынок</b>\n"
-            text += "• Покупайте альты из списка выше\n"
+            text += "✅ <b>Растущий рынок</b>\n"
+            text += "• Хороший момент для лонгов\n"
+            text += "• Покупайте альты из списка\n"
             text += "• Давайте позициям расти\n"
-            text += "• Ждите пробоев сопротивления\n"
+        elif avg_change > 0.5:
+            text += "🟢 <b>Слабый рост</b>\n"
+            text += "• Рынок восстанавливается\n"
+            text += "• Можно увеличивать позиции\n"
+            text += "• Следите за Resistance\n"
         else:
-            text += "⚠️ <b>Неопределенность</b>\n"
+            text += "⏸️ <b>Консолидация</b>\n"
+            text += "• Рынок ищет направление\n"
             text += "• Не спешите с большими позициями\n"
-            text += "• Ждите ясного сигнала\n"
             text += "• Смотрите события в календаре\n"
         
         return text
