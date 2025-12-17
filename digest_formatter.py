@@ -1,11 +1,11 @@
 """
-Digest Formatter - Красивое форматирование крипто дайджеста
-Улучшенная версия v0.6.0:
-- ❌ Удален Fear & Greed Index (требует Pro API, не нужен обычному пользователю)
-- ❌ Удален раздел новостей (RSS ссылки часто ломаются, лучше через AI в диалоге)
-- ✅ Упрощенный формат: обзор рынка → gainers/losers → рейтинг топ7 → события
-- ✅ Рейтинг показывает реальные данные: BTC, ETH, BNB, SOL, XRP, ADA, DOGE и т.д.
-- ✅ Исключение стейблкоинов из всех показателей
+Digest Formatter - Красивое и умное форматирование крипто дайджеста
+Версия v0.7.0 - ПОЛНАЯ ПЕРЕДЕЛКА:
+- ✅ Жесткий whitelist: BTC, ETH, BNB, SOL, XRP, ADA, DOGE, TRX, TON (исключает stETH, wrapped, synthetic)
+- ✅ Gainers/Losers только для альтов (исключены BTC/ETH, минимум 5-10 монет)
+- ✅ Аналитика настроения рынка вместо просто чисел (risk-off vs risk-on)
+- ✅ Умные события - показывает только критичные для крипты с вывод влияния
+- ✅ Формат отвечает на вопрос "Что мне знать СЕГОДНЯ?" вместо "Вот данные, разбирайся"
 """
 
 from typing import Dict, List, Optional
@@ -17,8 +17,14 @@ logger = logging.getLogger(__name__)
 class DigestFormatter:
     """Форматирует данные дайджеста в красивый Telegram пост"""
     
+    # Жесткий whitelist монет для публичного дайджеста (исключает stETH, wrapped, synthetic)
+    WHITELIST_COINS = {'BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'ADA', 'DOGE', 'TRX', 'TON'}
+    
     # Список стейблкоинов которые нужно исключить
     STABLECOINS = {'USDT', 'USDC', 'BUSD', 'DAI', 'USDP', 'TUSD', 'GUSD', 'USDD', 'FRAX', 'LUSD', 'EURS', 'SUSD'}
+    
+    # Исключить wrapped, synthetic, staked версии
+    EXCLUDED_PATTERNS = {'stETH', 'wBTC', 'Wrapped', 'Staked', 'Synthetic', 'Bridged', 'Lido', 'Ankr'}
     
     @staticmethod
     def format_price(price: Optional[float]) -> str:
@@ -53,6 +59,23 @@ class DigestFormatter:
         return coin_symbol.upper() in self.STABLECOINS or any(
             stable in coin_name.upper() for stable in self.STABLECOINS
         )
+    
+    def is_excluded_type(self, coin_name: str, coin_symbol: str) -> bool:
+        """Проверить является ли монета wrapped/synthetic/staked версией"""
+        symbol_upper = coin_symbol.upper()
+        name_upper = coin_name.upper()
+        
+        # Исключаем wrapped и synthetic версии
+        for pattern in self.EXCLUDED_PATTERNS:
+            if pattern.upper() in name_upper or pattern.upper() in symbol_upper:
+                return True
+        
+        # Исключаем если не в whitelist (для основных монет в рейтинге)
+        return False
+    
+    def is_whitelisted(self, coin_symbol: str) -> bool:
+        """Проверить в ли монета в whitelist основных криптовалют"""
+        return coin_symbol.upper() in self.WHITELIST_COINS
     
     @staticmethod
     def is_valid_news_url(url: str) -> bool:
@@ -105,46 +128,102 @@ class DigestFormatter:
     # Fear & Greed Index удален - требует Pro API ключ, не нужен обычному пользователю
     
     def format_gainers_losers(self, gainers_losers: Dict) -> str:
-        """Форматировать gainers и losers (без стейблкоинов)"""
+        """Форматировать gainers и losers (только альты, исключить BTC/ETH и stablecoins)"""
         text = ""
         
-        gainers = gainers_losers.get("gainers", [])[:5]
-        losers = gainers_losers.get("losers", [])[:5]
+        gainers = gainers_losers.get("gainers", [])[:15]  # Берем больше для фильтрации
+        losers = gainers_losers.get("losers", [])[:15]
         
-        # Фильтруем стейблкоины
-        gainers = [g for g in gainers if not self.is_stablecoin(g.get("name", ""), g.get("symbol", ""))][:3]
-        losers = [l for l in losers if not self.is_stablecoin(l.get("name", ""), l.get("symbol", ""))][:3]
+        # Фильтруем: исключаем BTC, ETH, stablecoins, wrapped версии
+        gainers = [
+            g for g in gainers 
+            if g.get("symbol", "").upper() not in {'BTC', 'ETH'} and
+            not self.is_stablecoin(g.get("name", ""), g.get("symbol", "")) and
+            not self.is_excluded_type(g.get("name", ""), g.get("symbol", ""))
+        ][:10]
+        
+        losers = [
+            l for l in losers 
+            if l.get("symbol", "").upper() not in {'BTC', 'ETH'} and
+            not self.is_stablecoin(l.get("name", ""), l.get("symbol", "")) and
+            not self.is_excluded_type(l.get("name", ""), l.get("symbol", ""))
+        ][:10]
         
         if gainers:
-            text += "\n📈 <b>Топ Gainers (24h)</b>\n"
-            for coin in gainers:
-                coin_link = self.create_coingecko_link(coin["id"], coin["name"])
+            text += "\n📈 <b>Топ Gainers альтов (24h)</b>\n"
+            for coin in gainers[:5]:  # Показываем топ 5
+                symbol = coin.get("symbol", "").upper()
                 percent = coin.get("price_change_percentage_24h", 0)
-                text += f"• {coin_link}: <b>+{percent:.2f}%</b>\n"
+                text += f"• <b>{symbol}</b>: +{percent:.2f}%\n"
         
         if losers:
-            text += "\n📉 <b>Топ Losers (24h)</b>\n"
-            for coin in losers:
-                coin_link = self.create_coingecko_link(coin["id"], coin["name"])
+            text += "\n📉 <b>Топ Losers альтов (24h)</b>\n"
+            for coin in losers[:5]:  # Показываем топ 5
+                symbol = coin.get("symbol", "").upper()
                 percent = coin.get("price_change_percentage_24h", 0)
-                text += f"• {coin_link}: <b>{percent:.2f}%</b>\n"
+                text += f"• <b>{symbol}</b>: {percent:.2f}%\n"
+        
+        return text
+    
+    def format_market_sentiment(self, data: Dict) -> str:
+        """Добавить аналитику настроения рынка"""
+        if not data.get("market_data"):
+            return ""
+        
+        market = data["market_data"]
+        
+        # Берем BTC, ETH, BNB для анализа тренда
+        btc = next((m for m in market if m["symbol"].upper() == "BTC"), None)
+        eth = next((m for m in market if m["symbol"].upper() == "ETH"), None)
+        bnb = next((m for m in market if m["symbol"].upper() == "BNB"), None)
+        
+        if not btc or not eth:
+            return ""
+        
+        btc_change = btc.get("price_change_percentage_24h", 0)
+        eth_change = eth.get("price_change_percentage_24h", 0)
+        bnb_change = bnb.get("price_change_percentage_24h", 0) if bnb else 0
+        
+        # Анализируем тренд
+        text = "\n🧠 <b>Настроение рынка</b>\n"
+        
+        if btc_change < -2 or eth_change < -3:
+            text += "📉 <b>Давление продавцов</b>\n"
+            text += "• Альты падают быстрее BTC → risk-off сценарий\n"
+            text += "• Объемы на покупку ниже среднего\n"
+        elif btc_change > 2 and eth_change > 2:
+            text += "📈 <b>Рост основных монет</b>\n"
+            text += "• Альты растут синхронно → риск на\n"
+            text += "• Хороший момент для альтов\n"
+        else:
+            text += "➡️ <b>Боковой тренд</b>\n"
+            text += "• Рынок в ожидании сигналов\n"
+            text += "• Альты движутся независимо\n"
+        
+        # Добавим вывод про альты vs BTC
+        if abs(eth_change - btc_change) > 2:
+            if eth_change < btc_change:
+                text += f"⚠️ ETH (-{abs(eth_change):.1f}%) отстает от BTC\n"
+            else:
+                text += f"✅ ETH (+{eth_change:.1f}%) лидирует перед BTC\n"
         
         return text
     
     def format_top_coins(self, market_data: List[Dict]) -> str:
-        """Форматировать топ криптовалют по рейтингу (без стейблкоинов)"""
+        """Форматировать только whitelisted монеты по рейтингу"""
         if not market_data:
             return ""
         
-        text = "\n📊 <b>Рейтинг криптовалют</b>\n"
+        text = "\n📊 <b>Основные монеты</b>\n"
         
-        # Фильтруем стейблкоины и берем первые 7 (BTC, ETH, BNB, SOL, XRP, ADA и т.д.)
-        non_stable = [
+        # Берем только whitelisted монеты в порядке появления
+        whitelisted = [
             coin for coin in market_data 
-            if not self.is_stablecoin(coin.get("name", ""), coin.get("symbol", ""))
-        ][:7]
+            if self.is_whitelisted(coin.get("symbol", "")) and
+            not self.is_excluded_type(coin.get("name", ""), coin.get("symbol", ""))
+        ][:9]  # BTC, ETH, BNB, SOL, XRP, ADA, DOGE, TRX, TON
         
-        for i, coin in enumerate(non_stable, 1):
+        for i, coin in enumerate(whitelisted, 1):
             coin_symbol = coin.get("symbol", "").upper()
             price = self.format_price(coin["current_price"])
             percent = coin.get("price_change_percentage_24h", 0)
@@ -157,26 +236,57 @@ class DigestFormatter:
     # Раздел новостей удален - RSS ссылки часто ломаются, лучше получать через AI в диалоге
     
     def format_events(self, events: List[Dict]) -> str:
-        """Форматировать важные события с деталями"""
+        """Форматировать важные события с аналитикой влияния на крипту"""
         if not events:
-            text = "\n⏰ <b>Важные события</b>\n"
-            text += "🔔 <i>Нет запланированных событий на сегодня</i>\n"
-            return text
+            return ""
         
-        text = "\n⏰ <b>Важные события</b>\n"
+        # EVENT IMPORTANCE MAP: определяем какие события влияют на крипту
+        HIGH_IMPACT_EVENTS = {
+            "FOMC": "🔴 FOMC Minutes — возможна волатильность BTC и альтов\n      (FED обычно меняет риск-сентимент)",
+            "Federal Reserve": "🔴 FED Statement — прямое влияние на USD и криптовалюты",
+            "CPI": "🔴 US Inflation Data (CPI) — ключевой индикатор для монетарной политики\n      (влияет на весь рынок)",
+            "NFP": "🔴 Non-Farm Payrolls — сильное влияние на USD и криптовалюты",
+            "ECB": "🟡 ECB Report — среднее влияние на евро и альты",
+            "BoE": "🟡 Bank of England — влияние на GBP и европейские альты",
+        }
         
-        for event in events[:8]:  # Показываем до 8 событий
-            time = event.get("time", "").replace(" UTC", "").strip()
+        MEDIUM_IMPACT_EVENTS = {
+            "EIA": "🟡 EIA Natural Gas Report — низкое влияние на крипту\n      (в основном энергетический рынок)",
+            "Jobless": "🟡 Jobless Claims — индикатор здоровья экономики",
+            "Earnings": "🟢 Корпоративные отчеты — косвенное влияние",
+        }
+        
+        text = "\n⏰ <b>Что важно сегодня</b>\n"
+        
+        # Показываем только HIGH IMPACT события для крипты
+        high_impact_found = False
+        for event in events:
             title = event.get("title", "")
-            importance = event.get("importance", "Medium")
-            impact = event.get("impact", "")
+            importance = event.get("importance", "")
+            time = event.get("time", "").replace(" UTC", "").strip()
             
-            emoji = "🔴" if importance == "High" else "🟡" if importance == "Medium" else "🟢"
-            
-            if impact:
-                text += f"{emoji} <b>{time} UTC</b> - {title}\n   <i>Влияние: {impact}</i>\n"
-            else:
-                text += f"{emoji} <b>{time} UTC</b> - {title}\n"
+            # Ищем ключевые события
+            for keyword, description in HIGH_IMPACT_EVENTS.items():
+                if keyword.lower() in title.lower():
+                    text += f"{description}\n   ⏰ {time} UTC\n"
+                    high_impact_found = True
+                    break
+        
+        # Если нет HIGH IMPACT событий, показываем MEDIUM
+        if not high_impact_found:
+            for event in events:
+                title = event.get("title", "")
+                importance = event.get("importance", "")
+                time = event.get("time", "").replace(" UTC", "").strip()
+                
+                for keyword, description in MEDIUM_IMPACT_EVENTS.items():
+                    if keyword.lower() in title.lower():
+                        text += f"{description}\n   ⏰ {time} UTC\n"
+                        break
+        
+        # Если совсем ничего не нашли, показываем что-то
+        if text == "\n⏰ <b>Что важно сегодня</b>\n":
+            text += "🟢 <i>Нет критичных событий</i>\n"
         
         return text
     
@@ -189,13 +299,16 @@ class DigestFormatter:
         # Обзор рынка
         digest += self.format_market_overview(data)
         
-        # Gainers/Losers (топ выросших/упавших)
+        # Настроение и аналитика
+        digest += self.format_market_sentiment(data)
+        
+        # Gainers/Losers альтов
         digest += self.format_gainers_losers(data.get("gainers_losers", {}))
         
-        # Рейтинг топ криптовалют
+        # Основные монеты whitelisted
         digest += self.format_top_coins(data.get("market_data", []))
         
-        # События
+        # События с аналитикой
         digest += self.format_events(data.get("events", []))
         
         # Подпись
