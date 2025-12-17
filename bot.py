@@ -10521,6 +10521,13 @@ async def send_crypto_digest(context: ContextTypes.DEFAULT_TYPE):
     # ✅ v0.28.0: Используем канал из конфига или дефолт
     CHANNEL_ID = os.getenv('DIGEST_CHANNEL_ID', '@RVX_AI')  # Может быть @username или ID
     
+    # Преобразуем числовой ID группы в правильный формат для Telegram
+    # Приватные группы: 1003228919683 -> -1001003228919683
+    if isinstance(CHANNEL_ID, str) and CHANNEL_ID.isdigit():
+        channel_id_int = int(CHANNEL_ID)
+        if channel_id_int > 0:
+            CHANNEL_ID = -100 * (channel_id_int // 1000) - (channel_id_int % 1000)
+    
     try:
         logger.info("📊 Начинаю сбор данных для крипто дайджеста...")
         
