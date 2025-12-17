@@ -56,14 +56,14 @@ class CryptoDigestCollector:
             await self.session.close()
     
     async def get_market_data(self) -> List[Dict]:
-        """Получить данные о рынке: BTC, ETH и топ альты"""
+        """Получить данные о рынке: BTC, ETH и топ альты (включая все whitelist монеты)"""
         try:
             url = f"{self.base_url}/coins/markets"
             # aiohttp requires string values for params, not booleans
             params = {
                 "vs_currency": "usd",
                 "order": "market_cap_desc",
-                "per_page": "15",
+                "per_page": "25",  # Увеличили с 15 на 25 чтобы гарантировать все whitelist монеты
                 "sparkline": "false",
             }
             
@@ -111,16 +111,16 @@ class CryptoDigestCollector:
             return None
     
     async def get_gainers_losers(self) -> Dict:
-        """Получить топ gainers и losers за 24h"""
+        """Получить топ gainers и losers за 24h (с исключением BTC/ETH)"""
         try:
             url = f"{self.base_url}/coins/markets"
             base_params = {"x_cg_api_key": self.api_key} if self.api_key else {}
             
-            # Gainers
+            # Gainers - берем больше для фильтрации (исключим BTC/ETH)
             gainers_params = {
                 "vs_currency": "usd",
                 "order": "percent_change_24h_desc",
-                "per_page": "5",
+                "per_page": "20",  # Увеличили с 5 на 20
                 "sparkline": "false",
                 **base_params
             }
@@ -128,8 +128,13 @@ class CryptoDigestCollector:
             try:
                 async with self.session.get(url, params=gainers_params, timeout=aiohttp.ClientTimeout(10)) as resp:
                     if resp.status == 200:
-                        gainers = await resp.json()
-                        logger.info(f"✅ Gainers fetched: {len(gainers)} coins")
+                        gainers_raw = await resp.json()
+                        # Исключаем BTC и ETH
+                        gainers = [
+                            g for g in gainers_raw 
+                            if g.get("symbol", "").upper() not in {'BTC', 'ETH'}
+                        ][:15]  # Берем до 15 после фильтрации
+                        logger.info(f"✅ Gainers fetched: {len(gainers)} coins (after filtering)")
                     else:
                         error_text = await resp.text()
                         logger.error(f"❌ Gainers API error: {resp.status} - {error_text[:200]}")
@@ -138,11 +143,11 @@ class CryptoDigestCollector:
                 logger.error(f"Error fetching gainers: {e}", exc_info=True)
                 gainers = []
             
-            # Losers
+            # Losers - берем больше для фильтрации
             losers_params = {
                 "vs_currency": "usd",
                 "order": "percent_change_24h_asc",
-                "per_page": "5",
+                "per_page": "20",  # Увеличили с 5 на 20
                 "sparkline": "false",
                 **base_params
             }
@@ -150,8 +155,13 @@ class CryptoDigestCollector:
             try:
                 async with self.session.get(url, params=losers_params, timeout=aiohttp.ClientTimeout(10)) as resp:
                     if resp.status == 200:
-                        losers = await resp.json()
-                        logger.info(f"✅ Losers fetched: {len(losers)} coins")
+                        losers_raw = await resp.json()
+                        # Исключаем BTC и ETH
+                        losers = [
+                            l for l in losers_raw 
+                            if l.get("symbol", "").upper() not in {'BTC', 'ETH'}
+                        ][:15]  # Берем до 15 после фильтрации
+                        logger.info(f"✅ Losers fetched: {len(losers)} coins (after filtering)")
                     else:
                         error_text = await resp.text()
                         logger.error(f"❌ Losers API error: {resp.status} - {error_text[:200]}")
