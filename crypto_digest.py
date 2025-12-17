@@ -103,8 +103,8 @@ class CryptoDigestCollector:
             gainers_params = {
                 "vs_currency": "usd",
                 "order": "percent_change_24h_desc",
-                "per_page": 5,
-                "sparkline": False,
+                "per_page": "5",
+                "sparkline": "false",
                 **base_params
             }
             
@@ -115,8 +115,8 @@ class CryptoDigestCollector:
             losers_params = {
                 "vs_currency": "usd",
                 "order": "percent_change_24h_asc",
-                "per_page": 5,
-                "sparkline": False,
+                "per_page": "5",
+                "sparkline": "false",
                 **base_params
             }
             
