@@ -129,6 +129,14 @@ class DailyDigestScheduler:
             logger.error("❌ Bot is not initialized")
             return
         
+        # Преобразуем числовой ID группы в правильный формат для Telegram
+        # Приватные группы: 1003228919683 -> -1001003228919683
+        final_chat_id = chat_id
+        if isinstance(chat_id, str) and chat_id.isdigit():
+            channel_id_int = int(chat_id)
+            if channel_id_int > 0:
+                final_chat_id = -100 * (channel_id_int // 1000) - (channel_id_int % 1000)
+        
         # Разбиваем на чанки если сообщение больше 4096 символов
         chunks = self._split_message(text, max_length=4096)
         
@@ -136,7 +144,7 @@ class DailyDigestScheduler:
             try:
                 for i, chunk in enumerate(chunks):
                     message = await self.bot.send_message(
-                        chat_id=chat_id,
+                        chat_id=final_chat_id,
                         text=chunk,
                         parse_mode=parse_mode
                     )
