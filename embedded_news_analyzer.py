@@ -389,6 +389,9 @@ async def analyze_news(
         ("Gemini", analyze_with_gemini),
     ]
     
+    # Log API key status for debugging
+    logger.info(f"📊 API Key Status: Groq={bool(GROQ_API_KEY)} Mistral={bool(MISTRAL_API_KEY)} DeepSeek={bool(DEEPSEEK_API_KEY)} Gemini={bool(GEMINI_API_KEY)}")
+    
     for provider_name, provider_func in providers:
         try:
             logger.info(f"↔️ Trying {provider_name}...")
