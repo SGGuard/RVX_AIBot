@@ -204,13 +204,18 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 # Определяем API URL - с поддержкой Railway environment
-# Priority: Try localhost first (single-container) > env variables > external URLs
+# Priority: 
+# 1. Single-container (localhost when api_server.py exists)
+# 2. API_URL_NEWS env variable
+# 3. API_URL env variable (gets /explain_news appended)
+# 4. External service URL for multi-container Railway deployment
+
 _is_localhost_available = os.getenv("RAILWAY_ENVIRONMENT") or os.path.exists("/app/api_server.py")
 
-if _is_localhost_available:
+if _is_localhost_available and os.path.exists("/app/api_server.py"):
     # Single-container deployment - API runs on localhost:8000
     API_URL_NEWS = "http://localhost:8000/explain_news"
-    logger_init_source = "localhost (single-container)"
+    logger_init_source = "localhost (single-container with api_server.py)"
 else:
     # Multi-container or external API
     _api_url_env = os.getenv("API_URL_NEWS")
@@ -220,8 +225,12 @@ else:
     else:
         _api_url = os.getenv("API_URL")
         if _api_url:
-            API_URL_NEWS = _api_url.rstrip('/') + "/explain_news"
-            logger_init_source = "API_URL env var"
+            # Handle both cases: with and without /explain_news suffix
+            if not _api_url.endswith("/explain_news"):
+                API_URL_NEWS = _api_url.rstrip('/') + "/explain_news"
+            else:
+                API_URL_NEWS = _api_url
+            logger_init_source = f"API_URL env var ({_api_url})"
         elif _api_base_url := os.getenv("API_BASE_URL"):
             API_URL_NEWS = _api_base_url.rstrip('/') + "/explain_news"
             logger_init_source = "API_BASE_URL env var"
@@ -231,7 +240,8 @@ else:
             logger_init_source = "default localhost"
 
 logger_init = logging.getLogger("config_loader")
-logger_init.info(f"🔗 API_URL_NEWS configured: {API_URL_NEWS} (source: {logger_init_source})")
+logger_init.info(f"🔗 API_URL_NEWS configured: {API_URL_NEWS}")
+logger_init.info(f"   Source: {logger_init_source}")
 
 BOT_API_KEY = os.getenv("BOT_API_KEY", "")  # ✅ API key for authentication
 MAX_INPUT_LENGTH = int(os.getenv("MAX_INPUT_LENGTH", "4096"))
