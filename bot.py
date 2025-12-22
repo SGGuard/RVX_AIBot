@@ -87,7 +87,15 @@ def _adapt_datetime(val: datetime) -> str:
 
 sqlite3.register_adapter(datetime, _adapt_datetime)
 
-load_dotenv()
+# Load environment variables with explicit path for Railway compatibility
+import os
+from pathlib import Path
+
+env_path = Path(__file__).parent / ".env"
+if env_path.exists():
+    load_dotenv(dotenv_path=str(env_path), verbose=True)
+else:
+    load_dotenv(verbose=True)
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes

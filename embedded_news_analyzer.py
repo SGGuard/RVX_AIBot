@@ -18,7 +18,16 @@ import hashlib
 import asyncio
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
+from pathlib import Path
 from tenacity import retry, stop_after_attempt, wait_exponential
+from dotenv import load_dotenv
+
+# Load environment variables with explicit path for Railway compatibility
+env_path = Path(__file__).parent / ".env"
+if env_path.exists():
+    load_dotenv(dotenv_path=str(env_path), verbose=True)
+else:
+    load_dotenv(verbose=True)
 
 # AI Providers
 from openai import OpenAI, AsyncOpenAI
