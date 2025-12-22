@@ -182,7 +182,8 @@ async def analyze_with_groq(text: str) -> Optional[Dict[str, Any]]:
     try:
         client = AsyncOpenAI(
             api_key=GROQ_API_KEY,
-            base_url="https://api.groq.com/openai/v1"
+            base_url="https://api.groq.com/openai/v1",
+            timeout=GROQ_TIMEOUT
         )
         
         response = await asyncio.wait_for(
@@ -225,7 +226,8 @@ async def analyze_with_mistral(text: str) -> Optional[Dict[str, Any]]:
     try:
         client = AsyncOpenAI(
             api_key=MISTRAL_API_KEY,
-            base_url="https://api.mistral.ai/v1"
+            base_url="https://api.mistral.ai/v1",
+            timeout=MISTRAL_TIMEOUT
         )
         
         response = await asyncio.wait_for(
@@ -266,16 +268,24 @@ async def analyze_with_gemini(text: str) -> Optional[Dict[str, Any]]:
         return None
     
     try:
-        # Configure Gemini
-        genai.configure(api_key=GEMINI_API_KEY)
+        # Configure Gemini - use the correct API
+        if hasattr(genai, 'configure'):
+            genai.configure(api_key=GEMINI_API_KEY)
+        
         model = genai.GenerativeModel(
             model_name=GEMINI_MODEL,
-            system_instruction=SYSTEM_PROMPT
+            generation_config={
+                "temperature": 0.3,
+                "max_output_tokens": 1000,
+            }
         )
+        
+        # Prepare full prompt
+        full_prompt = f"{SYSTEM_PROMPT}\n\n{text}"
         
         # Use sync API with timeout
         response = await asyncio.wait_for(
-            asyncio.to_thread(model.generate_content, text),
+            asyncio.to_thread(model.generate_content, full_prompt),
             timeout=GEMINI_TIMEOUT
         )
         
@@ -306,7 +316,8 @@ async def analyze_with_deepseek(text: str) -> Optional[Dict[str, Any]]:
     try:
         client = AsyncOpenAI(
             api_key=DEEPSEEK_API_KEY,
-            base_url="https://api.deepseek.com"
+            base_url="https://api.deepseek.com/beta",
+            timeout=10
         )
         
         response = await asyncio.wait_for(
