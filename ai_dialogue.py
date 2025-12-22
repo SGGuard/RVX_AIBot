@@ -60,6 +60,15 @@ BASE_MAX_TOKENS = 2000
 BASE_TEMPERATURE = 0.4
 BASE_TOP_P = 0.9
 
+# ✅ v0.31: ДИНАМИЧЕСКИЕ ЛИМИТЫ НА КОЛИЧЕСТВО СИМВОЛОВ В ОТВЕТЕ
+# Telegram API: максимум 4096 символов, но мы оставляем запас для форматирования
+MAX_OUTPUT_CHARS = {
+    "calendar": 3500,        # Календарь: максимум информации (до 3500 символов)
+    "geopolitical": 3000,    # Геополитика: развернутый анализ
+    "crypto_news": 3000,     # Крипто: развернутый анализ
+    "dialogue": 2500         # Диалог: сбалансированный ответ
+}
+
 # Специальные параметры для разных режимов
 AI_MODE_PARAMS = {
     "calendar": {
@@ -98,6 +107,52 @@ def get_ai_params(mode: str = "dialogue") -> Dict[str, float]:
     params = AI_MODE_PARAMS.get(mode, AI_MODE_PARAMS["dialogue"])
     logger.debug(f"🎯 AI params for mode '{mode}': max_tokens={params['max_tokens']}, temp={params['temperature']}, top_p={params['top_p']}")
     return params
+
+
+def trim_response_to_limit(response: str, mode: str = "dialogue") -> str:
+    """
+    Обрезать ответ ИИ до максимально допустимого количества символов.
+    
+    ✅ v0.31: Динамический лимит в зависимости от режима
+    
+    Args:
+        response: Полный ответ от ИИ
+        mode: Режим ('calendar', 'geopolitical', 'crypto_news', 'dialogue')
+        
+    Returns:
+        Обрезанный (или полный) ответ, не превышающий лимит символов
+        
+    Примеры:
+        - Calendar: до 3500 символов (детальный анализ)
+        - Geopolitical: до 3000 символов (развернутый)
+        - Crypto: до 3000 символов (развернутый)
+        - Dialogue: до 2500 символов (сбалансированный)
+    """
+    max_chars = MAX_OUTPUT_CHARS.get(mode, MAX_OUTPUT_CHARS["dialogue"])
+    
+    if len(response) <= max_chars:
+        # Ответ уже в лимитах
+        logger.debug(f"✅ Response within limit for mode '{mode}': {len(response)}/{max_chars} chars")
+        return response
+    
+    # Обрезаем ответ
+    trimmed = response[:max_chars]
+    
+    # Пытаемся обрезать по последней полной строке чтобы не разбить текст
+    if len(response) > max_chars:
+        # Ищем последний перевод строки перед лимитом
+        last_newline = trimmed.rfind('\n')
+        if last_newline > max_chars * 0.8:  # Если разрыв не слишком близко к концу
+            trimmed = trimmed[:last_newline]
+        else:
+            # Ищем последний период для красивого завершения
+            last_period = trimmed.rfind('.')
+            if last_period > max_chars * 0.85:  # Если период не слишком близко к концу
+                trimmed = trimmed[:last_period + 1]
+    
+    logger.warning(f"⚠️ Response trimmed for mode '{mode}': {len(response)} → {len(trimmed)}/{max_chars} chars")
+    
+    return trimmed
 
 # ==================== RATE LIMITING v0.25 (БЕЗОПАСНОСТЬ) ====================
 
@@ -782,6 +837,9 @@ def get_ai_response_sync(
                             # ✅ Проверяем и удаляем галлюцинации
                             ai_response = clean_hallucinations(ai_response)
                             
+                            # ✅ v0.31: Динамическое обрезание ответа по лимиту режима
+                            ai_response = trim_response_to_limit(ai_response, ai_mode)
+                            
                             update_metrics("groq", True, provider_time)
                             logger.info(f"✅ Groq OK ({len(ai_response)} символов, {provider_time:.2f}s)")
                             return ai_response
@@ -842,6 +900,9 @@ def get_ai_response_sync(
                             # ✅ Проверяем и удаляем галлюцинации
                             ai_response = clean_hallucinations(ai_response)
                             
+                            # ✅ v0.31: Динамическое обрезание ответа по лимиту режима
+                            ai_response = trim_response_to_limit(ai_response, ai_mode)
+                            
                             update_metrics("mistral", True, provider_time)
                             logger.info(f"✅ Mistral OK ({len(ai_response)} символов, {provider_time:.2f}s)")
                             return ai_response
@@ -899,6 +960,9 @@ def get_ai_response_sync(
                         if ai_response:
                             # ✅ Проверяем и удаляем галлюцинации
                             ai_response = clean_hallucinations(ai_response)
+                            
+                            # ✅ v0.31: Динамическое обрезание ответа по лимиту режима
+                            ai_response = trim_response_to_limit(ai_response, ai_mode)
                             
                             update_metrics("gemini", True, provider_time)
                             logger.info(f"✅ Gemini OK ({len(ai_response)} символов, {provider_time:.2f}s)")
