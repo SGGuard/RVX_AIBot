@@ -53,6 +53,52 @@ GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
 TIMEOUT = float(os.getenv("GEMINI_TIMEOUT", "15.0"))
 
+# ==================== ПАРАМЕТРЫ ИИ v0.31 ====================
+
+# Базовые параметры для всех режимов
+BASE_MAX_TOKENS = 2000
+BASE_TEMPERATURE = 0.4
+BASE_TOP_P = 0.9
+
+# Специальные параметры для разных режимов
+AI_MODE_PARAMS = {
+    "calendar": {
+        "max_tokens": 3000,      # Больше для детального анализа календаря
+        "temperature": 0.35,     # Чуть ниже для точности
+        "top_p": 0.85
+    },
+    "geopolitical": {
+        "max_tokens": 2500,      # Чуть больше для анализа
+        "temperature": 0.4,
+        "top_p": 0.9
+    },
+    "crypto_news": {
+        "max_tokens": 2500,
+        "temperature": 0.4,
+        "top_p": 0.9
+    },
+    "dialogue": {
+        "max_tokens": 2000,
+        "temperature": 0.4,
+        "top_p": 0.9
+    }
+}
+
+
+def get_ai_params(mode: str = "dialogue") -> Dict[str, float]:
+    """
+    Получить параметры для ИИ в зависимости от режима.
+    
+    Args:
+        mode: Режим ('calendar', 'geopolitical', 'crypto_news', 'dialogue')
+        
+    Returns:
+        Dict с параметрами: max_tokens, temperature, top_p
+    """
+    params = AI_MODE_PARAMS.get(mode, AI_MODE_PARAMS["dialogue"])
+    logger.debug(f"🎯 AI params for mode '{mode}': max_tokens={params['max_tokens']}, temp={params['temperature']}, top_p={params['top_p']}")
+    return params
+
 # ==================== RATE LIMITING v0.25 (БЕЗОПАСНОСТЬ) ====================
 
 # Конфиг rate limiting
@@ -650,29 +696,42 @@ def get_ai_response_sync(
     # Формируем промпт - ИСПОЛЬЗУЕТ ПРАВИЛЬНЫЙ промпт с полным контекстом
     context_str = build_context_for_prompt(context_history)
     
+    # ✅ v0.31: Выбор режима и получение параметров ИИ
+    ai_mode = "dialogue"  # Default режим
+    
     # ✅ v0.31: РЕЖИМ ОБРАБОТКИ ЭКОНОМИЧЕСКОГО КАЛЕНДАРЯ - первый приоритет
     if CALENDAR_PROCESSOR_AVAILABLE and detect_calendar_input(user_message):
         system_prompt = build_calendar_processing_prompt()
+        ai_mode = "calendar"
         logger.info(f"📅 Using CALENDAR PROCESSING prompt - detected economic calendar")
         logger.debug(f"   Calendar processor enabled: {CALENDAR_PROCESSOR_AVAILABLE}")
         logger.debug(f"   Calendar prompt length: {len(system_prompt)} chars")
     # ✅ v0.30: Choose right prompt based on message context
     elif message_context and message_context.get("is_geopolitical"):
         system_prompt = build_geopolitical_analysis_prompt()
+        ai_mode = "geopolitical"
         logger.info(f"🌍 Using GEOPOLITICAL prompt for question type: {message_context.get('type')}")
         logger.info(f"   Message context: {message_context}")
         logger.debug(f"   Geopolitical prompt length: {len(system_prompt)} chars")
     elif message_context and message_context.get("needs_crypto_analysis") and message_context.get("type", "").startswith("crypto"):
         # Для крипто-новостей используем специальный промпт анализа
         system_prompt = build_crypto_news_analysis_prompt()
+        ai_mode = "crypto_news"
         logger.info(f"📊 Using CRYPTO NEWS ANALYSIS prompt for question type: {message_context.get('type')}")
         logger.info(f"   Message context: {message_context}")
         logger.debug(f"   Crypto prompt length: {len(system_prompt)} chars")
     else:
         system_prompt = build_dialogue_system_prompt()  # ✅ FIXED: Using correct full prompt instead of short version
+        ai_mode = "dialogue"
         logger.info(f"💬 Using DIALOGUE prompt")
         if message_context:
             logger.debug(f"   Message context: {message_context}")
+    
+    # ✅ v0.31: Получаем параметры для текущего режима
+    ai_params = get_ai_params(ai_mode)
+    max_tokens = ai_params["max_tokens"]
+    temperature = ai_params["temperature"]
+    top_p = ai_params["top_p"]
     
     # ✅ DEBUG: Логируем что попадает в контекст
     if context_history:
@@ -705,9 +764,9 @@ def get_ai_response_sync(
                             {"role": "system", "content": system_prompt},
                             {"role": "user", "content": f"{context_str}Пользователь: {user_message}"}
                         ],
-                        "temperature": 0.4,
-                        "max_tokens": 2000,
-                        "top_p": 0.9
+                        "temperature": temperature,
+                        "max_tokens": max_tokens,
+                        "top_p": top_p
                     },
                     timeout=timeout
                 )
@@ -765,9 +824,9 @@ def get_ai_response_sync(
                             {"role": "system", "content": system_prompt},
                             {"role": "user", "content": f"{context_str}Пользователь: {user_message}"}
                         ],
-                        "temperature": 0.4,
-                        "max_tokens": 2000,
-                        "top_p": 0.9
+                        "temperature": temperature,
+                        "max_tokens": max_tokens,
+                        "top_p": top_p
                     },
                     timeout=timeout
                 )
@@ -821,9 +880,9 @@ def get_ai_response_sync(
                             }]
                         }],
                         "generationConfig": {
-                            "temperature": 0.7,
-                            "maxOutputTokens": 200,
-                            "topP": 0.95
+                            "temperature": temperature,
+                            "maxOutputTokens": int(max_tokens * 0.1),  # Gemini имеет более строгий лимит
+                            "topP": top_p
                         }
                     },
                     timeout=timeout
