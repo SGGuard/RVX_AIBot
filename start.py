@@ -6,57 +6,42 @@ This is the entry point for Railway deployment.
 import subprocess
 import sys
 import time
+import threading
 from pathlib import Path
 
-def run_services():
-    """Start both API server and bot."""
-    
-    # Ensure we're in the app directory
-    app_dir = Path(__file__).parent
-    
-    print("=" * 60)
-    print("🚀 RVX Backend - Starting Both Services")
-    print("=" * 60)
-    
-    # Start API server in background
-    print("\n📡 Starting API Server...")
-    api_process = subprocess.Popen(
-        [sys.executable, "api_server.py"],
-        cwd=app_dir,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1
-    )
-    
-    # Give API a moment to start
-    time.sleep(2)
-    
-    print("🤖 Starting Telegram Bot...")
-    # Start bot in foreground
-    bot_process = subprocess.Popen(
-        [sys.executable, "bot.py"],
-        cwd=app_dir,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1
-    )
-    
-    print("✅ Both services started!")
-    print("\n" + "=" * 60)
-    
+def run_api():
+    """Run API server in a thread."""
+    print("📡 Starting API Server on port 8000...")
     try:
-        # Wait for bot (foreground process)
-        bot_process.wait()
-    except KeyboardInterrupt:
-        print("\n⏹️  Shutting down services...")
-        bot_process.terminate()
-        api_process.terminate()
-        time.sleep(1)
-        bot_process.kill()
-        api_process.kill()
-        sys.exit(0)
+        subprocess.run([sys.executable, "api_server.py"], check=True)
+    except Exception as e:
+        print(f"❌ API Server error: {e}")
+
+def run_bot():
+    """Run Telegram bot in main thread."""
+    print("🤖 Starting Telegram Bot...")
+    try:
+        subprocess.run([sys.executable, "bot.py"], check=True)
+    except Exception as e:
+        print(f"❌ Bot error: {e}")
 
 if __name__ == "__main__":
-    run_services()
+    print("=" * 70)
+    print("🚀 RVX Backend - Starting Both Services in Single Container")
+    print("=" * 70)
+    
+    # Start API in background thread
+    api_thread = threading.Thread(target=run_api, daemon=False)
+    api_thread.start()
+    
+    # Give API time to start
+    print("⏳ Waiting for API to initialize...")
+    time.sleep(3)
+    
+    # Start Bot in main thread (blocking)
+    try:
+        run_bot()
+    except KeyboardInterrupt:
+        print("\n⏹️  Shutting down services...")
+        sys.exit(0)
+

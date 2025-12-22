@@ -204,24 +204,34 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 # Определяем API URL - с поддержкой Railway environment
-# Priority: env variable > Railway public URL > localhost fallback
-_api_url_env = os.getenv("API_URL_NEWS")
-if _api_url_env:
-    API_URL_NEWS = _api_url_env
+# Priority: Try localhost first (single-container) > env variables > external URLs
+_is_localhost_available = os.getenv("RAILWAY_ENVIRONMENT") or os.path.exists("/app/api_server.py")
+
+if _is_localhost_available:
+    # Single-container deployment - API runs on localhost:8000
+    API_URL_NEWS = "http://localhost:8000/explain_news"
+    logger_init_source = "localhost (single-container)"
 else:
-    # Try API_URL (Railway public service URL or external API)
-    _api_url = os.getenv("API_URL")
-    if _api_url:
-        API_URL_NEWS = _api_url.rstrip('/') + "/explain_news"
-    elif _api_base_url := os.getenv("API_BASE_URL"):
-        API_URL_NEWS = _api_base_url.rstrip('/') + "/explain_news"
+    # Multi-container or external API
+    _api_url_env = os.getenv("API_URL_NEWS")
+    if _api_url_env:
+        API_URL_NEWS = _api_url_env
+        logger_init_source = "API_URL_NEWS env var"
     else:
-        # Default: localhost (works for both local dev and Railway single-container deployment)
-        # Railway API server runs on port 8000 by default
-        API_URL_NEWS = "http://localhost:8000/explain_news"
+        _api_url = os.getenv("API_URL")
+        if _api_url:
+            API_URL_NEWS = _api_url.rstrip('/') + "/explain_news"
+            logger_init_source = "API_URL env var"
+        elif _api_base_url := os.getenv("API_BASE_URL"):
+            API_URL_NEWS = _api_base_url.rstrip('/') + "/explain_news"
+            logger_init_source = "API_BASE_URL env var"
+        else:
+            # Default fallback
+            API_URL_NEWS = "http://localhost:8000/explain_news"
+            logger_init_source = "default localhost"
 
 logger_init = logging.getLogger("config_loader")
-logger_init.info(f"🔗 API_URL_NEWS configured: {API_URL_NEWS}")
+logger_init.info(f"🔗 API_URL_NEWS configured: {API_URL_NEWS} (source: {logger_init_source})")
 
 BOT_API_KEY = os.getenv("BOT_API_KEY", "")  # ✅ API key for authentication
 MAX_INPUT_LENGTH = int(os.getenv("MAX_INPUT_LENGTH", "4096"))
