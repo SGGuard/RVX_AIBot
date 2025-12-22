@@ -30,7 +30,7 @@ else:
     load_dotenv(verbose=True)
 
 # AI Providers
-from openai import OpenAI, AsyncOpenAI
+from openai import OpenAI
 from google import genai
 
 logger = logging.getLogger("EmbeddedAnalyzer")
@@ -180,14 +180,12 @@ async def analyze_with_groq(text: str) -> Optional[Dict[str, Any]]:
         return None
     
     try:
-        client = AsyncOpenAI(
-            api_key=GROQ_API_KEY,
-            base_url="https://api.groq.com/openai/v1",
-            timeout=GROQ_TIMEOUT
-        )
-        
-        response = await asyncio.wait_for(
-            client.chat.completions.create(
+        def call_groq():
+            client = OpenAI(
+                api_key=GROQ_API_KEY,
+                base_url="https://api.groq.com/openai/v1"
+            )
+            return client.chat.completions.create(
                 model=GROQ_MODEL,
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
@@ -195,7 +193,10 @@ async def analyze_with_groq(text: str) -> Optional[Dict[str, Any]]:
                 ],
                 temperature=0.3,
                 max_tokens=1000,
-            ),
+            )
+        
+        response = await asyncio.wait_for(
+            asyncio.to_thread(call_groq),
             timeout=GROQ_TIMEOUT
         )
         
@@ -224,14 +225,12 @@ async def analyze_with_mistral(text: str) -> Optional[Dict[str, Any]]:
         return None
     
     try:
-        client = AsyncOpenAI(
-            api_key=MISTRAL_API_KEY,
-            base_url="https://api.mistral.ai/v1",
-            timeout=MISTRAL_TIMEOUT
-        )
-        
-        response = await asyncio.wait_for(
-            client.chat.completions.create(
+        def call_mistral():
+            client = OpenAI(
+                api_key=MISTRAL_API_KEY,
+                base_url="https://api.mistral.ai/v1"
+            )
+            return client.chat.completions.create(
                 model=MISTRAL_MODEL,
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
@@ -239,7 +238,10 @@ async def analyze_with_mistral(text: str) -> Optional[Dict[str, Any]]:
                 ],
                 temperature=0.3,
                 max_tokens=1000,
-            ),
+            )
+        
+        response = await asyncio.wait_for(
+            asyncio.to_thread(call_mistral),
             timeout=MISTRAL_TIMEOUT
         )
         
@@ -314,14 +316,12 @@ async def analyze_with_deepseek(text: str) -> Optional[Dict[str, Any]]:
         return None
     
     try:
-        client = AsyncOpenAI(
-            api_key=DEEPSEEK_API_KEY,
-            base_url="https://api.deepseek.com/beta",
-            timeout=10
-        )
-        
-        response = await asyncio.wait_for(
-            client.chat.completions.create(
+        def call_deepseek():
+            client = OpenAI(
+                api_key=DEEPSEEK_API_KEY,
+                base_url="https://api.deepseek.com/beta"
+            )
+            return client.chat.completions.create(
                 model=DEEPSEEK_MODEL,
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
@@ -329,7 +329,10 @@ async def analyze_with_deepseek(text: str) -> Optional[Dict[str, Any]]:
                 ],
                 temperature=0.3,
                 max_tokens=1000,
-            ),
+            )
+        
+        response = await asyncio.wait_for(
+            asyncio.to_thread(call_deepseek),
             timeout=DEEPSEEK_TIMEOUT
         )
         
