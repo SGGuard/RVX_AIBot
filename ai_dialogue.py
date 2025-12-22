@@ -21,6 +21,15 @@ from datetime import datetime
 from collections import defaultdict
 from threading import Lock
 
+# ✅ Calendar processing mode v1.0
+try:
+    from calendar_processor import detect_calendar_input, build_calendar_processing_prompt
+    CALENDAR_PROCESSOR_AVAILABLE = True
+except ImportError:
+    CALENDAR_PROCESSOR_AVAILABLE = False
+    def detect_calendar_input(msg: str) -> bool: return False
+    def build_calendar_processing_prompt() -> str: return ""
+
 load_dotenv()
 
 logger = logging.getLogger(__name__)
@@ -641,8 +650,14 @@ def get_ai_response_sync(
     # Формируем промпт - ИСПОЛЬЗУЕТ ПРАВИЛЬНЫЙ промпт с полным контекстом
     context_str = build_context_for_prompt(context_history)
     
+    # ✅ v0.31: РЕЖИМ ОБРАБОТКИ ЭКОНОМИЧЕСКОГО КАЛЕНДАРЯ - первый приоритет
+    if CALENDAR_PROCESSOR_AVAILABLE and detect_calendar_input(user_message):
+        system_prompt = build_calendar_processing_prompt()
+        logger.info(f"📅 Using CALENDAR PROCESSING prompt - detected economic calendar")
+        logger.debug(f"   Calendar processor enabled: {CALENDAR_PROCESSOR_AVAILABLE}")
+        logger.debug(f"   Calendar prompt length: {len(system_prompt)} chars")
     # ✅ v0.30: Choose right prompt based on message context
-    if message_context and message_context.get("is_geopolitical"):
+    elif message_context and message_context.get("is_geopolitical"):
         system_prompt = build_geopolitical_analysis_prompt()
         logger.info(f"🌍 Using GEOPOLITICAL prompt for question type: {message_context.get('type')}")
         logger.info(f"   Message context: {message_context}")
