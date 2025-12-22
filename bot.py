@@ -209,17 +209,15 @@ _api_url_env = os.getenv("API_URL_NEWS")
 if _api_url_env:
     API_URL_NEWS = _api_url_env
 else:
-    # Try API_URL (Railway public service URL)
+    # Try API_URL (Railway public service URL or external API)
     _api_url = os.getenv("API_URL")
     if _api_url:
         API_URL_NEWS = _api_url.rstrip('/') + "/explain_news"
     elif _api_base_url := os.getenv("API_BASE_URL"):
         API_URL_NEWS = _api_base_url.rstrip('/') + "/explain_news"
-    elif os.getenv("RAILWAY_ENVIRONMENT"):
-        # Fallback: On Railway, try localhost (assumes same network)
-        API_URL_NEWS = "http://localhost:8080/explain_news"
     else:
-        # Local development
+        # Default: localhost (works for both local dev and Railway single-container deployment)
+        # Railway API server runs on port 8000 by default
         API_URL_NEWS = "http://localhost:8000/explain_news"
 
 logger_init = logging.getLogger("config_loader")
