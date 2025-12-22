@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Start both API server and Telegram bot simultaneously.
+Start Telegram bot and optionally API server.
 This is the entry point for Railway deployment.
+Supports both single-container (with API) and multi-container (Bot only) deployments.
 """
 import subprocess
 import sys
@@ -27,16 +28,24 @@ def run_bot():
 
 if __name__ == "__main__":
     print("=" * 70)
-    print("🚀 RVX Backend - Starting Both Services in Single Container")
+    print("🚀 RVX Backend - Starting Services")
     print("=" * 70)
     
-    # Start API in background thread
-    api_thread = threading.Thread(target=run_api, daemon=False)
-    api_thread.start()
+    # Check if api_server.py exists (single-container deployment)
+    api_exists = Path("/app/api_server.py").exists()
     
-    # Give API time to start
-    print("⏳ Waiting for API to initialize...")
-    time.sleep(3)
+    if api_exists:
+        print("✅ Single-container deployment detected (API + Bot)")
+        
+        # Start API in background thread
+        api_thread = threading.Thread(target=run_api, daemon=False)
+        api_thread.start()
+        
+        # Give API time to start
+        print("⏳ Waiting for API to initialize...")
+        time.sleep(3)
+    else:
+        print("✅ Multi-container deployment detected (Bot only, API in separate service)")
     
     # Start Bot in main thread (blocking)
     try:
