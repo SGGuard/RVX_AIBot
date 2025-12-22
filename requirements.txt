@@ -21,7 +21,7 @@ groq==0.9.0
 mistralai==0.4.2
 
 # DeepSeek AI (OpenAI compatible)
-openai==1.52.0
+openai==2.14.0
 
 # HTTP & Networking
 httpx==0.28.1
