@@ -113,6 +113,10 @@ from event_tracker import (
     get_tracker, create_event, EventType, get_analytics
 )
 
+# ✅ v1.0: Embedded News Analyzer - встроенный анализ без API
+# ============================================================================
+from embedded_news_analyzer import analyze_news
+
 # ✅ v0.25.0: Admin Dashboard
 from admin_dashboard import get_admin_dashboard
 
@@ -4116,116 +4120,50 @@ def validate_api_response(api_response: dict) -> Optional[str]:
         return None
 async def call_api_with_retry(news_text: str, user_id: Optional[int] = None) -> Tuple[Optional[str], Optional[float], Optional[str]]:
     """
-    Вызывает API с повторными попытками с экспоненциальной задержкой.
-    Включает контекст знаний пользователя в запрос если доступен.
-    Возвращает (response_text, processing_time_ms, error_message)
+    🆕 v1.0: Встроенный анализатор новостей (без внешней API).
+    Решает проблему 502 Bad Gateway на Railway.
+    
+    Анализирует новости с multi-provider fallback chain:
+    1. Groq (быстро)
+    2. Mistral (первый fallback)
+    3. DeepSeek (альтернатива)
+    4. Gemini (последний fallback)
+    
+    Returns:
+        (response_text, processing_time_ms, error_message)
     """
-    start_time = datetime.now()
-    last_error = None
-    
-    # Подготавливаем контент для отправки
-    request_payload = {"text_content": news_text}
-    
-    # Добавляем контекст пользователя если доступен
-    user_context = None
-    if user_id:
+    try:
+        logger.info(f"📰 Встроенный анализ новостей ({len(news_text)} символов)")
+        
+        # Используем встроенный анализатор
+        result = await analyze_news(news_text, user_id=user_id or 0)
+        
+        simplified_text = result.get("simplified_text", "")
+        processing_time = result.get("processing_time_ms", 0)
+        provider = result.get("provider", "unknown")
+        
+        if not simplified_text:
+            logger.error("❌ Анализатор вернул пустой результат")
+            return None, processing_time, "Пустой результат анализа"
+        
+        logger.info(f"✅ Анализ завершен за {processing_time}ms ({provider})")
+        
+        # Инкрементируем счетчик запросов
         try:
-            with get_db() as conn:
-                cursor = conn.cursor()
-                # Получаем уровень знаний пользователя
-                cursor.execute("SELECT knowledge_level FROM users WHERE user_id = ?", (user_id,))
-                row = cursor.fetchone()
-                user_level = row[0] if row else "beginner"
-                
-                # Получаем краткий прогресс
-                progress = get_user_course_summary(cursor, user_id)
-                
-                user_context = {
-                    "knowledge_level": user_level,
-                    "course_progress": progress
-                }
-                
-                request_payload["user_context"] = user_context
-                logger.info(f"📚 Добавлен контекст пользователя {user_id}: уровень={user_level}")
+            if user_id:
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    increment_daily_requests(cursor, user_id)
+                    conn.commit()
         except Exception as e:
-            logger.warning(f"⚠️ Не удалось получить контекст пользователя: {e}")
-    
-    for attempt in range(1, API_RETRY_ATTEMPTS + 1):
-        try:
-            logger.info(f"🔄 API попытка {attempt}/{API_RETRY_ATTEMPTS}")
-            
-            async with httpx.AsyncClient(timeout=API_TIMEOUT) as client:
-                # ✅ Add Bearer token for API authentication
-                headers = {
-                    "X-User-ID": str(user_id),
-                }
-                if BOT_API_KEY:
-                    headers["Authorization"] = f"Bearer {BOT_API_KEY}"
-                
-                response = await client.post(
-                    API_URL_NEWS,
-                    json=request_payload,
-                    headers=headers
-                )
-                response.raise_for_status()
-                api_response = response.json()
-                
-                simplified_text = validate_api_response(api_response)
-                
-                if not simplified_text:
-                    raise ValueError("Невалидный ответ от API")
-                
-                processing_time = (datetime.now() - start_time).total_seconds() * 1000
-                logger.info(f"✅ API успех за {processing_time:.0f}ms (попытка {attempt})")
-                
-                # NEW v0.14.0: Инкрементируем счетчик запросов
-                try:
-                    with get_db() as conn:
-                        cursor = conn.cursor()
-                        increment_daily_requests(cursor, user_id)
-                        conn.commit()
-                except Exception as e:
-                    logger.warning(f"⚠️ Ошибка при обновлении счетчика запросов: {e}")
-                
-                return simplified_text, processing_time, None
+            logger.warning(f"⚠️ Ошибка при обновлении счетчика запросов: {e}")
         
-        except httpx.TimeoutException as e:
-            last_error = f"Таймаут ({API_TIMEOUT}s)"
-            logger.warning(f"⏱️ Таймаут на попытке {attempt}: {e}")
+        return simplified_text, processing_time, None
         
-        except httpx.ConnectError as e:
-            last_error = "Ошибка подключения"
-            logger.warning(f"🔗 Ошибка подключения на попытке {attempt}: {e}")
-        
-        except httpx.HTTPStatusError as e:
-            last_error = f"HTTP {e.response.status_code}"
-            
-            if e.response.status_code == 401:  # Unauthorized - API key issue
-                logger.error(f"🔐 Ошибка аутентификации на попытке {attempt}: возможно, неправильный API key")
-                last_error = "Ошибка аутентификации API"
-                # Don't retry on auth error - break early
-                break
-            elif e.response.status_code == 429:  # Too many requests
-                logger.warning(f"⛔ Rate limit на попытке {attempt}: {e}")
-                last_error = "Rate limit от API"
-            else:
-                logger.error(f"❌ HTTP ошибка на попытке {attempt}: {e}")
-        
-        except Exception as e:
-            last_error = str(e)[:100]  # Ограничиваем длину
-            logger.error(f"❌ Ошибка на попытке {attempt}: {e}")
-        
-        # Ждем перед следующей попыткой (кроме последней)
-        if attempt < API_RETRY_ATTEMPTS:
-            wait_time = API_RETRY_DELAY * (2 ** (attempt - 1))  # Экспоненциальная задержка
-            logger.debug(f"⏳ Ожидание {wait_time:.1f}сек перед следующей попыткой...")
-            await asyncio.sleep(wait_time)
-    
-    # Все попытки исчерпаны
-    processing_time = (datetime.now() - start_time).total_seconds() * 1000
-    logger.error(f"❌ Все {API_RETRY_ATTEMPTS} попытки провалены. Последняя ошибка: {last_error}")
-    
-    return None, processing_time, last_error
+    except Exception as e:
+        error_msg = str(e)[:100]
+        logger.error(f"❌ Ошибка встроенного анализатора: {error_msg}")
+        return None, 0, error_msg
 
 # =============================================================================
 # ДЕКОРАТОРЫ
