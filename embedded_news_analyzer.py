@@ -41,7 +41,7 @@ logger = logging.getLogger("EmbeddedAnalyzer")
 
 # Groq Configuration (Primary)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "mixtral-8x7b-32768")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 GROQ_TIMEOUT = int(os.getenv("GROQ_TIMEOUT", "5"))
 
 # Mistral Configuration (First Fallback)
@@ -270,24 +270,27 @@ async def analyze_with_gemini(text: str) -> Optional[Dict[str, Any]]:
         return None
     
     try:
-        # Configure Gemini - use the correct API
-        if hasattr(genai, 'configure'):
-            genai.configure(api_key=GEMINI_API_KEY)
-        
-        model = genai.GenerativeModel(
-            model_name=GEMINI_MODEL,
-            generation_config={
-                "temperature": 0.3,
-                "max_output_tokens": 1000,
-            }
-        )
-        
-        # Prepare full prompt
-        full_prompt = f"{SYSTEM_PROMPT}\n\n{text}"
+        def call_gemini():
+            # Use new google.genai Client API
+            client = genai.Client(api_key=GEMINI_API_KEY)
+            
+            # Prepare full prompt
+            full_prompt = f"{SYSTEM_PROMPT}\n\n{text}"
+            
+            # Call the API
+            response = client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=full_prompt,
+                config={
+                    "temperature": 0.3,
+                    "max_output_tokens": 1000,
+                }
+            )
+            return response
         
         # Use sync API with timeout
         response = await asyncio.wait_for(
-            asyncio.to_thread(model.generate_content, full_prompt),
+            asyncio.to_thread(call_gemini),
             timeout=GEMINI_TIMEOUT
         )
         
