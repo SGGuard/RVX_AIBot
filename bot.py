@@ -10078,22 +10078,33 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         logger.error(f"❌ Parsing error: {e}")
         return
     
-    # ✅ v0.32.0: Автоматическая проверка пропаганды и манипуляций
+    # ✅ v0.32.0: Проверка пропаганды с ВЫСОКОЙ уверенностью
+    # НЕ блокируем сообщение, только предупреждаем если очень подозрительно (> 70%)
     propaganda_check = quick_propaganda_check(user_text)
-    if propaganda_check[0]:  # Если обнаружена манипуляция
-        logger.warning(f"⚠️ Пропаганда обнаружена от {user.id}: {propaganda_check[1]}")
-        # Отправляем предупреждение
-        try:
-            analysis = analyze_propaganda(user_text)
-            if analysis:
+    high_confidence_propaganda = False
+    
+    if propaganda_check[0]:  # Если обнаружена потенциальная манипуляция
+        analysis = analyze_propaganda(user_text)
+        if analysis:
+            confidence = analysis.get("confidence", 0)
+            
+            # ТОЛЬКО если уверенность > 70% считаем это серьезной манипуляцией
+            if confidence > 0.7:
+                high_confidence_propaganda = True
+                logger.warning(f"⚠️ ВЫСОКАЯ УВЕРЕННОСТЬ пропаганда от {user.id}: {confidence*100:.0f}%")
+                
+                # Показываем предупреждение но ПРОДОЛЖАЕМ обработку
                 warning_msg = format_propaganda_analysis(analysis)
-                await update.message.reply_text(
-                    warning_msg,
-                    parse_mode=ParseMode.HTML
-                )
-                return  # Не обрабатываем дальше сообщения с манипуляцией
-        except Exception as e:
-            logger.debug(f"Ошибка при проверке пропаганды: {e}")
+                try:
+                    await update.message.reply_text(
+                        warning_msg,
+                        parse_mode=ParseMode.HTML
+                    )
+                except Exception as e:
+                    logger.debug(f"Ошибка при отправке предупреждения: {e}")
+            else:
+                # Низкая уверенность - просто логируем, не показываем
+                logger.debug(f"ℹ️ Низкая уверенность пропаганда от {user.id}: {confidence*100:.0f}%")
     
     # ✅ v0.25.0: Track user_analyze event
     tracker = get_tracker()
