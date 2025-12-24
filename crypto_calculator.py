@@ -303,6 +303,55 @@ def get_calculator_menu_text() -> str:
         "• Разбор по категориям (unlocked vs vesting)\n\n"
         "Нажми на токен чтобы начать расчет:"
     )
+def get_price_table(token_symbol: str) -> str:
+    """
+    Получить таблицу цен для токена с рекомендуемыми ценовыми уровнями
+    
+    Args:
+        token_symbol: Символ токена
+        
+    Returns:
+        HTML-отформатированная таблица цен
+    """
+    try:
+        token_data = get_token_stats(token_symbol)
+        if not token_data:
+            return "❌ Токен не найден"
+        
+        # Рекомендуемые ценовые уровни
+        price_points = [0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]
+        
+        # Фильтруем цены которые имеют смысл (убираем слишком большие)
+        filtered_prices = [p for p in price_points if p <= 100000]
+        
+        # Строим таблицу
+        table_lines = [
+            f"{token_data['emoji']} <b>{token_data['name']} ({token_data['symbol']}) - Таблица цен</b>\n",
+            "═" * 50
+        ]
+        
+        table_lines.append("\n<code>Цена       │ Market Cap  │ Cap (Unlocked)</code>")
+        table_lines.append("<code>" + "─" * 50 + "</code>")
+        
+        for price in filtered_prices:
+            mc_total, mc_str = calculate_market_cap(token_data['total_supply'], price)
+            unlocked_mc = token_data['unlocked'] * price
+            unlocked_str = format_market_cap(unlocked_mc)
+            
+            price_str = format_price(price)
+            # Форматируем для выравнивания в таблице
+            table_lines.append(f"<code>{price_str:>10} │ {mc_str:>11} │ {unlocked_str:>13}</code>")
+        
+        table_lines.append("<code>" + "─" * 50 + "</code>")
+        
+        table_lines.append(f"\n💡 <i>Таблица показывает Market Cap при различных ценах</i>")
+        table_lines.append(f"📊 <i>Total Supply: {format_number(token_data['total_supply'])}</i>")
+        
+        return "\n".join(table_lines)
+    
+    except Exception as e:
+        logger.error(f"❌ Ошибка в get_price_table: token_symbol={token_symbol}, error={str(e)}", exc_info=True)
+        return f"❌ Ошибка при загрузке таблицы цен для {token_symbol}. Попробуйте позже."
 
 
 # Test функции (для проверки)
