@@ -183,6 +183,12 @@ from propaganda_detector import (
     get_propaganda_tips, quick_propaganda_check
 )
 
+# ✅ v0.33.0: Crypto Calculator - калькулятор для расчета market cap
+from crypto_calculator import (
+    get_token_stats, get_token_list, format_calculator_result,
+    validate_price, get_calculator_menu_text, CRYPTO_TOKENS, format_number
+)
+
 # Новый модуль для умного общения (v0.20.0)
 from ai_intelligence import (
     analyze_user_knowledge_level, get_adaptive_greeting, get_contextual_tips,
@@ -6761,6 +6767,79 @@ async def _launch_teaching_lesson(update: Update, context: ContextTypes.DEFAULT_
                 await update.message.reply_text("❌ Ошибка при создании урока.")
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# CRYPTO CALCULATOR COMMAND (v0.33.0)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@log_command
+async def calculator_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """🧮 Крипто-калькулятор для расчета market cap (v0.33.0)
+    
+    Функции:
+    - Выбор различных токенов
+    - Расчет market cap при заданной цене
+    - Анализ diluted vs actual
+    - Поддержка GNK, HEX, BTC, ETH и других токенов
+    """
+    user_id = update.effective_user.id
+    
+    # Таймер для отслеживания использования
+    start_time = time.time()
+    
+    logger.info(f"🧮 Калькулятор открыт пользователем {user_id}")
+    
+    # Получаем список доступных токенов
+    tokens = get_token_list()
+    
+    # Создаем кнопки для выбора токена
+    keyboard = []
+    for i in range(0, len(tokens), 2):
+        row = []
+        
+        # Первый токен в строке
+        token1 = tokens[i].upper()
+        token_data1 = get_token_stats(token1)
+        if token_data1:
+            row.append(InlineKeyboardButton(
+                f"{token_data1['emoji']} {token_data1['symbol']}",
+                callback_data=f"calc_token_{token1.lower()}"
+            ))
+        
+        # Второй токен в строке (если есть)
+        if i + 1 < len(tokens):
+            token2 = tokens[i + 1].upper()
+            token_data2 = get_token_stats(token2)
+            if token_data2:
+                row.append(InlineKeyboardButton(
+                    f"{token_data2['emoji']} {token_data2['symbol']}",
+                    callback_data=f"calc_token_{token2.lower()}"
+                ))
+        
+        if row:
+            keyboard.append(row)
+    
+    # Добавляем кнопку "Назад"
+    keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")])
+    
+    # Показываем меню калькулятора
+    try:
+        await update.message.reply_text(
+            get_calculator_menu_text(),
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        
+        elapsed = time.time() - start_time
+        logger.info(f"✅ Меню калькулятора показано за {elapsed:.2f}с")
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка при показе меню калькулятора: {e}")
+        await update.message.reply_text(
+            "❌ Ошибка при открытии калькулятора. Попробуйте позже.",
+            parse_mode=ParseMode.HTML
+        )
+
+
 @log_command
 async def teach_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """🎓 Интерактивный учитель с передовой системой обучения (v0.21.0)
@@ -8839,6 +8918,97 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             logger.error(f"Ошибка в teach_menu: {e}")
         return
     
+    # ============ CALCULATOR CALLBACKS (v0.33.0) ============
+    
+    # Выбор токена в калькуляторе
+    if data.startswith("calc_token_"):
+        token_symbol = data.replace("calc_token_", "").upper()
+        token_data = get_token_stats(token_symbol)
+        
+        if not token_data:
+            await query.answer("❌ Токен не найден", show_alert=True)
+            return
+        
+        # Сохраняем выбранный токен в контекст
+        context.user_data["selected_token"] = token_symbol
+        context.user_data["waiting_for_price"] = True
+        
+        logger.info(f"💰 Выбран токен {token_symbol} для {user.id}")
+        
+        # Показываем информацию о токене и просим цену
+        text = (
+            f"{token_data['emoji']} <b>{token_data['name']} ({token_data['symbol']}) Calculator</b>\n\n"
+            f"<b>📊 Параметры токена:</b>\n"
+            f"🔓 Разблокировано: {format_number(token_data['unlocked'])}\n"
+            f"🔒 В веститинге: {format_number(token_data['vesting'])}\n"
+            f"📈 Всего: {format_number(token_data['total_supply'])}\n\n"
+            f"<b>💰 Введи цену токена в долларах:</b>\n"
+            f"<i>Примеры: 0.001, 1.5, 100</i>"
+        )
+        
+        keyboard_calc = [
+            [InlineKeyboardButton("🪙 Другой токен", callback_data="calc_menu")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
+        ]
+        
+        try:
+            await query.edit_message_text(
+                text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup(keyboard_calc)
+            )
+        except:
+            await query.message.reply_text(
+                text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup(keyboard_calc)
+            )
+        return
+    
+    # Возврат к меню выбора токенов
+    if data == "calc_menu":
+        tokens = get_token_list()
+        keyboard = []
+        
+        for i in range(0, len(tokens), 2):
+            row = []
+            
+            token1 = tokens[i].upper()
+            token_data1 = get_token_stats(token1)
+            if token_data1:
+                row.append(InlineKeyboardButton(
+                    f"{token_data1['emoji']} {token_data1['symbol']}",
+                    callback_data=f"calc_token_{token1.lower()}"
+                ))
+            
+            if i + 1 < len(tokens):
+                token2 = tokens[i + 1].upper()
+                token_data2 = get_token_stats(token2)
+                if token_data2:
+                    row.append(InlineKeyboardButton(
+                        f"{token_data2['emoji']} {token_data2['symbol']}",
+                        callback_data=f"calc_token_{token2.lower()}"
+                    ))
+            
+            if row:
+                keyboard.append(row)
+        
+        keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")])
+        
+        try:
+            await query.edit_message_text(
+                get_calculator_menu_text(),
+                parse_mode=ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        except:
+            await query.message.reply_text(
+                get_calculator_menu_text(),
+                parse_mode=ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        return
+    
     # Выбор темы обучения
     if data.startswith("teach_topic_"):
         topic = data.replace("teach_topic_", "")
@@ -10200,6 +10370,47 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         logger.warning(f"⚠️ Empty message from user {user.id}")
         return
     
+    # ✅ v0.33.0: CALCULATOR PRICE INPUT HANDLER (проверяем ДО валидации основного текста)
+    if context.user_data.get("waiting_for_price"):
+        user_text = update.message.text.strip()
+        
+        # Валидируем цену
+        is_valid, price, error_msg = validate_price(user_text)
+        
+        if not is_valid:
+            await update.message.reply_text(error_msg)
+            return
+        
+        # Получаем выбранный токен
+        token_symbol = context.user_data.get("selected_token", "GNK").upper()
+        
+        # Генерируем результат расчета
+        calculator_result = format_calculator_result(token_symbol, price)
+        
+        # Кнопки для калькулятора
+        keyboard = [
+            [
+                InlineKeyboardButton("🔄 Другая цена", callback_data=f"calc_token_{token_symbol.lower()}"),
+                InlineKeyboardButton("🪙 Другой токен", callback_data="calc_menu")
+            ],
+            [
+                InlineKeyboardButton("📊 Таблица цен", callback_data=f"calc_price_table_{token_symbol.lower()}"),
+                InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")
+            ]
+        ]
+        
+        await update.message.reply_text(
+            calculator_result,
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        
+        # Очищаем флаг ожидания цены
+        context.user_data["waiting_for_price"] = False
+        
+        logger.info(f"✅ Расчет калькулятора для {user.id}: {token_symbol} @ {format_price(price)}")
+        return
+    
     # Валидация и санитизация входа
     is_valid, error_msg = validate_user_input(update.message.text)
     if not is_valid:
@@ -11334,6 +11545,7 @@ def main():
                 BotCommand("help", "❓ Помощь и инструкция"),
                 BotCommand("teach", "🎓 Интерактивный учитель"),
                 BotCommand("learn", "📚 Интерактивные курсы"),
+                BotCommand("calc", "🧮 Крипто калькулятор"),
                 BotCommand("drops", "📦 Свежие NFT дропы"),
                 BotCommand("activities", "🔥 Активности в проектах"),
                 BotCommand("trending", "📈 Вирусные токены"),
@@ -11475,6 +11687,9 @@ def main():
     # НОВАЯ КОМАНДА v0.32.0 - Детектирование пропаганды и манипуляций
     application.add_handler(CommandHandler("detect", detect_propaganda_command))
     application.add_handler(CommandHandler("tips", propaganda_tips_command))
+    
+    # ✅ НОВАЯ КОМАНДА v0.33.0 - Крипто калькулятор для расчета market cap
+    application.add_handler(CommandHandler("calc", calculator_command))
     
     # НОВАЯ КОМАНДА v0.12.0 - Динамические команды квестов (quest_what_is_dex, quest_what_is_staking и т.д.)
     quest_ids = list(DAILY_QUESTS.keys())
