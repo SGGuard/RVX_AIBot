@@ -9400,6 +9400,101 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         except Exception as e:
             logger.error(f"❌ Ошибка при получении информации: {e}", exc_info=True)
             await query.answer("❌ Ошибка при получении информации", show_alert=True)
+    
+    # ============ TELL MORE CALLBACK - Расширенный анализ новостей (v0.32.3) ============
+    
+    if data.startswith("tell_more_"):
+        try:
+            # Парсим callback_data: tell_more_{request_id}_{user_id}
+            parts_tell = data.replace("tell_more_", "").split("_")
+            request_id_str = parts_tell[0]
+            
+            # Попытаемся получить данные из контекста пользователя
+            last_analysis = context.user_data.get("last_news_analysis", "")
+            last_question = context.user_data.get("last_news_question", "")
+            last_original = context.user_data.get("last_news_original", "")
+            
+            if not last_analysis or not last_question:
+                logger.warning(f"⚠️ Контекст для tell_more не найден для {user.id}")
+                await query.answer("❌ Контекст анализа потерян. Отправьте новость заново.", show_alert=True)
+                return
+            
+            # Показываем статус "думаю"
+            await query.answer()  # Убираем loading
+            
+            await query.edit_message_text(
+                f"📖 <b>ГЛУБЖЕ О:</b> {last_question}\n\n"
+                f"⏳ <i>Подготавливаю развернутый анализ...</i>",
+                parse_mode=ParseMode.HTML
+            )
+            
+            # Формируем prompt для расширенного анализа
+            # Вопрос может быть типа "📊 Какой масштаб влияния?" - извлекаем текст
+            question_text = last_question.replace("📊 ", "").replace("📈 ", "").replace("💡 ", "").replace("❓ ", "").replace("🔍 ", "")
+            
+            expand_prompt = (
+                f"Пользователь хочет получить более развернутый анализ по конкретному вопросу.\n\n"
+                f"<b>Исходная новость:</b>\n{last_original}\n\n"
+                f"<b>Предыдущий анализ:</b>\n{last_analysis}\n\n"
+                f"<b>На какой аспект расширить анализ:</b> {question_text}\n\n"
+                f"ЗАДАЧА: Дай развернутый, глубокий анализ именно по этому вопросу:\n"
+                f"- Приведи конкретные примеры и цифры\n"
+                f"- Объясни как это влияет на разные группы людей\n"
+                f"- Укажи временные рамки и сценарии развития\n"
+                f"- Дай рекомендации что делать\n"
+                f"- Будь максимально конкретен и полезен\n\n"
+                f"Ответь только на русском языке. Используй структурированный формат с заголовками."
+            )
+            
+            # Вызываем API для расширенного анализа
+            expanded_analysis, proc_time, error = await call_api_with_retry(expand_prompt)
+            
+            if not expanded_analysis:
+                logger.error(f"❌ Ошибка расширенного анализа: {error}")
+                await query.edit_message_text(
+                    f"❌ <b>Ошибка расширения анализа</b>\n\n"
+                    f"<i>Невозможно получить более детальный ответ. Попробуйте позже.</i>",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+            
+            # Форматируем финальный ответ
+            response_text = (
+                f"📖 <b>ГЛУБЖЕ О: {question_text}</b>\n"
+                f"{'─' * 40}\n\n"
+                f"{expanded_analysis}\n\n"
+                f"{'─' * 40}\n"
+                f"⏱️ Анализ выполнен за {proc_time:.1f}с"
+            )
+            
+            # Добавляем кнопки навигации
+            keyboard = [
+                [
+                    InlineKeyboardButton("👍 Полезно", callback_data=f"feedback_helpful_{request_id_str}"),
+                    InlineKeyboardButton("👎 Не помогло", callback_data=f"feedback_not_helpful_{request_id_str}")
+                ],
+                [
+                    InlineKeyboardButton("❓ Еще вопрос", callback_data="ask_question"),
+                    InlineKeyboardButton("📌 Сохранить", callback_data=f"save_bookmark_news_{request_id_str}")
+                ],
+                [
+                    InlineKeyboardButton("⬅️ Вернуться", callback_data="back_to_start")
+                ]
+            ]
+            
+            await query.edit_message_text(
+                response_text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            
+            logger.info(f"✅ Расширенный анализ показан для {user.id} по вопросу: {question_text}")
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка в tell_more callback: {e}", exc_info=True)
+            await query.answer("❌ Ошибка при подготовке расширенного анализа", show_alert=True)
+        
+        return
 
     # ============ TEACHING CALLBACKS v0.7.0 ============
     
@@ -10468,10 +10563,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 "source": "user_news"
             }
             
+            # ✅ v0.32.2: Сохраняем анализ и вопрос для "Расскажи еще"
+            context.user_data["last_news_analysis"] = simplified_text
+            context.user_data["last_news_question"] = follow_up
+            context.user_data["last_news_original"] = user_text
+            
             # Добавляем кнопки сохранения в закладки
             keyboard.append([
                 InlineKeyboardButton("📌 В закладки", callback_data=f"save_bookmark_news_{request_id}"),
                 InlineKeyboardButton("🔄 Переанализ", callback_data="menu")
+            ])
+            
+            # ✅ v0.32.2: Добавляем кнопку "Расскажи еще" для развития мысли
+            keyboard.append([
+                InlineKeyboardButton("📖 Расскажи еще", callback_data=f"tell_more_{request_id}_{user.id}"),
+                InlineKeyboardButton("❓ Другой вопрос", callback_data="menu")
             ])
             
             # Добавляем кнопки обучения и меню внизу
