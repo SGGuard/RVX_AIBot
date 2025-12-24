@@ -137,8 +137,12 @@ def calculate_market_cap(total_supply: float, price: float) -> Tuple[float, str]
     Returns:
         Кортеж (market_cap в долларах, форматированная строка)
     """
-    market_cap = total_supply * price
-    return market_cap, format_market_cap(market_cap)
+    try:
+        market_cap = total_supply * price
+        return market_cap, format_market_cap(market_cap)
+    except Exception as e:
+        logger.error(f"❌ Ошибка в calculate_market_cap: total_supply={total_supply}, price={price}, error={str(e)}", exc_info=True)
+        return 0, "$0.00"
 
 
 def calculate_fully_diluted_valuation(total_supply: float, price: float) -> Tuple[float, str]:
@@ -212,40 +216,45 @@ def format_calculator_result(token_symbol: str, price: float) -> str:
     Returns:
         HTML-отформатированная строка результата
     """
-    token_data = get_token_stats(token_symbol)
-    if not token_data:
-        return "❌ Токен не найден"
+    try:
+        token_data = get_token_stats(token_symbol)
+        if not token_data:
+            return "❌ Токен не найден"
+        
+        # Расчеты
+        market_cap, mc_formatted = calculate_market_cap(
+            token_data['total_supply'],
+            price
+        )
+        
+        # ✅ v0.33.1: Используем format_market_cap для красивого отображения больших чисел
+        unlocked_mc = token_data['unlocked'] * price
+        vesting_mc = token_data['vesting'] * price
+        
+        # Форматируем эти значения красиво (B/M/K)
+        unlocked_mc_str = format_market_cap(unlocked_mc)
+        vesting_mc_str = format_market_cap(vesting_mc)
+        
+        # Форматирование
+        result = (
+            f"{token_data['emoji']} <b>{token_data['name']} ({token_data['symbol']}) Calculator</b>\n"
+            f"{'─' * 50}\n\n"
+            f"💰 <b>Цена за токен:</b> {format_price(price)}\n"
+            f"📊 <b>Market Cap (Total):</b> {mc_formatted}\n\n"
+            f"<b>📈 Детали по категориям:</b>\n"
+            f"🔓 <b>Разблокировано ({format_number(token_data['unlocked'])} токенов):</b> {unlocked_mc_str}\n"
+            f"🔒 <b>В веститинге ({format_number(token_data['vesting'])} токенов):</b> {vesting_mc_str}\n\n"
+            f"<b>📋 Параметры токена:</b>\n"
+            f"🔓 Unlocked: {format_number(token_data['unlocked'])}\n"
+            f"🔒 Vesting: {format_number(token_data['vesting'])}\n"
+            f"📋 Total Supply: {format_number(token_data['total_supply'])}\n"
+        )
+        
+        return result
     
-    # Расчеты
-    market_cap, mc_formatted = calculate_market_cap(
-        token_data['total_supply'],
-        price
-    )
-    
-    # ✅ v0.33.1: Используем format_market_cap для красивого отображения больших чисел
-    unlocked_mc = token_data['unlocked'] * price
-    vesting_mc = token_data['vesting'] * price
-    
-    # Форматируем эти значения красиво (B/M/K)
-    unlocked_mc_str = format_market_cap(unlocked_mc)
-    vesting_mc_str = format_market_cap(vesting_mc)
-    
-    # Форматирование
-    result = (
-        f"{token_data['emoji']} <b>{token_data['name']} ({token_data['symbol']}) Calculator</b>\n"
-        f"{'─' * 50}\n\n"
-        f"💰 <b>Цена за токен:</b> {format_price(price)}\n"
-        f"📊 <b>Market Cap (Total):</b> {mc_formatted}\n\n"
-        f"<b>📈 Детали по категориям:</b>\n"
-        f"🔓 <b>Разблокировано ({format_number(token_data['unlocked'])} токенов):</b> {unlocked_mc_str}\n"
-        f"🔒 <b>В веститинге ({format_number(token_data['vesting'])} токенов):</b> {vesting_mc_str}\n\n"
-        f"<b>📋 Параметры токена:</b>\n"
-        f"🔓 Unlocked: {format_number(token_data['unlocked'])}\n"
-        f"🔒 Vesting: {format_number(token_data['vesting'])}\n"
-        f"📋 Total Supply: {format_number(token_data['total_supply'])}\n"
-    )
-    
-    return result
+    except Exception as e:
+        logger.error(f"❌ Ошибка в format_calculator_result: token_symbol={token_symbol}, price={price}, error={str(e)}", exc_info=True)
+        return f"❌ Ошибка при расчете для токена {token_symbol}. Попробуйте позже."
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
