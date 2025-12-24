@@ -1853,8 +1853,98 @@ def migrate_database() -> None:
         except Exception as e:
             logger.debug(f"⚠️ Не удалось проверить schema conversation_stats: {e}")
         
+        # NEW v0.37.0: Teaching Module Phase 1 improvements
+        try:
+            cursor.execute("SELECT 1 FROM teaching_lessons LIMIT 1")
+        except sqlite3.OperationalError:
+            logger.info("  • Создание таблицы teaching_lessons...")
+            cursor.execute("""
+                CREATE TABLE teaching_lessons (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    topic TEXT NOT NULL,
+                    difficulty TEXT NOT NULL,
+                    title TEXT,
+                    completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    quiz_score INTEGER,
+                    quiz_passed BOOLEAN DEFAULT 0,
+                    xp_earned INTEGER DEFAULT 50,
+                    repeat_count INTEGER DEFAULT 0,
+                    last_repeated_at TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+                    UNIQUE(user_id, topic, difficulty, completed_at)
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_teaching_lessons_user ON teaching_lessons(user_id, completed_at DESC)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_teaching_lessons_topic ON teaching_lessons(user_id, topic, difficulty)")
+            migrations_needed = True
+        
+        try:
+            cursor.execute("SELECT 1 FROM learning_paths LIMIT 1")
+        except sqlite3.OperationalError:
+            logger.info("  • Создание таблицы learning_paths...")
+            cursor.execute("""
+                CREATE TABLE learning_paths (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    path_name TEXT UNIQUE NOT NULL,
+                    path_title TEXT,
+                    description TEXT,
+                    difficulty_level TEXT,
+                    topics TEXT NOT NULL,
+                    prerequisites TEXT,
+                    estimated_time_hours INTEGER,
+                    total_xp_reward INTEGER,
+                    badge_reward TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            migrations_needed = True
+        
+        try:
+            cursor.execute("SELECT 1 FROM user_learning_paths LIMIT 1")
+        except sqlite3.OperationalError:
+            logger.info("  • Создание таблицы user_learning_paths...")
+            cursor.execute("""
+                CREATE TABLE user_learning_paths (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    path_name TEXT NOT NULL,
+                    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    completed_at TIMESTAMP,
+                    progress_percent REAL DEFAULT 0,
+                    total_xp_earned INTEGER DEFAULT 0,
+                    is_active BOOLEAN DEFAULT 1,
+                    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+                    FOREIGN KEY (path_name) REFERENCES learning_paths(path_name),
+                    UNIQUE(user_id, path_name)
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_learning_paths_user ON user_learning_paths(user_id, is_active)")
+            migrations_needed = True
+        
+        try:
+            cursor.execute("SELECT 1 FROM user_badges LIMIT 1")
+        except sqlite3.OperationalError:
+            logger.info("  • Создание таблицы user_badges...")
+            cursor.execute("""
+                CREATE TABLE user_badges (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    badge_id TEXT NOT NULL,
+                    badge_name TEXT,
+                    badge_emoji TEXT,
+                    badge_description TEXT,
+                    earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    condition_met TEXT,
+                    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+                    UNIQUE(user_id, badge_id)
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_badges_user ON user_badges(user_id, earned_at DESC)")
+            migrations_needed = True
+        
         if migrations_needed:
-            logger.info("✅ Миграция успешно завершена")
+            logger.info("✅ Миграция успешно завершена (v0.37.0 - Teaching Module Phase 1)")
         else:
             logger.info("✅ Миграция не требуется, схема актуальна")
 
@@ -2351,7 +2441,99 @@ def init_database() -> None:
             )
         """)
         
-        logger.info("✅ База данных инициализирована с optimized indexes (v0.21.0 - Production Ready)")
+        # ============ НОВЫЕ ТАБЛИЦЫ v0.37.0 (TEACHING MODULE IMPROVEMENTS) ============
+        
+        # Таблица для отслеживания пройденных уроков (Phase 1 улучшений)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS teaching_lessons (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                topic TEXT NOT NULL,
+                difficulty TEXT NOT NULL,
+                title TEXT,
+                completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                quiz_score INTEGER,
+                quiz_passed BOOLEAN DEFAULT 0,
+                xp_earned INTEGER DEFAULT 50,
+                repeat_count INTEGER DEFAULT 0,
+                last_repeated_at TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+                UNIQUE(user_id, topic, difficulty, completed_at)
+            )
+        """)
+        
+        # Таблица для системы рекомендаций и путей обучения
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS learning_paths (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                path_name TEXT UNIQUE NOT NULL,
+                path_title TEXT,
+                description TEXT,
+                difficulty_level TEXT,
+                topics TEXT NOT NULL,
+                prerequisites TEXT,
+                estimated_time_hours INTEGER,
+                total_xp_reward INTEGER,
+                badge_reward TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Таблица для отслеживания прогресса пути обучения
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_learning_paths (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                path_name TEXT NOT NULL,
+                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                completed_at TIMESTAMP,
+                progress_percent REAL DEFAULT 0,
+                total_xp_earned INTEGER DEFAULT 0,
+                is_active BOOLEAN DEFAULT 1,
+                FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+                FOREIGN KEY (path_name) REFERENCES learning_paths(path_name),
+                UNIQUE(user_id, path_name)
+            )
+        """)
+        
+        # Таблица для системы достижений (badges)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_badges (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                badge_id TEXT NOT NULL,
+                badge_name TEXT,
+                badge_emoji TEXT,
+                badge_description TEXT,
+                earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                condition_met TEXT,
+                FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+                UNIQUE(user_id, badge_id)
+            )
+        """)
+        
+        # Индексы для оптимизации Phase 1
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_teaching_lessons_user
+            ON teaching_lessons(user_id, completed_at DESC)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_teaching_lessons_topic
+            ON teaching_lessons(user_id, topic, difficulty)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_user_learning_paths_user
+            ON user_learning_paths(user_id, is_active)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_user_badges_user
+            ON user_badges(user_id, earned_at DESC)
+        """)
+        
+        logger.info("✅ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)")
     
     # Инициализируем курсы (загружаем из markdown в БД)
     with get_db() as conn:
@@ -6642,6 +6824,223 @@ async def ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 # УЧИТЕЛЬСКИЙ МОДУЛЬ v0.7.0 - ИИ ПРЕПОДАЕТ КРИПТО, AI, WEB3, ТРЕЙДИНГ
 # =============================================================================
 
+# ════════ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ v0.37.0 - LESSON TRACKING & RECOMMENDATIONS ════════
+
+# ════════════════ СИСТЕМА ДОСТИЖЕНИЙ (BADGES) v0.37.0 ════════════════
+
+ACHIEVEMENT_BADGES = {
+    'first_lesson': {
+        'name': '🎓 Первый шаг',
+        'emoji': '🎓',
+        'description': 'Пройди первый урок',
+        'condition': lambda completed, xp: len(completed) > 0
+    },
+    'expert_hunter': {
+        'name': '💎 Охотник за экспертизой',
+        'emoji': '💎',
+        'description': 'Пройди 5 уроков на уровне expert',
+        'condition': lambda completed, xp: sum(1 for t in completed.values() if 'expert' in t.get('difficulties', [])) >= 5
+    },
+    'topic_master': {
+        'name': '🏆 Мастер темы',
+        'emoji': '🏆',
+        'description': 'Пройди все уровни одной темы',
+        'condition': lambda completed, xp: any(len(t.get('difficulties', [])) == 4 for t in completed.values())
+    },
+    'all_rounder': {
+        'name': '🌟 Всесторонний специалист',
+        'emoji': '🌟',
+        'description': 'Пройди уроки по 5 разным темам',
+        'condition': lambda completed, xp: len(completed) >= 5
+    },
+    'xp_collector': {
+        'name': '⚡ Сборщик XP',
+        'emoji': '⚡',
+        'description': 'Накопи 500+ XP',
+        'condition': lambda completed, xp: xp >= 500
+    },
+}
+
+def check_and_award_badges(user_id: int) -> list:
+    """Проверяет и выдаёт новые badge'и пользователю.
+    
+    Returns:
+        list: Список новых полученных badge'ей [{'badge_id': ..., 'name': ...}, ...]
+    """
+    new_badges = []
+    try:
+        completed = get_completed_topics(user_id)
+        
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT xp FROM users WHERE user_id = ?", (user_id,))
+            result = cursor.fetchone()
+            user_xp = result[0] if result else 0
+        
+        # Получаем уже выданные badge'и пользователю
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT badge_id FROM user_badges WHERE user_id = ?", (user_id,))
+            earned_badges = set(row[0] for row in cursor.fetchall())
+        
+        # Проверяем каждый badge
+        for badge_id, badge_info in ACHIEVEMENT_BADGES.items():
+            if badge_id not in earned_badges:
+                # Проверяем условие badge'а
+                if badge_info['condition'](completed, user_xp):
+                    # Выдаём новый badge
+                    with get_db() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            INSERT INTO user_badges (user_id, badge_id, badge_name, badge_emoji, badge_description, condition_met)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        """, (user_id, badge_id, badge_info['name'], badge_info['emoji'], badge_info['description'], 'auto_detected'))
+                    
+                    new_badges.append({
+                        'badge_id': badge_id,
+                        'name': badge_info['name'],
+                        'emoji': badge_info['emoji'],
+                        'description': badge_info['description']
+                    })
+                    logger.info(f"🏅 Новый badge для {user_id}: {badge_id}")
+    except Exception as e:
+        logger.warning(f"⚠️ Ошибка при проверке badge'ей: {e}")
+    
+    return new_badges
+
+def get_user_badges(user_id: int) -> list:
+    """Получает все badge'и пользователя."""
+    badges = []
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT badge_emoji, badge_name, badge_description, earned_at
+                FROM user_badges
+                WHERE user_id = ?
+                ORDER BY earned_at DESC
+            """, (user_id,))
+            
+            for emoji, name, desc, earned_at in cursor.fetchall():
+                badges.append({'emoji': emoji, 'name': name, 'description': desc, 'earned_at': earned_at})
+    except Exception as e:
+        logger.warning(f"⚠️ Ошибка при получении badge'ей: {e}")
+    
+    return badges
+
+def get_completed_topics(user_id: int) -> dict:
+    """Получает список пройденных уроков пользователя с деталями.
+    
+    Returns:
+        dict: {topic_name: {difficulty_levels: [...], completed_count: int, last_completed: datetime}}
+    """
+    completed = {}
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT topic, difficulty, COUNT(*) as count, MAX(completed_at) as last_completed
+                FROM teaching_lessons
+                WHERE user_id = ? AND quiz_passed = 1
+                GROUP BY topic, difficulty
+            """, (user_id,))
+            
+            for topic, difficulty, count, last_completed in cursor.fetchall():
+                if topic not in completed:
+                    completed[topic] = {'difficulties': [], 'completed_count': 0, 'last_completed': None}
+                completed[topic]['difficulties'].append(difficulty)
+                completed[topic]['completed_count'] += count
+                completed[topic]['last_completed'] = last_completed
+    except Exception as e:
+        logger.warning(f"⚠️ Ошибка при получении завершённых уроков: {e}")
+    
+    return completed
+
+def get_recommended_lesson(user_id: int) -> dict:
+    """Рекомендует следующий урок на основе пройденных уроков и XP.
+    
+    Логика рекомендаций:
+    1. Найти незавершённые сложности для пройденных тем (progression)
+    2. Если все сложности пройдены, рекомендовать новую тему
+    3. Использовать XP для определения оптимального уровня сложности
+    
+    Returns:
+        dict: {'topic': str, 'difficulty': str, 'reason': str} или {} если нет рекомендаций
+    """
+    try:
+        completed = get_completed_topics(user_id)
+        
+        # Получаем XP пользователя для определения сложности
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT xp FROM users WHERE user_id = ?", (user_id,))
+            result = cursor.fetchone()
+            user_xp = result[0] if result else 0
+        
+        # 🎯 Стратегия рекомендации:
+        # XP < 100: beginner
+        # XP 100-300: intermediate
+        # XP 300-600: advanced
+        # XP >= 600: expert
+        
+        if user_xp >= 600:
+            recommended_difficulty = 'expert'
+            intermediate_levels = ['beginner', 'intermediate', 'advanced']
+        elif user_xp >= 300:
+            recommended_difficulty = 'advanced'
+            intermediate_levels = ['beginner', 'intermediate']
+        elif user_xp >= 100:
+            recommended_difficulty = 'intermediate'
+            intermediate_levels = ['beginner']
+        else:
+            recommended_difficulty = 'beginner'
+            intermediate_levels = []
+        
+        # Приоритет рекомендаций:
+        # 1. Новая сложность для пройденной темы (progression)
+        for topic in sorted(completed.keys()):
+            completed_difficulties = set(completed[topic]['difficulties'])
+            all_difficulties = {'beginner', 'intermediate', 'advanced', 'expert'}
+            
+            # Проверяем от simple к hard: если не пройдена следующая сложность
+            for level in ['beginner', 'intermediate', 'advanced', 'expert']:
+                if level not in completed_difficulties:
+                    return {
+                        'topic': topic,
+                        'difficulty': level,
+                        'reason': f"Продолжи тему <b>{TEACHING_TOPICS.get(topic, {}).get('name', topic)}</b>"
+                    }
+        
+        # 2. Новая тема (если все основные пройдены)
+        all_topics = set(TEACHING_TOPICS.keys())
+        started_topics = set(completed.keys())
+        unstarted_topics = all_topics - started_topics
+        
+        if unstarted_topics:
+            # Рекомендуем новую тему с рекомендуемой сложностью
+            next_topic = sorted(unstarted_topics)[0]
+            return {
+                'topic': next_topic,
+                'difficulty': recommended_difficulty,
+                'reason': f"Изучи новую тему: <b>{TEACHING_TOPICS.get(next_topic, {}).get('name', next_topic)}</b>"
+            }
+        
+        # 3. Если всё пройдено, рекомендуем повторение на наивысшей сложности
+        if completed:
+            hardest_topic = max(completed.keys(), key=lambda t: len(completed[t]['difficulties']))
+            return {
+                'topic': hardest_topic,
+                'difficulty': 'expert',
+                'reason': f"Закрепи: <b>{TEACHING_TOPICS.get(hardest_topic, {}).get('name', hardest_topic)}</b> на expert"
+            }
+        
+        # Нет рекомендации
+        return {}
+        
+    except Exception as e:
+        logger.warning(f"⚠️ Ошибка при получении рекомендации: {e}")
+        return {}
+
 async def _launch_teaching_lesson(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, topic: str, difficulty: str, query=None):
     """Вспомогательная функция для запуска урока и показа результата с кнопками."""
     try:
@@ -6733,10 +7132,29 @@ async def _launch_teaching_lesson(update: Update, context: ContextTypes.DEFAULT_
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
         
-        # Даем XP за прохождение урока
+        # Даем XP за прохождение урока и отслеживаем в БД (v0.37.0)
+        xp_reward = XP_REWARDS.get('lesson_completed', 50)
         with get_db() as conn:
             cursor = conn.cursor()
-            add_xp_to_user(cursor, user_id, XP_REWARDS.get('lesson_completed', 50), "completed_teaching_lesson")
+            add_xp_to_user(cursor, user_id, xp_reward, "completed_teaching_lesson")
+            
+            # ✅ NEW v0.37.0: Отслеживаем пройденный урок в БД
+            try:
+                cursor.execute("""
+                    INSERT INTO teaching_lessons (user_id, topic, difficulty, title, xp_earned, quiz_passed)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (user_id, topic, difficulty, title, xp_reward, 1))
+                logger.debug(f"✅ Урок отслежен: user_id={user_id}, topic={topic}, difficulty={difficulty}")
+            except sqlite3.IntegrityError:
+                # UNIQUE constraint - пользователь уже прошёл этот урок, увеличиваем repeat_count
+                cursor.execute("""
+                    UPDATE teaching_lessons
+                    SET repeat_count = repeat_count + 1, last_repeated_at = CURRENT_TIMESTAMP
+                    WHERE user_id = ? AND topic = ? AND difficulty = ?
+                """, (user_id, topic, difficulty))
+                logger.debug(f"🔄 Повторный урок: user_id={user_id}, topic={topic}")
+            except Exception as e:
+                logger.warning(f"⚠️ Ошибка отслеживания урока: {e}")
         
         if ENABLE_ANALYTICS:
             log_analytics_event("teaching_lesson", user_id, {
@@ -6845,6 +7263,92 @@ async def calculator_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 @log_command
+@log_command
+async def learn_progress_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """📊 Показывает прогресс обучения пользователя (v0.37.0)
+    
+    Отображает:
+    - Пройденные уроки по темам
+    - Уровень владения
+    - Полученные достижения
+    - Рекомендацию следующего урока
+    """
+    user_id = update.effective_user.id
+    user = update.effective_user
+    
+    logger.info(f"📊 Пользователь {user_id} открыл прогресс обучения")
+    
+    try:
+        completed = get_completed_topics(user_id)
+        badges = get_user_badges(user_id)
+        recommended = get_recommended_lesson(user_id)
+        
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT xp FROM users WHERE user_id = ?", (user_id,))
+            result = cursor.fetchone()
+            user_xp = result[0] if result else 0
+        
+        # Формируем сообщение с прогрессом
+        lines = [
+            f"📊 <b>Ваш прогресс обучения</b>",
+            f"👤 {user.first_name or 'Ученик'}",
+            f"⚡ XP: {user_xp}",
+            ""
+        ]
+        
+        if completed:
+            lines.append(f"📚 <b>Пройденные темы ({len(completed)}):</b>")
+            for topic, info in sorted(completed.items()):
+                topic_name = TEACHING_TOPICS.get(topic, {}).get('name', topic)
+                difficulties = ", ".join([DIFFICULTY_LEVELS.get(d, {}).get('emoji', '') for d in sorted(info['difficulties'])])
+                lines.append(f"  • {topic_name}: {difficulties}")
+            lines.append("")
+        else:
+            lines.append("<i>Вы ещё не начали обучение. Начните с /teach!</i>")
+            lines.append("")
+        
+        if badges:
+            lines.append(f"🏅 <b>Достижения ({len(badges)}):</b>")
+            for badge in badges[:5]:  # Показываем первые 5
+                lines.append(f"  {badge['emoji']} <b>{badge['name']}</b>: {badge['description']}")
+            if len(badges) > 5:
+                lines.append(f"  ... и ещё {len(badges) - 5} достижений")
+            lines.append("")
+        
+        if recommended:
+            lines.append(f"🎯 <b>Рекомендуемый следующий урок:</b>")
+            lines.append(f"  {recommended['reason']}")
+            lines.append(f"  Уровень: {DIFFICULTY_LEVELS.get(recommended['difficulty'], {}).get('emoji', '📚')}")
+        
+        keyboard = []
+        
+        if recommended:
+            keyboard.append([InlineKeyboardButton(
+                f"🚀 Начать урок",
+                callback_data=f"teach_start_{recommended['topic']}_{recommended['difficulty']}"
+            )])
+        
+        keyboard.extend([
+            [InlineKeyboardButton("🎓 Все темы", callback_data="teach_menu")],
+            [InlineKeyboardButton("🏠 Меню", callback_data="menu")]
+        ])
+        
+        await update.message.reply_text(
+            "\n".join(lines),
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        
+        logger.info(f"✅ Прогресс показан для {user_id}")
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка в learn_progress_command: {e}", exc_info=True)
+        await update.message.reply_text(
+            "❌ Ошибка при загрузке прогресса. Попробуйте позже.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Меню", callback_data="menu")]])
+        )
+
 async def teach_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """🎓 Интерактивный учитель с передовой системой обучения (v0.21.0)
     
@@ -9929,14 +10433,42 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         topic = data.replace("teach_understood_", "")
         await query.answer("✅ Отлично! Вы получили +50 XP!", show_alert=False)
         
-        # Показываем красивое сообщение
+        # 🆕 v0.37.0: Проверяем и выдаём новые badge'и
+        new_badges = check_and_award_badges(user_id)
+        
+        # 🆕 v0.37.0: Показываем рекомендацию следующего урока
+        recommended = get_recommended_lesson(user_id)
+        
+        if recommended:
+            recommendation_text = (
+                f"<b>🎯 Рекомендация:</b>\n"
+                f"{recommended['reason']}\n\n"
+                f"Уровень: {DIFFICULTY_LEVELS.get(recommended['difficulty'], {}).get('emoji', '📚')} "
+                f"{DIFFICULTY_LEVELS.get(recommended['difficulty'], {}).get('name', recommended['difficulty'])}"
+            )
+        else:
+            recommendation_text = "<b>🎉 Отлично!</b> Вы прошли все доступные уроки!"
+        
+        # Добавляем информацию о новых badge'ах
+        if new_badges:
+            badges_text = "\n".join([f"{b['emoji']} <b>{b['name']}</b>" for b in new_badges])
+            recommendation_text = f"<b>🏅 Новые достижения:</b>\n{badges_text}\n\n{recommendation_text}"
+        
         keyboard = [
             [InlineKeyboardButton("📚 Другая тема", callback_data="teach_menu")],
-            [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
         ]
         
+        # Если есть рекомендация, добавляем кнопку перейти к ней
+        if recommended:
+            keyboard.insert(0, [InlineKeyboardButton(
+                f"🚀 {recommended['reason'][:30]}...",
+                callback_data=f"teach_start_{recommended['topic']}_{recommended['difficulty']}"
+            )])
+        
+        keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")])
+        
         try:
-            await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(keyboard))
+            await query.edit_message_text(recommendation_text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
         except:
             pass
         return
@@ -12417,6 +12949,9 @@ def main():
     
     # НОВАЯ КОМАНДА v0.7.0 - Интерактивный учитель по крипто, AI, Web3, трейдингу
     application.add_handler(CommandHandler("teach", teach_command))
+    
+    # НОВАЯ КОМАНДА v0.37.0 - Прогресс обучения с рекомендациями
+    application.add_handler(CommandHandler("learn_progress", learn_progress_command))
     
     # НОВАЯ КОМАНДА v0.11.0 - Ежедневные задачи
     application.add_handler(CommandHandler("tasks", tasks_command))
