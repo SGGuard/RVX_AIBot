@@ -4631,7 +4631,12 @@ def get_user_rank(user_id: int, period: str = "all") -> Optional[Tuple[int, int,
 @log_command
 async def leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показывает рейтинг пользователей."""
-    user_id = update.effective_user.id
+    user = update.effective_user
+    user_id = user.id
+    
+    # ✅ Сохраняем пользователя перед получением статистики
+    save_user(user_id, user.username or "", user.first_name)
+    
     query = update.callback_query if update.callback_query else None
     is_callback = query is not None
     
@@ -5412,7 +5417,11 @@ async def admin_metrics_command(update: Update, context: ContextTypes.DEFAULT_TY
 @log_command
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показывает статистику."""
-    user_id = update.effective_user.id
+    user = update.effective_user
+    user_id = user.id
+    
+    # ✅ Сохраняем пользователя перед получением статистики
+    save_user(user_id, user.username or "", user.first_name)
     
     # ✅ v0.25.0: Track user_profile event
     tracker = get_tracker()
