@@ -8127,8 +8127,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if data.startswith("start_"):
         action = "_".join(parts[1:])
         
+        # NOTE: start_teach is now handled via teach_menu redirect above, so skip it here
         if action == "teach":
-            await teach_command(update, context)
+            # Don't call teach_command from callback - it's handled via teach_menu now
             return
         elif action == "learn":
             await learn_command(update, context)
