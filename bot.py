@@ -8932,6 +8932,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             
             # Получаем список доступных токенов
             tokens = get_token_list()
+            logger.info(f"✅ Получены токены: {tokens}")
             
             # Создаем кнопки для выбора токена
             keyboard = []
@@ -8941,6 +8942,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 # Первый токен в строке
                 token1 = tokens[i].upper()
                 token_data1 = get_token_stats(token1)
+                logger.info(f"📊 Token1: {token1}, Data: {bool(token_data1)}")
                 if token_data1:
                     row.append(InlineKeyboardButton(
                         f"{token_data1['emoji']} {token_data1['symbol']}",
@@ -8951,6 +8953,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 if i + 1 < len(tokens):
                     token2 = tokens[i + 1].upper()
                     token_data2 = get_token_stats(token2)
+                    logger.info(f"📊 Token2: {token2}, Data: {bool(token_data2)}")
                     if token_data2:
                         row.append(InlineKeyboardButton(
                             f"{token_data2['emoji']} {token_data2['symbol']}",
@@ -8960,33 +8963,32 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 if row:
                     keyboard.append(row)
             
+            logger.info(f"✅ Клавиатура построена: {len(keyboard)} рядов")
+            
             # Добавляем кнопку "Назад"
             keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")])
             
-            # Показываем меню калькулятора
-            try:
-                await query.edit_message_text(
-                    get_calculator_menu_text(),
-                    parse_mode=ParseMode.HTML,
-                    reply_markup=InlineKeyboardMarkup(keyboard)
-                )
-            except Exception as e:
-                logger.warning(f"⚠️ Не удалось отредактировать сообщение: {e}")
-                await query.message.reply_text(
-                    get_calculator_menu_text(),
-                    parse_mode=ParseMode.HTML,
-                    reply_markup=InlineKeyboardMarkup(keyboard)
-                )
+            # Получаем текст меню
+            menu_text = get_calculator_menu_text()
+            logger.info(f"✅ Текст меню получен: {len(menu_text)} символов")
             
-            logger.info(f"✅ Меню калькулятора показано")
+            # Показываем меню калькулятора
+            logger.info(f"🔄 Редактирование сообщения...")
+            await query.edit_message_text(
+                menu_text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            
+            logger.info(f"✅ Меню калькулятора показано успешно")
             return
         
         except Exception as e:
-            logger.error(f"❌ Ошибка в start_calculator callback: {str(e)}", exc_info=True)
+            logger.error(f"❌ Ошибка в start_calculator: {str(e)}", exc_info=True)
             try:
-                await query.answer("❌ Произошла ошибка. Попробуйте позже.", show_alert=True)
-            except:
-                pass
+                await query.answer("❌ Произошла ошибка при открытии калькулятора. Попробуйте позже.", show_alert=True)
+            except Exception as e2:
+                logger.error(f"❌ Ошибка при отправке alert: {e2}")
             return
     
     # ============ CALCULATOR CALLBACKS (v0.33.0) ============
