@@ -9613,7 +9613,7 @@ def analyze_message_context(text: str) -> dict:
         }
     
     # ШЕСТАЯ ПРОВЕРКА: Вопрос о финансах/крипто/tech/геополитике = АНАЛИЗИРОВАТЬ
-    if any(q in text_lower for q in ["почему", "как это", "когда это", "где это", "что это", 
+    if any(q in text_lower for q in ["почему", "как это", "когда это", "где это", "что это", "что такое",
                                      "зачем", "для чего", "какой", "какая", "какое", "почему это"]):
         if has_crypto or has_tech or has_finance or has_geopolitical:
             if has_finance:
@@ -10073,8 +10073,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             )
             
             if ai_response:
-                # ✅ Обрезаем до 500 символов - компактный ответ без воды
-                MAX_RESPONSE = 500
+                # ✅ Обрезаем до 1200 символов - достаточно для полного объяснения
+                MAX_RESPONSE = 1200
                 
                 if len(ai_response) > MAX_RESPONSE:
                     # Обрезаем по полным словам, не посередине
