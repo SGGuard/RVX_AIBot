@@ -177,6 +177,12 @@ from tier1_optimizations import DatabaseConnectionPool
 # Учительский модуль (v0.7.0) - ИИ преподает крипто, AI, Web3, трейдинг
 from teacher import teach_lesson, TEACHING_TOPICS, DIFFICULTY_LEVELS
 
+# Модуль детектирования пропаганды и манипуляций (v0.32.0)
+from propaganda_detector import (
+    analyze_propaganda, format_propaganda_analysis, 
+    get_propaganda_tips, quick_propaganda_check
+)
+
 # Новый модуль для умного общения (v0.20.0)
 from ai_intelligence import (
     analyze_user_knowledge_level, get_adaptive_greeting, get_contextual_tips,
@@ -10042,6 +10048,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         logger.error(f"❌ Parsing error: {e}")
         return
     
+    # ✅ v0.32.0: Автоматическая проверка пропаганды и манипуляций
+    propaganda_check = quick_propaganda_check(user_text)
+    if propaganda_check[0]:  # Если обнаружена манипуляция
+        logger.warning(f"⚠️ Пропаганда обнаружена от {user.id}: {propaganda_check[1]}")
+        # Отправляем предупреждение
+        try:
+            analysis = analyze_propaganda(user_text)
+            if analysis:
+                warning_msg = format_propaganda_analysis(analysis)
+                await update.message.reply_text(
+                    warning_msg,
+                    parse_mode=ParseMode.HTML
+                )
+                return  # Не обрабатываем дальше сообщения с манипуляцией
+        except Exception as e:
+            logger.debug(f"Ошибка при проверке пропаганды: {e}")
+    
     # ✅ v0.25.0: Track user_analyze event
     tracker = get_tracker()
     tracker.track(create_event(
@@ -11127,6 +11150,8 @@ def main():
                 BotCommand("bookmark", "📌 Сохранить анализ"),
                 BotCommand("bookmarks", "📎 Мои закладки"),
                 BotCommand("export", "📥 Экспорт истории"),
+                BotCommand("detect", "🛡️ Обнаружить манипуляцию"),
+                BotCommand("tips", "💡 Советы от манипуляции"),
                 BotCommand("menu", "⚙️ Быстрое меню"),
                 BotCommand("clear_history", "🗑️ Очистить контекст разговора"),
                 BotCommand("context_stats", "📊 Статистика контекста"),
@@ -11134,6 +11159,87 @@ def main():
             logger.info("✅ Список команд установлен в Telegram")
         except Exception as e:
             logger.error(f"❌ Ошибка при установке команд: {e}")
+    
+    # ═══════════════════════════════════════════════════════════════════════════════
+    # КОМАНДЫ АНАЛИЗА МАНИПУЛЯЦИЙ И ПРОПАГАНДЫ (v0.32.0)
+    # ═══════════════════════════════════════════════════════════════════════════════
+    
+    @log_command
+    async def detect_propaganda_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Анализирует текст на пропаганду и манипуляции.
+        Использование: /detect <текст> или ответь на сообщение"""
+        user_id = update.effective_user.id
+        
+        text_to_analyze = None
+        
+        # Если это ответ на сообщение
+        if update.message.reply_to_message:
+            text_to_analyze = update.message.reply_to_message.text or update.message.reply_to_message.caption
+        
+        # Если текст передан в команду
+        elif context.args:
+            text_to_analyze = " ".join(context.args)
+        
+        # Если ничего не передано
+        if not text_to_analyze:
+            await update.message.reply_text(
+                "🛡️ <b>ДЕТЕКТОР МАНИПУЛЯЦИЙ И ПРОПАГАНДЫ</b>\n\n"
+                "Анализирует текст на признаки:\n"
+                "  • Нагнетание страха\n"
+                "  • Ложные обещания\n"
+                "  • Теории заговора\n"
+                "  • Эмоциональные манипуляции\n"
+                "  • И другие техники\n\n"
+                "<b>Использование:</b>\n"
+                "  /detect <текст>\n"
+                "  или ответьте на сообщение и напишите /detect\n\n"
+                "💡 Тип: /tips для советов как распознавать манипуляции",
+                parse_mode=ParseMode.HTML
+            )
+            return
+        
+        try:
+            # Анализируем текст
+            analysis = analyze_propaganda(text_to_analyze)
+            
+            if analysis:
+                response = format_propaganda_analysis(analysis)
+                if response:
+                    await update.message.reply_text(response, parse_mode=ParseMode.HTML)
+                else:
+                    await update.message.reply_text(
+                        "✅ <b>Признаков манипуляции не обнаружено</b>\n\n"
+                        "Этот текст выглядит объективным и не содержит явных техник пропаганды.",
+                        parse_mode=ParseMode.HTML
+                    )
+            else:
+                await update.message.reply_text(
+                    "❌ Не удалось проанализировать текст. Проверьте длину (минимум 20 символов).",
+                    parse_mode=ParseMode.HTML
+                )
+        
+        except Exception as e:
+            logger.error(f"Ошибка при анализе пропаганды: {e}")
+            await update.message.reply_text(
+                "❌ Ошибка при анализе текста",
+                parse_mode=ParseMode.HTML
+            )
+    
+    @log_command
+    async def propaganda_tips_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Показывает советы как распознавать манипуляции и пропаганду"""
+        user_id = update.effective_user.id
+        
+        try:
+            tips = get_propaganda_tips()
+            await update.message.reply_text(tips, parse_mode=ParseMode.HTML)
+        
+        except Exception as e:
+            logger.error(f"Ошибка при выводе советов: {e}")
+            await update.message.reply_text(
+                "❌ Ошибка при загрузке советов",
+                parse_mode=ParseMode.HTML
+            )
     
     # Регистрация команд
     application.add_handler(CommandHandler("start", start_command))
@@ -11169,6 +11275,10 @@ def main():
     
     # НОВАЯ КОМАНДА v0.16.0 - Бесплатные ресурсы
     application.add_handler(CommandHandler("resources", resources_command))
+    
+    # НОВАЯ КОМАНДА v0.32.0 - Детектирование пропаганды и манипуляций
+    application.add_handler(CommandHandler("detect", detect_propaganda_command))
+    application.add_handler(CommandHandler("tips", propaganda_tips_command))
     
     # НОВАЯ КОМАНДА v0.12.0 - Динамические команды квестов (quest_what_is_dex, quest_what_is_staking и т.д.)
     quest_ids = list(DAILY_QUESTS.keys())
