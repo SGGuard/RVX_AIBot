@@ -186,7 +186,7 @@ from propaganda_detector import (
 # ✅ v0.33.0: Crypto Calculator - калькулятор для расчета market cap
 from crypto_calculator import (
     get_token_stats, get_token_list, format_calculator_result,
-    validate_price, get_calculator_menu_text, CRYPTO_TOKENS, format_number
+    validate_price, get_calculator_menu_text, CRYPTO_TOKENS, format_number, get_price_table
 )
 
 # Новый модуль для умного общения (v0.20.0)
@@ -9023,6 +9023,48 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         
         except Exception as e:
             logger.error(f"❌ Ошибка в calc_menu callback: {str(e)}", exc_info=True)
+            try:
+                await query.answer("❌ Произошла ошибка. Попробуйте позже.", show_alert=True)
+            except:
+                pass
+            return
+    
+    # Таблица цен в калькуляторе (v0.33.2)
+    if data.startswith("calc_price_table_"):
+        try:
+            token_symbol = data.replace("calc_price_table_", "").upper()
+            
+            # Получаем таблицу цен
+            price_table = get_price_table(token_symbol)
+            
+            # Кнопки навигации
+            keyboard = [
+                [
+                    InlineKeyboardButton("🔄 Новый расчет", callback_data=f"calc_token_{token_symbol.lower()}"),
+                    InlineKeyboardButton("🪙 Другой токен", callback_data="calc_menu")
+                ],
+                [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
+            ]
+            
+            try:
+                await query.edit_message_text(
+                    price_table,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+            except Exception as e:
+                logger.warning(f"⚠️ Не удалось отредактировать сообщение в calc_price_table: {e}")
+                await query.message.reply_text(
+                    price_table,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+            
+            logger.info(f"📊 Показана таблица цен для {token_symbol} пользователю {user.id}")
+            return
+        
+        except Exception as e:
+            logger.error(f"❌ Ошибка в calc_price_table callback: {str(e)}", exc_info=True)
             try:
                 await query.answer("❌ Произошла ошибка. Попробуйте позже.", show_alert=True)
             except:
