@@ -291,6 +291,41 @@ def get_topic_by_keyword(keyword: str) -> Optional[str]:
     return "crypto_basics"  # Default
 
 
+def convert_topic_name_to_embedded(topic: str) -> str:
+    """
+    Конвертирует имена тем из TEACHING_TOPICS в имена доступные в embedded_teacher.
+    
+    Маппинг:
+    - crypto_basics -> bitcoin (как основная тема криптографии)
+    - trading -> (пока нет в embedded_teacher, fallback к bitcoin)
+    - web3 -> web3
+    - ai -> ai
+    - defi -> defi
+    - nft -> nft
+    - security -> (пока нет, fallback к bitcoin)
+    - tokenomics -> (пока нет, fallback к bitcoin)
+    """
+    topic_lower = topic.lower().strip()
+    
+    mapping = {
+        "crypto_basics": "bitcoin",  # bitcoin уроки - главная часть крипто обучения
+        "bitcoin": "bitcoin",
+        "ethereum": "ethereum",
+        "blockchain": "blockchain",
+        "web3": "web3",
+        "ai": "ai",
+        "defi": "defi",
+        "nft": "nft",
+        "mining": "mining",
+        # Fallback для тем, которых еще нет в embedded_teacher
+        "trading": "bitcoin",  # Trading уроков нет, используем базу Bitcoin
+        "security": "bitcoin",  # Security уроков нет, используем базу Bitcoin
+        "tokenomics": "bitcoin",  # Tokenomics уроков нет, используем базу Bitcoin
+    }
+    
+    return mapping.get(topic_lower, "bitcoin")
+
+
 async def teach_lesson(
     topic: str,
     difficulty_level: str = "beginner",
@@ -307,10 +342,12 @@ async def teach_lesson(
         topic = topic.lower()
         
         # ✅ СНАЧАЛА: Попытаемся использовать встроенного преподавателя (fast path)
-        logger.info(f"📚 Попытка загрузить встроенный урок: {topic} ({difficulty_level})")
+        # Конвертируем имя темы в формат embedded_teacher
+        embedded_topic = convert_topic_name_to_embedded(topic)
+        logger.info(f"📚 Попытка загрузить встроенный урок: {topic} → {embedded_topic} ({difficulty_level})")
         try:
             from embedded_teacher import get_embedded_lesson
-            embedded_lesson = get_embedded_lesson(topic, difficulty_level)
+            embedded_lesson = get_embedded_lesson(embedded_topic, difficulty_level)
             if embedded_lesson:
                 logger.info(f"✅ Встроенный урок найден: {embedded_lesson.lesson_title}")
                 return {
