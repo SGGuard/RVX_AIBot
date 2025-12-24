@@ -5175,13 +5175,14 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         ],
         [
             InlineKeyboardButton("📌 Закладки", callback_data="start_bookmarks"),
-            InlineKeyboardButton("📦 Дропы", callback_data="start_drops")
+            InlineKeyboardButton("🧮 Калькулятор", callback_data="start_calculator")
         ],
         [
-            InlineKeyboardButton("🔥 Активности", callback_data="start_activities"),
-            InlineKeyboardButton("📜 История", callback_data="start_history")
+            InlineKeyboardButton("📦 Дропы", callback_data="start_drops"),
+            InlineKeyboardButton("🔥 Активности", callback_data="start_activities")
         ],
         [
+            InlineKeyboardButton("📜 История", callback_data="start_history"),
             InlineKeyboardButton("⚙️ Меню", callback_data="start_menu")
         ]
     ]
@@ -8621,12 +8622,16 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 InlineKeyboardButton("🏆 Лидерборд", callback_data="start_leaderboard")
             ],
             [
-                InlineKeyboardButton("📋 Задачи", callback_data="start_tasks"),
-                InlineKeyboardButton("🎯 Ресурсы", callback_data="start_resources")
+                InlineKeyboardButton("🎯 Ежедневные задачи", callback_data="start_quests"),
+                InlineKeyboardButton("📚 Ресурсы", callback_data="start_resources")
             ],
             [
                 InlineKeyboardButton("📌 Закладки", callback_data="start_bookmarks"),
                 InlineKeyboardButton("🧮 Калькулятор", callback_data="start_calculator")
+            ],
+            [
+                InlineKeyboardButton("📦 Дропы", callback_data="start_drops"),
+                InlineKeyboardButton("🔥 Активности", callback_data="start_activities")
             ],
             [
                 InlineKeyboardButton("📜 История", callback_data="start_history"),
