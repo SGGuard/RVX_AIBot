@@ -9254,11 +9254,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         except Exception as e:
-            logger.error(f"Ошибка в start_activities: {e}")
-            try:
-                await query.answer("❌ Ошибка при открытии меню", show_alert=True)
-            except:
-                pass
+            logger.error(f"Ошибка в start_activities: {e}", exc_info=True)
         return
     
     # Урок 1: Что такое активности
