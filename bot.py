@@ -8922,92 +8922,112 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     # Выбор токена в калькуляторе
     if data.startswith("calc_token_"):
-        token_symbol = data.replace("calc_token_", "").upper()
-        token_data = get_token_stats(token_symbol)
-        
-        if not token_data:
-            await query.answer("❌ Токен не найден", show_alert=True)
+        try:
+            token_symbol = data.replace("calc_token_", "").upper()
+            token_data = get_token_stats(token_symbol)
+            
+            if not token_data:
+                await query.answer("❌ Токен не найден", show_alert=True)
+                return
+            
+            # Сохраняем выбранный токен в контекст
+            context.user_data["selected_token"] = token_symbol
+            context.user_data["waiting_for_price"] = True
+            
+            logger.info(f"💰 Выбран токен {token_symbol} для {user.id}")
+            
+            # Показываем информацию о токене и просим цену
+            text = (
+                f"{token_data['emoji']} <b>{token_data['name']} ({token_data['symbol']}) Calculator</b>\n\n"
+                f"<b>📊 Параметры токена:</b>\n"
+                f"🔓 Разблокировано: {format_number(token_data['unlocked'])}\n"
+                f"🔒 В веститинге: {format_number(token_data['vesting'])}\n"
+                f"📈 Всего: {format_number(token_data['total_supply'])}\n\n"
+                f"<b>💰 Введи цену токена в долларах:</b>\n"
+                f"<i>Примеры: 0.001, 1.5, 100</i>"
+            )
+            
+            keyboard_calc = [
+                [InlineKeyboardButton("🪙 Другой токен", callback_data="calc_menu")],
+                [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
+            ]
+            
+            try:
+                await query.edit_message_text(
+                    text,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=InlineKeyboardMarkup(keyboard_calc)
+                )
+            except Exception as e:
+                logger.warning(f"⚠️ Не удалось отредактировать сообщение: {e}")
+                await query.message.reply_text(
+                    text,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=InlineKeyboardMarkup(keyboard_calc)
+                )
             return
         
-        # Сохраняем выбранный токен в контекст
-        context.user_data["selected_token"] = token_symbol
-        context.user_data["waiting_for_price"] = True
-        
-        logger.info(f"💰 Выбран токен {token_symbol} для {user.id}")
-        
-        # Показываем информацию о токене и просим цену
-        text = (
-            f"{token_data['emoji']} <b>{token_data['name']} ({token_data['symbol']}) Calculator</b>\n\n"
-            f"<b>📊 Параметры токена:</b>\n"
-            f"🔓 Разблокировано: {format_number(token_data['unlocked'])}\n"
-            f"🔒 В веститинге: {format_number(token_data['vesting'])}\n"
-            f"📈 Всего: {format_number(token_data['total_supply'])}\n\n"
-            f"<b>💰 Введи цену токена в долларах:</b>\n"
-            f"<i>Примеры: 0.001, 1.5, 100</i>"
-        )
-        
-        keyboard_calc = [
-            [InlineKeyboardButton("🪙 Другой токен", callback_data="calc_menu")],
-            [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
-        ]
-        
-        try:
-            await query.edit_message_text(
-                text,
-                parse_mode=ParseMode.HTML,
-                reply_markup=InlineKeyboardMarkup(keyboard_calc)
-            )
-        except:
-            await query.message.reply_text(
-                text,
-                parse_mode=ParseMode.HTML,
-                reply_markup=InlineKeyboardMarkup(keyboard_calc)
-            )
-        return
+        except Exception as e:
+            logger.error(f"❌ Ошибка в calc_token callback: {str(e)}", exc_info=True)
+            try:
+                await query.answer("❌ Произошла ошибка. Попробуйте позже.", show_alert=True)
+            except:
+                pass
+            return
     
     # Возврат к меню выбора токенов
     if data == "calc_menu":
-        tokens = get_token_list()
-        keyboard = []
-        
-        for i in range(0, len(tokens), 2):
-            row = []
-            
-            token1 = tokens[i].upper()
-            token_data1 = get_token_stats(token1)
-            if token_data1:
-                row.append(InlineKeyboardButton(
-                    f"{token_data1['emoji']} {token_data1['symbol']}",
-                    callback_data=f"calc_token_{token1.lower()}"
-                ))
-            
-            if i + 1 < len(tokens):
-                token2 = tokens[i + 1].upper()
-                token_data2 = get_token_stats(token2)
-                if token_data2:
-                    row.append(InlineKeyboardButton(
-                        f"{token_data2['emoji']} {token_data2['symbol']}",
-                        callback_data=f"calc_token_{token2.lower()}"
-                    ))
-            
-            if row:
-                keyboard.append(row)
-        
-        keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")])
-        
         try:
-            await query.edit_message_text(
-                get_calculator_menu_text(),
-                parse_mode=ParseMode.HTML,
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-        except:
-            await query.message.reply_text(
-                get_calculator_menu_text(),
-                parse_mode=ParseMode.HTML,
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-        return
+            tokens = get_token_list()
+            keyboard = []
+            
+            for i in range(0, len(tokens), 2):
+                row = []
+                
+                token1 = tokens[i].upper()
+                token_data1 = get_token_stats(token1)
+                if token_data1:
+                    row.append(InlineKeyboardButton(
+                        f"{token_data1['emoji']} {token_data1['symbol']}",
+                        callback_data=f"calc_token_{token1.lower()}"
+                    ))
+                
+                if i + 1 < len(tokens):
+                    token2 = tokens[i + 1].upper()
+                    token_data2 = get_token_stats(token2)
+                    if token_data2:
+                        row.append(InlineKeyboardButton(
+                            f"{token_data2['emoji']} {token_data2['symbol']}",
+                            callback_data=f"calc_token_{token2.lower()}"
+                        ))
+                
+                if row:
+                    keyboard.append(row)
+            
+            keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")])
+            
+            try:
+                await query.edit_message_text(
+                    get_calculator_menu_text(),
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+            except Exception as e:
+                logger.warning(f"⚠️ Не удалось отредактировать сообщение в calc_menu: {e}")
+                await query.message.reply_text(
+                    get_calculator_menu_text(),
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+            return
+        
+        except Exception as e:
+            logger.error(f"❌ Ошибка в calc_menu callback: {str(e)}", exc_info=True)
+            try:
+                await query.answer("❌ Произошла ошибка. Попробуйте позже.", show_alert=True)
+            except:
+                pass
+            return
     
     # Выбор темы обучения
     if data.startswith("teach_topic_"):
@@ -10372,44 +10392,54 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     
     # ✅ v0.33.0: CALCULATOR PRICE INPUT HANDLER (проверяем ДО валидации основного текста)
     if context.user_data.get("waiting_for_price"):
-        user_text = update.message.text.strip()
-        
-        # Валидируем цену
-        is_valid, price, error_msg = validate_price(user_text)
-        
-        if not is_valid:
-            await update.message.reply_text(error_msg)
+        try:
+            user_text = update.message.text.strip()
+            
+            # Валидируем цену
+            is_valid, price, error_msg = validate_price(user_text)
+            
+            if not is_valid:
+                await update.message.reply_text(error_msg)
+                return
+            
+            # Получаем выбранный токен
+            token_symbol = context.user_data.get("selected_token", "GNK").upper()
+            
+            # Генерируем результат расчета
+            calculator_result = format_calculator_result(token_symbol, price)
+            
+            # Кнопки для калькулятора
+            keyboard = [
+                [
+                    InlineKeyboardButton("🔄 Другая цена", callback_data=f"calc_token_{token_symbol.lower()}"),
+                    InlineKeyboardButton("🪙 Другой токен", callback_data="calc_menu")
+                ],
+                [
+                    InlineKeyboardButton("📊 Таблица цен", callback_data=f"calc_price_table_{token_symbol.lower()}"),
+                    InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")
+                ]
+            ]
+            
+            await update.message.reply_text(
+                calculator_result,
+                parse_mode=ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            
+            # Очищаем флаг ожидания цены
+            context.user_data["waiting_for_price"] = False
+            
+            logger.info(f"✅ Расчет калькулятора для {user.id}: {token_symbol} @ ${price:,.2f}")
             return
         
-        # Получаем выбранный токен
-        token_symbol = context.user_data.get("selected_token", "GNK").upper()
-        
-        # Генерируем результат расчета
-        calculator_result = format_calculator_result(token_symbol, price)
-        
-        # Кнопки для калькулятора
-        keyboard = [
-            [
-                InlineKeyboardButton("🔄 Другая цена", callback_data=f"calc_token_{token_symbol.lower()}"),
-                InlineKeyboardButton("🪙 Другой токен", callback_data="calc_menu")
-            ],
-            [
-                InlineKeyboardButton("📊 Таблица цен", callback_data=f"calc_price_table_{token_symbol.lower()}"),
-                InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")
-            ]
-        ]
-        
-        await update.message.reply_text(
-            calculator_result,
-            parse_mode=ParseMode.HTML,
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-        
-        # Очищаем флаг ожидания цены
-        context.user_data["waiting_for_price"] = False
-        
-        logger.info(f"✅ Расчет калькулятора для {user.id}: {token_symbol} @ {format_price(price)}")
-        return
+        except Exception as e:
+            logger.error(f"❌ Ошибка в калькуляторе: {str(e)}", exc_info=True)
+            context.user_data["waiting_for_price"] = False
+            await update.message.reply_text(
+                "❌ Произошла ошибка при расчете. Пожалуйста, попробуйте позже.\n\n"
+                "Используйте /calc для новой попытки."
+            )
+            return
     
     # Валидация и санитизация входа
     is_valid, error_msg = validate_user_input(update.message.text)
