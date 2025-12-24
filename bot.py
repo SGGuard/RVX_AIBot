@@ -10323,8 +10323,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         if simplified_text and not error:
             logger.info(f"✅ API успех: {len(simplified_text)} символов за {proc_time:.0f}ms")
             
-            # ⚡ LIMIT RESPONSE TO 400 CHARS MAX
-            MAX_CHARS = 400
+            # ⚡ LIMIT RESPONSE TO 1500 CHARS MAX - достаточно для полного анализа
+            MAX_CHARS = 1500
             if len(simplified_text) > MAX_CHARS:
                 # Find last space before limit
                 truncated = simplified_text[:MAX_CHARS]
