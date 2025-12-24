@@ -8933,10 +8933,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if data == "start_airdrops":
         try:
             keyboard = [
-                [InlineKeyboardButton("📖 Что такое аирдроп?", callback_data="airairairdrops_lesson_1")],
-                [InlineKeyboardButton("🎯 Как участвовать?", callback_data="airairairdrops_lesson_2")],
-                [InlineKeyboardButton("📋 Что нужно знать?", callback_data="airairairdrops_lesson_3")],
-                [InlineKeyboardButton("⚠️ Риски и безопасность", callback_data="airairairdrops_lesson_4")],
+                [InlineKeyboardButton("📖 Что такое аирдроп?", callback_data="airdrops_lesson_1")],
+                [InlineKeyboardButton("🎯 Как участвовать?", callback_data="airdrops_lesson_2")],
+                [InlineKeyboardButton("📋 Что нужно знать?", callback_data="airdrops_lesson_3")],
+                [InlineKeyboardButton("⚠️ Риски и безопасность", callback_data="airdrops_lesson_4")],
                 [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
             ]
             
@@ -8970,9 +8970,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
     
     # Урок 1: Что такое аирдроп
-    if data == "airairdrops_lesson_1":
+    if data == "airdrops_lesson_1":
         keyboard = [
-            [InlineKeyboardButton("✅ Понял!", callback_data="airairdrops_lesson_2")],
+            [InlineKeyboardButton("✅ Понял!", callback_data="airdrops_lesson_2")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="start_airdrops")]
         ]
         
@@ -9002,13 +9002,13 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         except Exception as e:
-            logger.error(f"Ошибка в airairdrops_lesson_1: {e}")
+            logger.error(f"Ошибка в airdrops_lesson_1: {e}")
         return
     
     # Урок 2: Как участвовать
-    if data == "airairdrops_lesson_2":
+    if data == "airdrops_lesson_2":
         keyboard = [
-            [InlineKeyboardButton("✅ Готово!", callback_data="airairdrops_lesson_3")],
+            [InlineKeyboardButton("✅ Готово!", callback_data="airdrops_lesson_3")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="start_airdrops")]
         ]
         
@@ -9048,13 +9048,13 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         except Exception as e:
-            logger.error(f"Ошибка в airairdrops_lesson_2: {e}")
+            logger.error(f"Ошибка в airdrops_lesson_2: {e}")
         return
     
     # Урок 3: Что нужно знать
-    if data == "airairdrops_lesson_3":
+    if data == "airdrops_lesson_3":
         keyboard = [
-            [InlineKeyboardButton("✅ Ясно!", callback_data="airairdrops_lesson_4")],
+            [InlineKeyboardButton("✅ Ясно!", callback_data="airdrops_lesson_4")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="start_airdrops")]
         ]
         
@@ -9093,11 +9093,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         except Exception as e:
-            logger.error(f"Ошибка в airairdrops_lesson_3: {e}")
+            logger.error(f"Ошибка в airdrops_lesson_3: {e}")
         return
     
     # Урок 4: Риски и безопасность
-    if data == "airairdrops_lesson_4":
+    if data == "airdrops_lesson_4":
         keyboard = [
             [InlineKeyboardButton("🎓 Финальный тест", callback_data="airdrops_quiz")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="start_airdrops")]
@@ -9145,7 +9145,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         except Exception as e:
-            logger.error(f"Ошибка в airairdrops_lesson_4: {e}")
+            logger.error(f"Ошибка в airdrops_lesson_4: {e}")
         return
     
     # Финальный тест/резюме
@@ -9188,7 +9188,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # Финальное резюме
     if data == "airdrops_summary":
         keyboard = [
-            [InlineKeyboardButton("📖 Узнать больше", callback_data="airairdrops_lesson_1")],
+            [InlineKeyboardButton("📖 Узнать больше", callback_data="airdrops_lesson_1")],
             [InlineKeyboardButton("🎯 Другие функции", callback_data="back_to_start")]
         ]
         
