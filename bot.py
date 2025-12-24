@@ -4819,7 +4819,12 @@ def get_bookmark_count(user_id: int, bookmark_type: str = None) -> int:
 
 async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE, period: str):
     """Показывает таблицу лидеров за период."""
-    user_id = update.effective_user.id
+    user = update.effective_user
+    user_id = user.id
+    
+    # ✅ Сохраняем пользователя перед показом лидерборда
+    save_user(user_id, user.username or "", user.first_name)
+    
     query = update.callback_query
     
     try:
@@ -4877,8 +4882,14 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE, p
         await query.answer()
         
     except Exception as e:
-        logger.error(f"❌ Ошибка show_leaderboard: {e}")
-        await query.answer("❌ Ошибка загрузки рейтинга", show_alert=True)
+        logger.error(f"❌ Ошибка show_leaderboard: {e}", exc_info=True)
+        try:
+            if query:
+                await query.answer("❌ Ошибка загрузки рейтинга", show_alert=True)
+            else:
+                await update.message.reply_text("❌ Ошибка загрузки рейтинга")
+        except:
+            logger.error(f"❌ Не удалось отправить ошибку пользователю")
 
 
 @log_command
