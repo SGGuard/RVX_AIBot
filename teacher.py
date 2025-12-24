@@ -297,11 +297,37 @@ async def teach_lesson(
     user_knowledge_context: Optional[str] = None
 ) -> Optional[Dict[str, Any]]:
     """
-    Создает интерактивный урок через специализированный API endpoint /teach_lesson.
+    Создает интерактивный урок.
+    
+    Сначала пытается использовать встроенного преподавателя (встроенные уроки),
+    затем - API endpoint если встроенный урок не найден.
     Возвращает словарь с уроком или None если ошибка.
     """
     try:
         topic = topic.lower()
+        
+        # ✅ СНАЧАЛА: Попытаемся использовать встроенного преподавателя (fast path)
+        logger.info(f"📚 Попытка загрузить встроенный урок: {topic} ({difficulty_level})")
+        try:
+            from embedded_teacher import get_embedded_lesson
+            embedded_lesson = get_embedded_lesson(topic, difficulty_level)
+            if embedded_lesson:
+                logger.info(f"✅ Встроенный урок найден: {embedded_lesson.lesson_title}")
+                return {
+                    "lesson_title": embedded_lesson.lesson_title,
+                    "content": embedded_lesson.content,
+                    "key_points": embedded_lesson.key_points,
+                    "real_world_example": embedded_lesson.real_world_example,
+                    "practice_question": embedded_lesson.practice_question,
+                    "next_topics": embedded_lesson.next_topics,
+                    "processing_time_ms": 1.0
+                }
+        except Exception as e:
+            logger.warning(f"⚠️ embedded_teacher ошибка: {e}, используем API fallback")
+        
+        # ✅ FALLBACK: Попытаемся использовать API endpoint
+        logger.info(f"📡 Используем API для загрузки урока...")
+        
         if topic not in TEACHING_TOPICS:
             topic = get_topic_by_keyword(topic)
         
@@ -391,5 +417,4 @@ async def teach_lesson(
     except Exception as e:
         logger.error(f"❌ Критическая ошибка в teach_lesson: {e}", exc_info=True)
         return _get_fallback_lesson(topic, difficulty_level)
-        return None
 
