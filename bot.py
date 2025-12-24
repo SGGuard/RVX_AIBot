@@ -9255,6 +9255,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             )
         except Exception as e:
             logger.error(f"Ошибка в start_activities: {e}", exc_info=True)
+            try:
+                await update.message.reply_text(
+                    menu_text,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+            except Exception as fallback_error:
+                logger.error(f"Ошибка fallback в start_activities: {fallback_error}", exc_info=True)
         return
     
     # Урок 1: Что такое активности
@@ -9297,7 +9305,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         except Exception as e:
-            logger.error(f"Ошибка в activities_lesson_1: {e}")
+            logger.error(f"Ошибка в activities_lesson_1: {e}", exc_info=True)
         return
     
     # Урок 2: Как участвовать
@@ -9343,7 +9351,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         except Exception as e:
-            logger.error(f"Ошибка в activities_lesson_2: {e}")
+            logger.error(f"Ошибка в activities_lesson_2: {e}", exc_info=True)
         return
     
     # Урок 3: Как заработать
@@ -9393,7 +9401,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         except Exception as e:
-            logger.error(f"Ошибка в activities_lesson_3: {e}")
+            logger.error(f"Ошибка в activities_lesson_3: {e}", exc_info=True)
         return
     
     # Урок 4: Риски
@@ -9444,7 +9452,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         except Exception as e:
-            logger.error(f"Ошибка в activities_lesson_4: {e}")
+            logger.error(f"Ошибка в activities_lesson_4: {e}", exc_info=True)
         return
     
     # Викторина активностей
@@ -9485,7 +9493,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         except Exception as e:
-            logger.error(f"Ошибка в activities_quiz: {e}")
+            logger.error(f"Ошибка в activities_quiz: {e}", exc_info=True)
         return
     
     # Финальное резюме активностей
@@ -9526,7 +9534,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         except Exception as e:
-            logger.error(f"Ошибка в activities_summary: {e}")
+            logger.error(f"Ошибка в activities_summary: {e}", exc_info=True)
         return
     
     # Открытие калькулятора из главного меню (v0.33.3)
