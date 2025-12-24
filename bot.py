@@ -5181,7 +5181,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             InlineKeyboardButton("🧮 Калькулятор", callback_data="start_calculator")
         ],
         [
-            InlineKeyboardButton("📦 Дропы", callback_data="start_drops"),
+            InlineKeyboardButton("📦 Дропы", callback_data="start_airdrops"),
             InlineKeyboardButton("🔥 Активности", callback_data="start_activities")
         ],
         [
@@ -8633,7 +8633,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 InlineKeyboardButton("🧮 Калькулятор", callback_data="start_calculator")
             ],
             [
-                InlineKeyboardButton("📦 Дропы", callback_data="start_drops"),
+                InlineKeyboardButton("🎯 Аирдропхантинг", callback_data="start_airdrops"),
                 InlineKeyboardButton("🔥 Активности", callback_data="start_activities")
             ],
             [
@@ -8930,34 +8930,50 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # ============ ИНТЕРАКТИВНОЕ ОБУЧЕНИЕ АИРДРОПАМ (v0.34.1) ============
     
     # Начало обучения аирдропам
-    if data == "start_drops":
-        keyboard = [
-            [InlineKeyboardButton("📖 Что такое аирдроп?", callback_data="drops_lesson_1")],
-            [InlineKeyboardButton("🎯 Как участвовать?", callback_data="drops_lesson_2")],
-            [InlineKeyboardButton("📋 Что нужно знать?", callback_data="drops_lesson_3")],
-            [InlineKeyboardButton("⚠️ Риски и безопасность", callback_data="drops_lesson_4")],
-            [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
-        ]
-        
+    if data == "start_airdrops":
         try:
-            await query.edit_message_text(
-                "📦 <b>ПОЛНЫЙ ГАЙД ПО АИРДРОПАМ</b>\n\n"
+            keyboard = [
+                [InlineKeyboardButton("📖 Что такое аирдроп?", callback_data="airairairdrops_lesson_1")],
+                [InlineKeyboardButton("🎯 Как участвовать?", callback_data="airairairdrops_lesson_2")],
+                [InlineKeyboardButton("📋 Что нужно знать?", callback_data="airairairdrops_lesson_3")],
+                [InlineKeyboardButton("⚠️ Риски и безопасность", callback_data="airairairdrops_lesson_4")],
+                [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
+            ]
+            
+            menu_text = (
+                "🎯 <b>ПОЛНЫЙ ГАЙД ПО АИРДРОПХАНТИНГУ</b>\n\n"
                 "Хочешь понять что такое аирдроп и как получить бесплатные крипто?\n\n"
                 "Выбери тему для изучения:\n\n"
                 "🚀 Этот гайд проведет тебя от нуля до профессионала за 5 минут!\n"
-                "Каждый урок содержит реальные примеры и полезные советы.",
-                parse_mode=ParseMode.HTML,
-                reply_markup=InlineKeyboardMarkup(keyboard)
+                "Каждый урок содержит реальные примеры и полезные советы."
             )
+            
+            try:
+                await query.edit_message_text(
+                    menu_text,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+            except Exception as e:
+                logger.warning(f"⚠️ Не удалось отредактировать сообщение: {e}")
+                await query.message.reply_text(
+                    menu_text,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
         except Exception as e:
-            logger.error(f"Ошибка в start_drops: {e}")
+            logger.error(f"❌ Ошибка в start_airdrops: {str(e)}", exc_info=True)
+            try:
+                await query.answer("❌ Ошибка при открытии гайда. Попробуйте позже.", show_alert=True)
+            except:
+                pass
         return
     
     # Урок 1: Что такое аирдроп
-    if data == "drops_lesson_1":
+    if data == "airairdrops_lesson_1":
         keyboard = [
-            [InlineKeyboardButton("✅ Понял!", callback_data="drops_lesson_2")],
-            [InlineKeyboardButton("⬅️ Назад", callback_data="start_drops")]
+            [InlineKeyboardButton("✅ Понял!", callback_data="airairdrops_lesson_2")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="start_airdrops")]
         ]
         
         try:
@@ -8986,14 +9002,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         except Exception as e:
-            logger.error(f"Ошибка в drops_lesson_1: {e}")
+            logger.error(f"Ошибка в airairdrops_lesson_1: {e}")
         return
     
     # Урок 2: Как участвовать
-    if data == "drops_lesson_2":
+    if data == "airairdrops_lesson_2":
         keyboard = [
-            [InlineKeyboardButton("✅ Готово!", callback_data="drops_lesson_3")],
-            [InlineKeyboardButton("⬅️ Назад", callback_data="start_drops")]
+            [InlineKeyboardButton("✅ Готово!", callback_data="airairdrops_lesson_3")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="start_airdrops")]
         ]
         
         try:
@@ -9032,14 +9048,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         except Exception as e:
-            logger.error(f"Ошибка в drops_lesson_2: {e}")
+            logger.error(f"Ошибка в airairdrops_lesson_2: {e}")
         return
     
     # Урок 3: Что нужно знать
-    if data == "drops_lesson_3":
+    if data == "airairdrops_lesson_3":
         keyboard = [
-            [InlineKeyboardButton("✅ Ясно!", callback_data="drops_lesson_4")],
-            [InlineKeyboardButton("⬅️ Назад", callback_data="start_drops")]
+            [InlineKeyboardButton("✅ Ясно!", callback_data="airairdrops_lesson_4")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="start_airdrops")]
         ]
         
         try:
@@ -9077,14 +9093,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         except Exception as e:
-            logger.error(f"Ошибка в drops_lesson_3: {e}")
+            logger.error(f"Ошибка в airairdrops_lesson_3: {e}")
         return
     
     # Урок 4: Риски и безопасность
-    if data == "drops_lesson_4":
+    if data == "airairdrops_lesson_4":
         keyboard = [
-            [InlineKeyboardButton("🎓 Финальный тест", callback_data="drops_quiz")],
-            [InlineKeyboardButton("⬅️ Назад", callback_data="start_drops")]
+            [InlineKeyboardButton("🎓 Финальный тест", callback_data="airdrops_quiz")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="start_airdrops")]
         ]
         
         try:
@@ -9129,14 +9145,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         except Exception as e:
-            logger.error(f"Ошибка в drops_lesson_4: {e}")
+            logger.error(f"Ошибка в airairdrops_lesson_4: {e}")
         return
     
     # Финальный тест/резюме
-    if data == "drops_quiz":
+    if data == "airdrops_quiz":
         keyboard = [
-            [InlineKeyboardButton("🎉 Готов к аирдропам!", callback_data="drops_summary")],
-            [InlineKeyboardButton("🔄 Повторить уроки", callback_data="start_drops")],
+            [InlineKeyboardButton("🎉 Готов к аирдропам!", callback_data="airdrops_summary")],
+            [InlineKeyboardButton("🔄 Повторить уроки", callback_data="start_airdrops")],
             [InlineKeyboardButton("⬅️ В меню", callback_data="back_to_start")]
         ]
         
@@ -9166,13 +9182,13 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         except Exception as e:
-            logger.error(f"Ошибка в drops_quiz: {e}")
+            logger.error(f"Ошибка в airdrops_quiz: {e}")
         return
     
     # Финальное резюме
-    if data == "drops_summary":
+    if data == "airdrops_summary":
         keyboard = [
-            [InlineKeyboardButton("📖 Узнать больше", callback_data="drops_lesson_1")],
+            [InlineKeyboardButton("📖 Узнать больше", callback_data="airairdrops_lesson_1")],
             [InlineKeyboardButton("🎯 Другие функции", callback_data="back_to_start")]
         ]
         
@@ -9204,7 +9220,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         except Exception as e:
-            logger.error(f"Ошибка в drops_summary: {e}")
+            logger.error(f"Ошибка в airdrops_summary: {e}")
         return
     
     # Открытие калькулятора из главного меню (v0.33.3)
