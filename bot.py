@@ -8626,9 +8626,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             ],
             [
                 InlineKeyboardButton("📌 Закладки", callback_data="start_bookmarks"),
-                InlineKeyboardButton("📜 История", callback_data="start_history")
+                InlineKeyboardButton("🧮 Калькулятор", callback_data="start_calculator")
             ],
             [
+                InlineKeyboardButton("📜 История", callback_data="start_history"),
                 InlineKeyboardButton("⚙️ Меню", callback_data="start_menu")
             ]
         ]
@@ -8916,6 +8917,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             )
         except Exception as e:
             logger.error(f"Ошибка в teach_menu: {e}")
+        return
+    
+    # Открытие калькулятора из главного меню (v0.33.3)
+    if data == "start_calculator":
+        await calculator_command(update, context)
         return
     
     # ============ CALCULATOR CALLBACKS (v0.33.0) ============
