@@ -10512,7 +10512,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             is_valid, price, error_msg = validate_price(user_text)
             
             if not is_valid:
-                await update.message.reply_text(error_msg)
+                # Показываем ошибку с кнопкой отмены
+                keyboard = [
+                    [
+                        InlineKeyboardButton("🔄 Попробовать снова", callback_data=f"calc_token_{context.user_data.get('selected_token', 'gnk').lower()}"),
+                        InlineKeyboardButton("❌ Отменить ввод", callback_data="back_to_start")
+                    ]
+                ]
+                await update.message.reply_text(
+                    f"{error_msg}\n\n"
+                    f"<i>Пожалуйста, введи число (например: 0.001, 1.5, 100) или нажми кнопку отмены</i>",
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
                 return
             
             # Получаем выбранный токен
