@@ -8927,12 +8927,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # Открытие калькулятора из главного меню (v0.33.3)
     if data == "start_calculator":
         try:
+            logger.info(f"🧮 start_calculator callback вызван")
+            
             user_id = update.effective_user.id
             logger.info(f"🧮 Калькулятор открыт пользователем {user_id} через меню")
             
             # Получаем список доступных токенов
             tokens = get_token_list()
-            logger.info(f"✅ Получены токены: {tokens}")
+            logger.debug(f"📊 Токены: {tokens}")
             
             # Создаем кнопки для выбора токена
             keyboard = []
@@ -8940,20 +8942,19 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 row = []
                 
                 # Первый токен в строке
-                token1 = tokens[i].upper()
-                token_data1 = get_token_stats(token1)
-                logger.info(f"📊 Token1: {token1}, Data: {bool(token_data1)}")
-                if token_data1:
-                    row.append(InlineKeyboardButton(
-                        f"{token_data1['emoji']} {token_data1['symbol']}",
-                        callback_data=f"calc_token_{token1.lower()}"
-                    ))
+                if i < len(tokens):
+                    token1 = tokens[i].upper()
+                    token_data1 = get_token_stats(token1)
+                    if token_data1:
+                        row.append(InlineKeyboardButton(
+                            f"{token_data1['emoji']} {token_data1['symbol']}",
+                            callback_data=f"calc_token_{token1.lower()}"
+                        ))
                 
                 # Второй токен в строке (если есть)
                 if i + 1 < len(tokens):
                     token2 = tokens[i + 1].upper()
                     token_data2 = get_token_stats(token2)
-                    logger.info(f"📊 Token2: {token2}, Data: {bool(token_data2)}")
                     if token_data2:
                         row.append(InlineKeyboardButton(
                             f"{token_data2['emoji']} {token_data2['symbol']}",
@@ -8963,32 +8964,28 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 if row:
                     keyboard.append(row)
             
-            logger.info(f"✅ Клавиатура построена: {len(keyboard)} рядов")
-            
             # Добавляем кнопку "Назад"
             keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")])
             
             # Получаем текст меню
             menu_text = get_calculator_menu_text()
-            logger.info(f"✅ Текст меню получен: {len(menu_text)} символов")
             
             # Показываем меню калькулятора
-            logger.info(f"🔄 Редактирование сообщения...")
             await query.edit_message_text(
                 menu_text,
                 parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
             
-            logger.info(f"✅ Меню калькулятора показано успешно")
+            logger.info(f"✅ Меню калькулятора показано для пользователя {user_id}")
             return
         
         except Exception as e:
-            logger.error(f"❌ Ошибка в start_calculator: {str(e)}", exc_info=True)
+            logger.error(f"❌ Критическая ошибка в start_calculator: {type(e).__name__}: {str(e)}", exc_info=True)
             try:
-                await query.answer("❌ Произошла ошибка при открытии калькулятора. Попробуйте позже.", show_alert=True)
-            except Exception as e2:
-                logger.error(f"❌ Ошибка при отправке alert: {e2}")
+                await query.answer("❌ Ошибка при открытии калькулятора", show_alert=True)
+            except Exception as alert_err:
+                logger.error(f"❌ Не удалось отправить alert: {alert_err}")
             return
     
     # ============ CALCULATOR CALLBACKS (v0.33.0) ============
