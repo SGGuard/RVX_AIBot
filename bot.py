@@ -6864,9 +6864,6 @@ async def teach_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         data={}
     ))
     
-    is_callback = update.callback_query is not None
-    query = update.callback_query if is_callback else None
-    
     # Получаем профиль обучения пользователя
     with get_db() as conn:
         cursor = conn.cursor()
@@ -6896,27 +6893,10 @@ async def teach_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     # Получаем рекомендованную сессию
     recommended_session = get_recommended_learning_session(learning_profile)
     
-    # Если нет аргументов - показываем интерактивное меню
+    # Если нет аргументов - показываем интерактивное меню через кнопку
     if not context.args:
-        # Создаем кнопки для выбора темы (2x4 сетка)
-        keyboard = []
-        topics_list = list(TEACHING_TOPICS.keys())
-        
-        # Разбиваем на пары для красивого отображения
-        for i in range(0, len(topics_list), 2):
-            row = []
-            if i < len(topics_list):
-                topic1 = topics_list[i]
-                row.append(InlineKeyboardButton(f"📚 {TEACHING_TOPICS[topic1]['name']}", callback_data=f"teach_topic_{topic1}"))
-            if i + 1 < len(topics_list):
-                topic2 = topics_list[i + 1]
-                row.append(InlineKeyboardButton(f"📖 {TEACHING_TOPICS[topic2]['name']}", callback_data=f"teach_topic_{topic2}"))
-            if row:
-                keyboard.append(row)
-        
-        # Добавляем персонализированную кнопку "Рекомендованное обучение"
-        keyboard.insert(0, [InlineKeyboardButton("✨ Рекомендованное для вас", callback_data="teach_recommended")])
-        keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")])
+        # Используем callback систему для меню (это проще и избегает дублирования)
+        keyboard = [[InlineKeyboardButton("🎓 Начать обучение", callback_data="teach_menu")]]
         
         next_milestone = Gamification.get_next_milestone(user_xp)
         
@@ -6930,18 +6910,11 @@ async def teach_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         )
         
         try:
-            if is_callback and query:
-                await query.edit_message_text(
-                    menu_text,
-                    parse_mode=ParseMode.HTML,
-                    reply_markup=InlineKeyboardMarkup(keyboard)
-                )
-            else:
-                await update.message.reply_text(
-                    menu_text,
-                    parse_mode=ParseMode.HTML,
-                    reply_markup=InlineKeyboardMarkup(keyboard)
-                )
+            await update.message.reply_text(
+                menu_text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
         except Exception as e:
             logger.error(f"Ошибка в teach_command: {e}")
         return
@@ -8914,7 +8887,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             if row:
                 keyboard.append(row)
         
-        keyboard.append([InlineKeyboardButton("⬅️ Другие темы", callback_data="teach_menu")])
+        # Добавляем персонализированную кнопку "Рекомендованное обучение"
+        keyboard.insert(0, [InlineKeyboardButton("✨ Рекомендованное для вас", callback_data="teach_recommended")])
+        keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")])
         
         try:
             await query.edit_message_text(
@@ -8924,7 +8899,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         except Exception as e:
-            logger.error(f"Ошибка в teach_menu: {e}")
+            logger.error(f"Ошибка в teach_menu: {e}", exc_info=True)
         return
     
     # ============ ИНТЕРАКТИВНОЕ ОБУЧЕНИЕ АИРДРОПАМ (v0.34.1) ============
