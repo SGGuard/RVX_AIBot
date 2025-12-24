@@ -222,8 +222,13 @@ def format_calculator_result(token_symbol: str, price: float) -> str:
         price
     )
     
+    # ✅ v0.33.1: Используем format_market_cap для красивого отображения больших чисел
     unlocked_mc = token_data['unlocked'] * price
     vesting_mc = token_data['vesting'] * price
+    
+    # Форматируем эти значения красиво (B/M/K)
+    unlocked_mc_str = format_market_cap(unlocked_mc)
+    vesting_mc_str = format_market_cap(vesting_mc)
     
     # Форматирование
     result = (
@@ -232,8 +237,8 @@ def format_calculator_result(token_symbol: str, price: float) -> str:
         f"💰 <b>Цена за токен:</b> {format_price(price)}\n"
         f"📊 <b>Market Cap (Total):</b> {mc_formatted}\n\n"
         f"<b>📈 Детали по категориям:</b>\n"
-        f"🔓 <b>Разблокировано ({format_number(token_data['unlocked'])} токенов):</b> ${unlocked_mc:,.2f}\n"
-        f"🔒 <b>В веститинге ({format_number(token_data['vesting'])} токенов):</b> ${vesting_mc:,.2f}\n\n"
+        f"🔓 <b>Разблокировано ({format_number(token_data['unlocked'])} токенов):</b> {unlocked_mc_str}\n"
+        f"🔒 <b>В веститинге ({format_number(token_data['vesting'])} токенов):</b> {vesting_mc_str}\n\n"
         f"<b>📋 Параметры токена:</b>\n"
         f"🔓 Unlocked: {format_number(token_data['unlocked'])}\n"
         f"🔒 Vesting: {format_number(token_data['vesting'])}\n"
