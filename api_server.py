@@ -1992,205 +1992,71 @@ async def analyze_image(payload: ImagePayload, request: Request) -> JSONResponse
 @app.post("/teach_lesson", response_model=TeachingResponse)
 async def teach_lesson(payload: TeachingPayload) -> JSONResponse:
     """
-    Создает интерактивный учебный урок по криптографии.
+    Создает интерактивный учебный урок по криптографии с встроенным AI.
     
+    Использует встроенную базу знаний для быстрой доставки качественного контента.
     Возвращает структурированный урок с названием, содержанием, примерами и вопросом.
     """
+    from embedded_teacher import get_embedded_lesson, get_all_topics, get_difficulties_for_topic
+    
     start_time_request = datetime.now(timezone.utc)
     topic = payload.topic
     difficulty = payload.difficulty_level
     
     logger.info(f"📚 Запрос урока: {topic} ({difficulty})")
     
-    # Если Gemini недоступен, используем fallback
-    if not client:
-        logger.warning("⚠️ Gemini недоступен, использую fallback режим для урока")
-        request_counter["fallback"] += 1
-        
-        duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
-        
-        return TeachingResponse(
-            lesson_title=f"Введение в {topic.capitalize()}",
-            content="Сервис AI временно недоступен. Пожалуйста, попробуйте позже.",
-            key_points=["Основное", "Практика", "Применение"],
-            real_world_example="Пример в крипто-экосистеме",
-            practice_question=f"Что такое {topic}?",
-            next_topics=[],
-            processing_time_ms=round(duration_ms, 2)
-        )
-    
-    # Вызов AI
     try:
-        teaching_config = build_teaching_config()
+        # Попробуем использовать встроенный урок (быстро и надежно)
+        logger.info(f"🎓 Ищу встроенный урок для '{topic}' ({difficulty})...")
         
-        # Создаем промпт для урока НА РУССКОМ языке
-        prompt = f"""Ты создаешь КОРОТКИЕ УЧЕБНЫЕ БЛОКИ по криптографии и блокчейну на русском языке.
-
-Тема: {topic.replace('_', ' ')}
-Уровень сложности: {difficulty}
-
-КРИТИЧЕСКИ ВАЖНО - Раздели материал на НЕСКОЛЬКО КОРОТКИХ БЛОКОВ для лучшего усвоения:
-- БЕЗ ПЕРЕГРУЗКИ информацией новичков
-- Каждый блок фокусируется на ОДНОЙ главной идее
-- Используй ПРОСТОЙ язык
-
-Структурируй контент так:
-1. Один основной вопрос/концепция (2-3 предложения для начинающих)
-2. Объяснение с примером
-3. Как это применяется в крипто
-
-СОЗДАЙ JSON (ТОЛЬКО РУССКИЙ):
-{{
-  "lesson_title": "Название блока (2-4 слова) на русском",
-  "content": "Краткое объяснение (150-200 слов максимум). 
-  Для beginner: совсем простой язык, визуальные аналогии, только основное
-  Для intermediate: добавь технические детали
-  Для advanced/expert: углубленный анализ, детали механики",
-  "key_points": ["кратко пункт 1", "кратко пункт 2", "кратко пункт 3"],
-  "real_world_example": "Один конкретный пример из крипто (1-2 предложения)",
-  "practice_question": "Простой вопрос для проверки",
-  "next_topics": ["следующая_тема_1", "следующая_тема_2"]
-}}
-
-ЗАПРЕТЫ:
-1. *, **, _, ~, `, маркдаун, эмодзи - НЕЛЬЗЯ
-2. Слишком длинные предложения - разбей на короче
-3. Перегруз информацией - оставь самое важное
-4. ТОЛЬКО русский язык
-5. ТОЛЬКО JSON без доп текста"""
+        embedded_lesson = get_embedded_lesson(topic, difficulty)
         
-        logger.info(f"🤖 Отправка запроса на генерацию урока '{topic}' (уровень {difficulty}) к Gemini API...")
+        if embedded_lesson:
+            logger.info(f"✅ Найден встроенный урок: {embedded_lesson.lesson_title}")
+            duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
+            request_counter["success"] += 1
+            
+            return TeachingResponse(
+                lesson_title=embedded_lesson.lesson_title,
+                content=embedded_lesson.content,
+                key_points=embedded_lesson.key_points,
+                real_world_example=embedded_lesson.real_world_example,
+                practice_question=embedded_lesson.practice_question,
+                next_topics=embedded_lesson.next_topics,
+                processing_time_ms=round(duration_ms, 2)
+            )
         
-        response = await call_gemini_with_retry(
-            client=client,
-            model=GEMINI_MODEL,
-            contents=[prompt],
-            config=teaching_config
-        )
+        # Если встроенного урока нет, предложим доступные топики
+        logger.warning(f"⚠️ Встроенный урок для '{topic}' не найден")
+        available_topics = get_all_topics()
+        logger.info(f"📚 Доступные топики: {', '.join(available_topics)}")
         
-        # Проверка response object
-        if not response:
-            logger.error("❌ Пустой ответ от Gemini при создании урока")
-            raise ValueError("AI вернул пустой ответ")
-        
-        logger.debug(f"Response type: {type(response)}, attributes: {dir(response)}")
-        
-        # Получение текста из response
-        raw_text = None
-        if hasattr(response, 'text') and response.text:
-            logger.debug("Использую response.text")
-            raw_text = response.text
-        elif hasattr(response, 'candidates') and response.candidates:
-            logger.debug(f"Использую response.candidates ({len(response.candidates)} кандидатов)")
-            found = False
-            for i, candidate in enumerate(response.candidates):
-                logger.debug(f"  Candidate {i}: type={type(candidate)}")
-                if hasattr(candidate, 'content') and candidate.content is not None:
-                    logger.debug(f"    content: type={type(candidate.content)}")
-                    if hasattr(candidate.content, 'parts') and candidate.content.parts is not None:
-                        logger.debug(f"    parts: {len(candidate.content.parts)} частей")
-                        for j, part in enumerate(candidate.content.parts):
-                            logger.debug(f"      Part {j}: type={type(part)}, has text={hasattr(part, 'text')}")
-                            if hasattr(part, 'text') and part.text:
-                                raw_text = part.text
-                                logger.debug(f"      Найден текст: {len(part.text)} символов")
-                                found = True
-                                break
-                if found:
-                    break
-        else:
-            logger.error(f"Response не имеет text или candidates. Тип: {type(response)}")
-        
-        if not raw_text or len(raw_text.strip()) < 10:
-            logger.error(f"❌ Получен пустой ответ от AI (raw_text={repr(raw_text)})")
-            logger.warning(f"⚠️ Topic: {topic}, Difficulty: {difficulty}")
-            # Логируем тип и атрибуты для отладки
-            logger.debug(f"Response structure: {type(response)}")
-            if hasattr(response, 'candidates'):
-                for i, cand in enumerate(response.candidates):
-                    logger.debug(f"  Candidate {i}: {cand}")
-            raise ValueError("AI вернул пустой ответ")
-        
-        logger.info(f"📤 Получен ответ от AI: {len(raw_text)} символов")
-        logger.debug(f"Полный ответ: {raw_text}")
-        
-        # Парсинг JSON из ответа
-        lesson_data = extract_teaching_json(raw_text)
-        
-        if not lesson_data:
-            logger.error("❌ Не удалось извлечь JSON из ответа урока")
-            raise ValueError("Некорректный формат ответа AI")
-        
-        # ✅ NEW: Проверяем качество урока с помощью AIQualityValidator
-        quality = AIQualityValidator.validate_analysis(lesson_data)
-        logger.info(f"📊 Качество урока: {quality.score:.1f}/10 | Проблемы: {quality.issues}")
-        
-        # Если качество плохое, пытаемся исправить
-        if quality.score < 5.0:
-            logger.warning(f"⚠️ Низкое качество урока ({quality.score:.1f}/10), пытаемся исправить...")
-            fixed_data = AIQualityValidator.fix_analysis(lesson_data)
-            if fixed_data:
-                lesson_data = fixed_data
-                quality = AIQualityValidator.validate_analysis(lesson_data)
-                logger.info(f"✅ Урок исправлен: качество теперь {quality.score:.1f}/10")
-            else:
-                logger.warning(f"⚠️ Не удалось исправить урок, используем как есть")
-        
-        # Валидация структуры
-        required_fields = ["lesson_title", "content", "key_points", "real_world_example", "practice_question", "next_topics"]
-        for field in required_fields:
-            if field not in lesson_data or not lesson_data[field]:
-                logger.warning(f"⚠️ Поле {field} отсутствует или пусто в уроке, заполняю значением по умолчанию")
-                if field == "key_points" or field == "next_topics":
-                    lesson_data[field] = []
-                else:
-                    lesson_data[field] = ""
-        
+        # Вернем fallback с информацией о доступных топиках
         duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
-        
-        logger.info(f"✅ Урок создан за {duration_ms:.0f}ms: {lesson_data.get('lesson_title', 'Без названия')}")
-        request_counter["success"] += 1
-        
-        return TeachingResponse(
-            lesson_title=lesson_data.get("lesson_title", "Урок"),
-            content=lesson_data.get("content", ""),
-            key_points=lesson_data.get("key_points", []),
-            real_world_example=lesson_data.get("real_world_example", ""),
-            practice_question=lesson_data.get("practice_question", ""),
-            next_topics=lesson_data.get("next_topics", []),
-            processing_time_ms=round(duration_ms, 2)
-        )
-    
-    except asyncio.TimeoutError:
-        logger.error(f"⏱️ Timeout при создании урока")
-        request_counter["errors"] += 1
         request_counter["fallback"] += 1
         
-        duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
-        
         return TeachingResponse(
-            lesson_title=f"Введение в {topic.capitalize()}",
-            content="Время ожидания истекло. Пожалуйста, попробуйте позже.",
-            key_points=["Основное", "Практика", "Применение"],
-            real_world_example="Пример в крипто-экосистеме",
-            practice_question=f"Что такое {topic}?",
-            next_topics=[],
+            lesson_title="Выбор темы обучения",
+            content=f"Тема '{topic}' недоступна. Доступные темы: {', '.join(available_topics)}. Пожалуйста, выберите одну из предложенных тем.",
+            key_points=available_topics,
+            real_world_example="Выберите интересующую вас тему для подробного изучения.",
+            practice_question="Какую тему криптографии вы хотели бы изучить?",
+            next_topics=available_topics,
             processing_time_ms=round(duration_ms, 2)
         )
     
     except Exception as e:
         logger.error(f"❌ Ошибка при создании урока: {e}", exc_info=True)
         request_counter["errors"] += 1
-        request_counter["fallback"] += 1
         
         duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
         
         return TeachingResponse(
-            lesson_title=f"Введение в {topic.capitalize()}",
-            content=f"Ошибка: {str(e)}",
-            key_points=["Основное", "Практика", "Применение"],
-            real_world_example="Пример в крипто-экосистеме",
-            practice_question=f"Что такое {topic}?",
+            lesson_title="Ошибка загрузки урока",
+            content=f"Произошла ошибка при загрузке урока: {str(e)}. Пожалуйста, попробуйте позже.",
+            key_points=["Попробуйте позже", "Выберите другую тему", "Свяжитесь с поддержкой"],
+            real_world_example="Система обучения временно работает с ограничениями.",
+            practice_question="Что вы хотели бы изучить?",
             next_topics=[],
             processing_time_ms=round(duration_ms, 2)
         )
