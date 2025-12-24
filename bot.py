@@ -4371,12 +4371,12 @@ async def tasks_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     user = update.effective_user
     user_id = user.id
     
-    # ✅ v0.25.0: Track user_quest event
+    # ✅ v0.25.0: Track user education event (tasks are educational)
     tracker = get_tracker()
     tracker.track(create_event(
-        EventType.USER_QUEST,
+        EventType.USER_EDUCATION,
         user_id=user_id,
-        data={}
+        data={"action": "view_daily_tasks"}
     ))
     
     is_callback = update.callback_query is not None
