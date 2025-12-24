@@ -9417,6 +9417,7 @@ finance_words = [
     "фонд", "fund", "ставка", "rate", "процент", "dividend", "дивиденд",
     "котировка", "котировок", "мировой рынок", "рынок", "market", "падение",
     "взлет", "взлетел", "вырос", "упал", "вырастет", "упадет", "скачок",
+    "ipo", "startup", "стартап", "листинг", "листирован", "ipo path", "венчур",
     
     # Украинский
     "ціна", "курс", "торгівля", "торг", "продати", "купити", "покупка",
@@ -9474,11 +9475,11 @@ action_words = [
 
 # Регулярные выражения для детектирования новостей (самый надежный способ)
 news_patterns = [
-    re.compile(r"(новост|news|объявл|announce|запуск|launch|компани|company|проект|project|новина|оголо)", re.IGNORECASE),
+    re.compile(r"(новост|news|объявл|announce|запуск|launch|компани|company|проект|project|новина|оголо|ipo|листинг)", re.IGNORECASE),
     re.compile(r"(цена|price|курс|rate|поднялась|упала|выросла|выросл|взлет|взлетел|ціна|поднялась|упала)", re.IGNORECASE),
     re.compile(r"(криптовалют|cryptocurrency|bitcoin|ethereum|ETH|BTC|altcoin|token|крипто)", re.IGNORECASE),
     re.compile(r"(санкц|embargo|война|conflict|договор|treaty|международ|international|санкції|угода)", re.IGNORECASE),
-    re.compile(r"(инвестиц|investment|фонд|fund|капитал|capital|трейдинг|trading|інвестиція|фонд)", re.IGNORECASE),
+    re.compile(r"(инвестиц|investment|фонд|fund|капитал|capital|трейдинг|trading|інвестиція|фонд|стартап|startup)", re.IGNORECASE),
     re.compile(r"(регулятор|regulatory|sec|фца|центробанк|央行|regulat|compliance|регулятор)", re.IGNORECASE)
 ]
 
