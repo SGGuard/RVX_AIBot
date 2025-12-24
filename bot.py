@@ -9514,6 +9514,36 @@ news_patterns = [
 # =============================================================================
 
 
+def detect_user_language(text: str) -> str:
+    """
+    Определяет язык текста пользователя.
+    
+    Returns:
+        'ru' если текст на русском
+        'en' если текст на английском
+        'mixed' если смешанный
+    """
+    if not text:
+        return 'en'
+    
+    # Простой детектор - ищет кириллицу
+    cyrillic_count = sum(1 for c in text if 'а' <= c.lower() <= 'я' or c in 'ёЁ')
+    latin_count = sum(1 for c in text if 'a' <= c.lower() <= 'z')
+    
+    total_letters = cyrillic_count + latin_count
+    if total_letters == 0:
+        return 'en'  # Default
+    
+    cyrillic_ratio = cyrillic_count / total_letters
+    
+    if cyrillic_ratio > 0.6:
+        return 'ru'
+    elif cyrillic_ratio < 0.2:
+        return 'en'
+    else:
+        return 'mixed'
+
+
 def analyze_message_context(text: str) -> dict:
     """
     Анализирует контекст сообщения и возвращает детальную информацию.
@@ -10076,7 +10106,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # Сохраняем пользователя
     save_user(user.id, user.username or "", user.first_name)
     
-    # ==================== ДИАЛОГОВАЯ СИСТЕМА v0.21.0 ====================
+    # ✅ v0.32.1: Определяем и сохраняем язык пользователя
+    user_language = detect_user_language(user_text)
+    logger.debug(f"🌐 Язык пользователя {user.id}: {user_language}")
+    
+
     # Классифицируем намерение и сохраняем в историю
     intent = classify_intent(user_text)
     try:
