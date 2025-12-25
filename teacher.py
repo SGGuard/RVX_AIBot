@@ -68,6 +68,33 @@ def _get_fallback_lesson(topic: str, difficulty_level: str) -> Optional[Dict[str
     
     level_info = DIFFICULTY_LEVELS.get(difficulty_level, {"emoji": "📚", "name": "средний"})
     
+    # ✅ v0.37.7: Если запрашивается expert и embedded не существует,
+    # используем advanced встроенный урок вместо плохого fallback
+    fallback_difficulty = difficulty_level
+    if difficulty_level == "expert":
+        logger.info(f"📚 Для expert используем advanced встроенный как fallback")
+        fallback_difficulty = "advanced"
+    
+    # Пытаемся получить встроенный урок как fallback для хорошего качества контента
+    try:
+        from embedded_teacher import get_embedded_lesson, convert_topic_name_to_embedded
+        embedded_topic = convert_topic_name_to_embedded(topic)
+        embedded_lesson = get_embedded_lesson(embedded_topic, fallback_difficulty)
+        if embedded_lesson:
+            logger.info(f"✅ Fallback: используем {fallback_difficulty} встроенный урок вместо offline")
+            return {
+                "lesson_title": f"⚠️ {embedded_lesson.lesson_title} (offline API, используется встроенный урок)",
+                "content": embedded_lesson.content,
+                "key_points": embedded_lesson.key_points,
+                "real_world_example": embedded_lesson.real_world_example,
+                "practice_question": embedded_lesson.practice_question,
+                "next_topics": embedded_lesson.next_topics,
+                "is_fallback": True
+            }
+    except Exception as e:
+        logger.warning(f"⚠️ Встроенный fallback не сработал: {e}")
+    
+    # Если даже встроенный не сработал, возвращаем скучный fallback
     fallback_content = f"""
     {level_info['emoji']} {topic_info['name']}
     
@@ -85,7 +112,8 @@ def _get_fallback_lesson(topic: str, difficulty_level: str) -> Optional[Dict[str
         ],
         "real_world_example": "Примеры будут доступны при восстановлении сервиса обучения",
         "practice_question": "Попробуйте снова позже для проверки понимания",
-        "next_topics": []
+        "next_topics": [],
+        "is_fallback": True
     }
 
 
