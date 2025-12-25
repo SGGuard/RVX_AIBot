@@ -346,19 +346,25 @@ async def teach_lesson(
         embedded_topic = convert_topic_name_to_embedded(topic)
         logger.info(f"📚 Попытка загрузить встроенный урок: {topic} → {embedded_topic} ({difficulty_level})")
         try:
-            from embedded_teacher import get_embedded_lesson
-            embedded_lesson = get_embedded_lesson(embedded_topic, difficulty_level)
-            if embedded_lesson:
-                logger.info(f"✅ Встроенный урок найден: {embedded_lesson.lesson_title}")
-                return {
-                    "lesson_title": embedded_lesson.lesson_title,
-                    "content": embedded_lesson.content,
-                    "key_points": embedded_lesson.key_points,
-                    "real_world_example": embedded_lesson.real_world_example,
-                    "practice_question": embedded_lesson.practice_question,
-                    "next_topics": embedded_lesson.next_topics,
-                    "processing_time_ms": 1.0
-                }
+            from embedded_teacher import get_embedded_lesson, get_difficulties_for_topic
+            
+            # ✅ v0.37.6: Проверяем ПЕРЕД загрузкой что уровень существует
+            available_difficulties = get_difficulties_for_topic(embedded_topic)
+            if difficulty_level in available_difficulties:
+                embedded_lesson = get_embedded_lesson(embedded_topic, difficulty_level)
+                if embedded_lesson:
+                    logger.info(f"✅ Встроенный урок найден: {embedded_lesson.lesson_title}")
+                    return {
+                        "lesson_title": embedded_lesson.lesson_title,
+                        "content": embedded_lesson.content,
+                        "key_points": embedded_lesson.key_points,
+                        "real_world_example": embedded_lesson.real_world_example,
+                        "practice_question": embedded_lesson.practice_question,
+                        "next_topics": embedded_lesson.next_topics,
+                        "processing_time_ms": 1.0
+                    }
+            else:
+                logger.info(f"⚠️ Встроенный урок не имеет уровня '{difficulty_level}' (доступны: {available_difficulties}), используем API")
         except Exception as e:
             logger.warning(f"⚠️ embedded_teacher ошибка: {e}, используем API fallback")
         
