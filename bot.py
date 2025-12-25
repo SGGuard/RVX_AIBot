@@ -1872,7 +1872,7 @@ def migrate_database() -> None:
                     repeat_count INTEGER DEFAULT 0,
                     last_repeated_at TIMESTAMP,
                     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-                    UNIQUE(user_id, topic, difficulty, completed_at)
+                    UNIQUE(user_id, topic, difficulty)
                 )
             """)
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_teaching_lessons_user ON teaching_lessons(user_id, completed_at DESC)")
@@ -2458,7 +2458,7 @@ def init_database() -> None:
                 repeat_count INTEGER DEFAULT 0,
                 last_repeated_at TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-                UNIQUE(user_id, topic, difficulty, completed_at)
+                UNIQUE(user_id, topic, difficulty)
             )
         """)
         
@@ -7159,19 +7159,18 @@ async def _launch_teaching_lesson(update: Update, context: ContextTypes.DEFAULT_
             
             # ✅ NEW v0.37.0: Отслеживаем пройденный урок в БД
             try:
+                # Используем INSERT OR REPLACE для обновления существующей записи
                 cursor.execute("""
-                    INSERT INTO teaching_lessons (user_id, topic, difficulty, title, xp_earned, quiz_passed)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (user_id, topic, difficulty, title, xp_reward, 1))
+                    INSERT OR REPLACE INTO teaching_lessons (user_id, topic, difficulty, title, xp_earned, quiz_passed, repeat_count, completed_at)
+                    SELECT ?, ?, ?, ?, ?, 1, COALESCE(repeat_count, 0) + 1, CURRENT_TIMESTAMP
+                    FROM (
+                        SELECT repeat_count FROM teaching_lessons 
+                        WHERE user_id = ? AND topic = ? AND difficulty = ?
+                        UNION ALL SELECT 0
+                        LIMIT 1
+                    )
+                """, (user_id, topic, difficulty, title, xp_reward, user_id, topic, difficulty))
                 logger.debug(f"✅ Урок отслежен: user_id={user_id}, topic={topic}, difficulty={difficulty}")
-            except sqlite3.IntegrityError:
-                # UNIQUE constraint - пользователь уже прошёл этот урок, увеличиваем repeat_count
-                cursor.execute("""
-                    UPDATE teaching_lessons
-                    SET repeat_count = repeat_count + 1, last_repeated_at = CURRENT_TIMESTAMP
-                    WHERE user_id = ? AND topic = ? AND difficulty = ?
-                """, (user_id, topic, difficulty))
-                logger.debug(f"🔄 Повторный урок: user_id={user_id}, topic={topic}")
             except Exception as e:
                 logger.warning(f"⚠️ Ошибка отслеживания урока: {e}")
         
