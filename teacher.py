@@ -1,8 +1,7 @@
 """
-RVX Teaching Module - Интерактивное обучение криптографии, ИИ, Web3 и трейдингу
-Версия: v1.0.0
-
-Работает через API сервер вместо прямого обращения к Gemini
+RVX Teaching Module v0.37.10 - Интерактивное обучение криптографии, ИИ, Web3 и трейдингу
+Поддерживает 4 ИИ: Groq (основной), Mistral, DeepSeek, Gemini
+Использует встроенные уроки как 100% надежный fallback
 """
 
 import httpx
@@ -61,63 +60,58 @@ DIFFICULTY_LEVELS = {
 
 
 def _get_fallback_lesson(topic: str, difficulty_level: str) -> Optional[Dict[str, Any]]:
-    """Возвращает базовый урок когда API недоступен (fallback режим)."""
+    """Возвращает встроенный урок как fallback - без пугающих сообщений об API."""
     topic_info = TEACHING_TOPICS.get(topic, {"name": topic, "description": ""})
     if isinstance(topic_info, str):
         topic_info = {"name": topic_info, "description": ""}
     
     level_info = DIFFICULTY_LEVELS.get(difficulty_level, {"emoji": "📚", "name": "средний"})
     
-    # ✅ v0.37.7: Если запрашивается expert и embedded не существует,
-    # используем advanced встроенный урок вместо плохого fallback
+    # ✅ v0.37.10: Если запрашивается expert, используем advanced встроенный (он лучше beginner)
     fallback_difficulty = difficulty_level
     if difficulty_level == "expert":
-        logger.info(f"📚 Для expert используем advanced встроенный как fallback")
+        logger.info(f"📚 Для expert используем advanced встроенный урок")
         fallback_difficulty = "advanced"
     
     # Пытаемся получить встроенный урок как fallback для хорошего качества контента
     try:
         from embedded_teacher import get_embedded_lesson
-        # convert_topic_name_to_embedded это функция в этом файле, не в embedded_teacher
         embedded_topic = convert_topic_name_to_embedded(topic)
-        logger.info(f"📚 Fallback: пытаемся загрузить {fallback_difficulty} встроенный для {embedded_topic}")
+        logger.info(f"📚 Fallback: загружаем {fallback_difficulty} встроенный урок")
         embedded_lesson = get_embedded_lesson(embedded_topic, fallback_difficulty)
         if embedded_lesson:
-            logger.info(f"✅ Fallback успешен: используем {fallback_difficulty} встроенный вместо offline")
+            logger.info(f"✅ Встроенный урок готов: {embedded_lesson.lesson_title}")
             return {
-                "lesson_title": f"⚠️ {embedded_lesson.lesson_title} (API временно недоступен, используется встроенный)",
+                "lesson_title": embedded_lesson.lesson_title,
                 "content": embedded_lesson.content,
                 "key_points": embedded_lesson.key_points,
                 "real_world_example": embedded_lesson.real_world_example,
                 "practice_question": embedded_lesson.practice_question,
                 "next_topics": embedded_lesson.next_topics,
-                "is_fallback": True
+                "is_fallback": True  # Флаг что это встроенный, не от ИИ
             }
         else:
-            logger.warning(f"⚠️ get_embedded_lesson вернул None")
-    except ImportError as e:
-        logger.warning(f"⚠️ Импорт embedded_teacher не сработал: {e}")
+            logger.warning(f"⚠️ Встроенный урок не найден для {embedded_topic}")
     except Exception as e:
-        logger.warning(f"⚠️ Встроенный fallback не сработал: {type(e).__name__}: {e}")
+        logger.warning(f"⚠️ Ошибка при загрузке встроенного урока: {e}")
     
-    # Если даже встроенный не сработал, возвращаем скучный fallback
+    # Если встроенный не сработал, вернём скучный fallback (редко)
     fallback_content = f"""
     {level_info['emoji']} {topic_info['name']}
     
-    Это базовое объяснение, так как сервис обучения временно недоступен.
-    Пожалуйста, попробуйте снова позже для полного интерактивного урока.
+    Пожалуйста, попробуйте ещё раз позже для полного интерактивного урока.
     """
     
     return {
-        "lesson_title": f"{level_info['emoji']} {topic_info['name']} (offline mode)",
+        "lesson_title": f"{level_info['emoji']} {topic_info['name']}",
         "content": fallback_content.strip(),
         "key_points": [
             "Основная концепция",
             "Практическое применение",
             "Дальнейшее изучение"
         ],
-        "real_world_example": "Примеры будут доступны при восстановлении сервиса обучения",
-        "practice_question": "Попробуйте снова позже для проверки понимания",
+        "real_world_example": "Примеры будут доступны позже",
+        "practice_question": "Попробуйте ещё раз",
         "next_topics": [],
         "is_fallback": True
     }
@@ -402,109 +396,45 @@ async def teach_lesson(
         except Exception as e:
             logger.warning(f"⚠️ embedded_teacher ошибка: {e}, используем API fallback")
         
-        # ✅ FALLBACK: Попытаемся использовать API endpoint
-        logger.info(f"📡 Используем API для загрузки урока...")
+        # ✅ v0.37.10: НОВАЯ АРХИТЕКТУРА - 4 ИИ напрямую, БЕЗ API
+        # Попытаемся 4 ИИ в порядке приоритета: Groq → Mistral → DeepSeek → Gemini
+        logger.info(f"🤖 Пытаемся 4 ИИ для создания урока...")
         
-        if topic not in TEACHING_TOPICS:
-            topic = get_topic_by_keyword(topic)
+        # Groq (самый быстрый)
+        logger.info(f"🚀 Попытка 1: Groq...")
+        groq_result = await teach_lesson_via_groq(topic, difficulty_level)
+        if groq_result and groq_result.get("lesson_title"):
+            logger.info(f"✅ Groq создал урок!")
+            return groq_result
         
-        topic_info = TEACHING_TOPICS.get(topic, {})
-        level_info = DIFFICULTY_LEVELS.get(difficulty_level, {})
+        # Mistral (fallback 1)
+        logger.info(f"🟣 Попытка 2: Mistral...")
+        mistral_result = await teach_lesson_via_mistral(topic, difficulty_level)
+        if mistral_result and mistral_result.get("lesson_title"):
+            logger.info(f"✅ Mistral создал урок!")
+            return mistral_result
         
-        logger.info(f"📚 Подготовка урока: {topic_info.get('name', topic)} ({difficulty_level})")
+        # DeepSeek (fallback 2)
+        logger.info(f"🔵 Попытка 3: DeepSeek...")
+        deepseek_result = await teach_lesson_via_deepseek(topic, difficulty_level)
+        if deepseek_result and deepseek_result.get("lesson_title"):
+            logger.info(f"✅ DeepSeek создал урок!")
+            return deepseek_result
         
-        # Получаем API URL для связи между сервисами
-        from urllib.parse import urlparse
+        # Gemini (fallback 3)
+        logger.info(f"💎 Попытка 4: Gemini...")
+        gemini_result = await teach_lesson_via_gemini_direct(topic, difficulty_level)
+        if gemini_result and gemini_result.get("lesson_title"):
+            logger.info(f"✅ Gemini создал урок!")
+            return gemini_result
         
-        # Priority 1: Explicit TEACH_API_URL env var (for override)
-        teach_api_url = os.getenv("TEACH_API_URL")
-        if not teach_api_url:
-            # Priority 2: API_BASE_URL env var (for Railway public URL)
-            api_base_url = os.getenv("API_BASE_URL")
-            if not api_base_url:
-                # Priority 3: API_URL env var (Railway service URL)
-                api_url = os.getenv("API_URL")
-                if api_url:
-                    api_base_url = api_url.rstrip('/')
-                elif os.getenv("RAILWAY_ENVIRONMENT"):
-                    # Priority 4: On Railway, try localhost first (if both in same network)
-                    api_base_url = "http://localhost:8080"
-                else:
-                    # Priority 5: Local development
-                    api_base_url = "http://localhost:8000"
-            
-            teach_api_url = f"{api_base_url}/teach_lesson"
-        
-        logger.debug(f"🔗 TEACH_API_URL resolved to: {teach_api_url}")
-        logger.info(f"🔗 Using TEACH_API_URL: {teach_api_url}")
-        logger.info(f"🔗 Environment: RAILWAY_ENVIRONMENT={os.getenv('RAILWAY_ENVIRONMENT')}, API_URL={os.getenv('API_URL')}, API_BASE_URL={os.getenv('API_BASE_URL')}")
-        
-        
-        # Отправляем запрос на новый endpoint
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(
-                    teach_api_url,
-                    json={
-                        "topic": topic,
-                        "difficulty_level": difficulty_level
-                    },
-                    headers={"Content-Type": "application/json"}
-                )
-                
-                if response.status_code != 200:
-                    logger.error(f"❌ API ошибка {response.status_code}: {response.text[:200]}")
-                    logger.warning(f"⚠️ Использую fallback урок, так как API вернул ошибку")
-                    return _get_fallback_lesson(topic, difficulty_level)
-                
-                lesson_data = response.json()
-                
-                logger.info(f"📤 Получен урок: {len(str(lesson_data))} символов")
-                logger.debug(f"Урок: {lesson_data}")
-                
-                # Проверяем, что все необходимые поля присутствуют
-                required_fields = ["lesson_title", "content", "key_points", "real_world_example", "practice_question", "next_topics"]
-                if all(field in lesson_data for field in required_fields):
-                    logger.info(f"✅ Урок готов: {lesson_data.get('lesson_title', 'Без названия')}")
-                    return lesson_data
-                else:
-                    logger.warning(f"⚠️ Урок имеет неполную структуру: {list(lesson_data.keys())}")
-                    # Возвращаем с заполнением недостающих полей
-                    for field in required_fields:
-                        if field not in lesson_data:
-                            if field in ["key_points", "next_topics"]:
-                                lesson_data[field] = []
-                            else:
-                                lesson_data[field] = ""
-                    return lesson_data
-        
-        except httpx.ConnectError as e:
-            logger.error(f"❌ Connection error при запросе к {teach_api_url}: {str(e)[:100]}")
-            logger.info(f"📡 API недоступен, пытаемся использовать Gemini напрямую...")
-            # ✅ v0.37.9: Fallback к прямому вызову Gemini
-            gemini_result = await teach_lesson_via_gemini_direct(topic, difficulty_level)
-            if gemini_result and gemini_result.get("lesson_title"):
-                logger.info(f"✅ Gemini создал урок: {gemini_result.get('lesson_title')}")
-                return gemini_result
-            logger.warning(f"⚠️ Gemini тоже не сработал, используется встроенный fallback")
-            return _get_fallback_lesson(topic, difficulty_level)
-        except asyncio.TimeoutError:
-            logger.error(f"❌ Timeout (30s) при запросе к {teach_api_url}")
-            logger.info(f"📡 API timeout, пытаемся использовать Gemini напрямую...")
-            # ✅ v0.37.9: Fallback к прямому вызову Gemini
-            gemini_result = await teach_lesson_via_gemini_direct(topic, difficulty_level)
-            if gemini_result and gemini_result.get("lesson_title"):
-                logger.info(f"✅ Gemini создал урок: {gemini_result.get('lesson_title')}")
-                return gemini_result
-            logger.warning(f"⚠️ Gemini тоже не сработал, используется встроенный fallback")
-            return _get_fallback_lesson(topic, difficulty_level)
-        except Exception as e:
-            logger.error(f"❌ Ошибка при создании урока: {e}", exc_info=True)
-            logger.warning(f"⚠️ Использую fallback урок")
-            return _get_fallback_lesson(topic, difficulty_level)
+        # Если все 4 ИИ не сработали, используем встроенный урок как fallback
+        logger.warning(f"⚠️ Все 4 ИИ не сработали, используем встроенный урок")
+        return _get_fallback_lesson(topic, difficulty_level)
         
     except Exception as e:
         logger.error(f"❌ Критическая ошибка в teach_lesson: {e}", exc_info=True)
+        return _get_fallback_lesson(topic, difficulty_level)
         return _get_fallback_lesson(topic, difficulty_level)
 
 
@@ -594,5 +524,202 @@ async def teach_lesson_via_gemini_direct(
     except Exception as e:
         logger.error(f"❌ Ошибка при вызове Gemini напрямую: {e}", exc_info=True)
         return _get_fallback_lesson(topic, difficulty_level)
+
+
+async def teach_lesson_via_groq(
+    topic: str,
+    difficulty_level: str = "beginner"
+) -> Optional[Dict[str, Any]]:
+    """✅ v0.37.10: Вызывает Groq напрямую (самый быстрый ИИ)"""
+    try:
+        from groq import Groq
+        
+        groq_api_key = os.getenv("GROQ_API_KEY")
+        groq_model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+        
+        if not groq_api_key:
+            logger.debug("❌ GROQ_API_KEY не установлен")
+            return None
+        
+        topic_info = TEACHING_TOPICS.get(topic, {})
+        level_info = DIFFICULTY_LEVELS.get(difficulty_level, {})
+        
+        prompt = f"""Создай интерактивный урок по криптографии.
+
+ТЕМА: {topic_info.get('name', topic)}
+УРОВЕНЬ: {level_info.get('name', difficulty_level)}
+
+ОТВЕТЬ ТОЛЬКО JSON (без markdown):
+{{
+  "lesson_title": "Название (до 50 символов)",
+  "content": "Подробно (200-400 слов)",
+  "key_points": ["Пункт 1", "Пункт 2", "Пункт 3", "Пункт 4"],
+  "real_world_example": "Практический пример (50-100 слов)",
+  "practice_question": "Вопрос для проверки",
+  "next_topics": ["Тема 1", "Тема 2"]
+}}"""
+
+        logger.info(f"🚀 Вызываю Groq для {topic} ({difficulty_level})")
+        
+        client = Groq(api_key=groq_api_key)
+        response = client.chat.completions.create(
+            model=groq_model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=1500,
+            timeout=15.0
+        )
+        
+        if not response.choices or not response.choices[0].message.content:
+            logger.warning("❌ Groq вернул пустой ответ")
+            return None
+        
+        text = response.choices[0].message.content
+        try:
+            lesson_data = json.loads(text)
+            required_fields = ["lesson_title", "content", "key_points", "real_world_example", "practice_question", "next_topics"]
+            if all(field in lesson_data for field in required_fields):
+                logger.info(f"✅ Groq создал урок: {lesson_data.get('lesson_title')}")
+                lesson_data["ai_provider"] = "groq"
+                return lesson_data
+        except json.JSONDecodeError:
+            logger.warning(f"⚠️ Groq вернул невалидный JSON")
+            return None
+            
+    except Exception as e:
+        logger.warning(f"⚠️ Groq ошибка: {type(e).__name__}")
+        return None
+
+
+async def teach_lesson_via_mistral(
+    topic: str,
+    difficulty_level: str = "beginner"
+) -> Optional[Dict[str, Any]]:
+    """✅ v0.37.10: Вызывает Mistral напрямую (fallback 1)"""
+    try:
+        from mistralai import Mistral
+        
+        mistral_api_key = os.getenv("MISTRAL_API_KEY")
+        mistral_model = os.getenv("MISTRAL_MODEL", "mistral-large")
+        
+        if not mistral_api_key:
+            logger.debug("❌ MISTRAL_API_KEY не установлен")
+            return None
+        
+        topic_info = TEACHING_TOPICS.get(topic, {})
+        level_info = DIFFICULTY_LEVELS.get(difficulty_level, {})
+        
+        prompt = f"""Создай интерактивный урок по криптографии.
+
+ТЕМА: {topic_info.get('name', topic)}
+УРОВЕНЬ: {level_info.get('name', difficulty_level)}
+
+ОТВЕТЬ ТОЛЬКО JSON (без markdown):
+{{
+  "lesson_title": "Название (до 50 символов)",
+  "content": "Подробно (200-400 слов)",
+  "key_points": ["Пункт 1", "Пункт 2", "Пункт 3", "Пункт 4"],
+  "real_world_example": "Практический пример (50-100 слов)",
+  "practice_question": "Вопрос для проверки",
+  "next_topics": ["Тема 1", "Тема 2"]
+}}"""
+
+        logger.info(f"🟣 Вызываю Mistral для {topic} ({difficulty_level})")
+        
+        client = Mistral(api_key=mistral_api_key)
+        response = await asyncio.to_thread(
+            client.chat.complete,
+            model=mistral_model,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        
+        if not response.choices or not response.choices[0].message.content:
+            logger.warning("❌ Mistral вернул пустой ответ")
+            return None
+        
+        text = response.choices[0].message.content
+        try:
+            lesson_data = json.loads(text)
+            required_fields = ["lesson_title", "content", "key_points", "real_world_example", "practice_question", "next_topics"]
+            if all(field in lesson_data for field in required_fields):
+                logger.info(f"✅ Mistral создал урок: {lesson_data.get('lesson_title')}")
+                lesson_data["ai_provider"] = "mistral"
+                return lesson_data
+        except json.JSONDecodeError:
+            logger.warning(f"⚠️ Mistral вернул невалидный JSON")
+            return None
+            
+    except Exception as e:
+        logger.warning(f"⚠️ Mistral ошибка: {type(e).__name__}")
+        return None
+
+
+async def teach_lesson_via_deepseek(
+    topic: str,
+    difficulty_level: str = "beginner"
+) -> Optional[Dict[str, Any]]:
+    """✅ v0.37.10: Вызывает DeepSeek напрямую (fallback 2)"""
+    try:
+        import openai
+        
+        deepseek_api_key = os.getenv("DEEPSEEK_API_KEY")
+        deepseek_model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+        
+        if not deepseek_api_key:
+            logger.debug("❌ DEEPSEEK_API_KEY не установлен")
+            return None
+        
+        topic_info = TEACHING_TOPICS.get(topic, {})
+        level_info = DIFFICULTY_LEVELS.get(difficulty_level, {})
+        
+        prompt = f"""Создай интерактивный урок по криптографии.
+
+ТЕМА: {topic_info.get('name', topic)}
+УРОВЕНЬ: {level_info.get('name', difficulty_level)}
+
+ОТВЕТЬ ТОЛЬКО JSON (без markdown):
+{{
+  "lesson_title": "Название (до 50 символов)",
+  "content": "Подробно (200-400 слов)",
+  "key_points": ["Пункт 1", "Пункт 2", "Пункт 3", "Пункт 4"],
+  "real_world_example": "Практический пример (50-100 слов)",
+  "practice_question": "Вопрос для проверки",
+  "next_topics": ["Тема 1", "Тема 2"]
+}}"""
+
+        logger.info(f"🔵 Вызываю DeepSeek для {topic} ({difficulty_level})")
+        
+        client = openai.AsyncOpenAI(
+            api_key=deepseek_api_key,
+            base_url="https://api.deepseek.com"
+        )
+        response = await client.chat.completions.create(
+            model=deepseek_model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=1500,
+            timeout=15
+        )
+        
+        if not response.choices or not response.choices[0].message.content:
+            logger.warning("❌ DeepSeek вернул пустой ответ")
+            return None
+        
+        text = response.choices[0].message.content
+        try:
+            lesson_data = json.loads(text)
+            required_fields = ["lesson_title", "content", "key_points", "real_world_example", "practice_question", "next_topics"]
+            if all(field in lesson_data for field in required_fields):
+                logger.info(f"✅ DeepSeek создал урок: {lesson_data.get('lesson_title')}")
+                lesson_data["ai_provider"] = "deepseek"
+                return lesson_data
+        except json.JSONDecodeError:
+            logger.warning(f"⚠️ DeepSeek вернул невалидный JSON")
+            return None
+            
+    except Exception as e:
+        logger.warning(f"⚠️ DeepSeek ошибка: {type(e).__name__}")
+        return None
+
 
 
