@@ -2037,53 +2037,77 @@ def create_database_indices() -> None:
     with get_db() as conn:
         cursor = conn.cursor()
         
-        # Index 1: Leaderboard optimization (CRITICAL)
-        # Queries: "ORDER BY xp DESC, level DESC, created_at DESC"
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_users_leaderboard 
-            ON users(xp DESC, level DESC, created_at DESC)
-        """)
-        logger.info("  📊 Created: idx_users_leaderboard (leaderboard queries)")
+        try:
+            # Index 1: Leaderboard optimization (CRITICAL)
+            # Queries: "ORDER BY xp DESC, level DESC, created_at DESC"
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_users_leaderboard 
+                ON users(xp DESC, level DESC, created_at DESC)
+            """)
+            logger.info("  📊 Created: idx_users_leaderboard (leaderboard queries)")
+        except sqlite3.OperationalError as e:
+            logger.warning(f"  ⚠️ Could not create idx_users_leaderboard: {e}")
         
-        # Index 2: User requests lookup (HIGH)
-        # Queries: "WHERE user_id = ? ORDER BY created_at DESC"
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_requests_user_date 
-            ON requests(user_id, created_at DESC)
-        """)
-        logger.info("  📝 Created: idx_requests_user_date (user request history)")
+        try:
+            # Index 2: User requests lookup (HIGH)
+            # Queries: "WHERE user_id = ? ORDER BY created_at DESC"
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_requests_user_date 
+                ON requests(user_id, created_at DESC)
+            """)
+            logger.info("  📝 Created: idx_requests_user_date (user request history)")
+        except sqlite3.OperationalError as e:
+            logger.warning(f"  ⚠️ Could not create idx_requests_user_date: {e}")
         
-        # Index 3: User learning progress (HIGH)
-        # Queries: "WHERE user_id = ? AND course_id = ?"
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_user_progress_lookup 
-            ON user_progress(user_id, course_id, lesson_id)
-        """)
-        logger.info("  📚 Created: idx_user_progress_lookup (learning progress)")
+        try:
+            # Index 3: User learning progress (HIGH)
+            # Queries: "WHERE user_id = ? AND course_id = ?"
+            # Check if course_id column exists first
+            cursor.execute("PRAGMA table_info(user_progress)")
+            columns = {row[1] for row in cursor.fetchall()}
+            if 'course_id' in columns and 'lesson_id' in columns:
+                cursor.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_user_progress_lookup 
+                    ON user_progress(user_id, course_id, lesson_id)
+                """)
+                logger.info("  📚 Created: idx_user_progress_lookup (learning progress)")
+            else:
+                logger.warning(f"  ⚠️ Skipping idx_user_progress_lookup (missing columns)")
+        except sqlite3.OperationalError as e:
+            logger.warning(f"  ⚠️ Could not create idx_user_progress_lookup: {e}")
         
-        # Index 4: Daily tasks (MEDIUM)
-        # Queries: "WHERE user_id = ? AND completed = 0"
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_daily_tasks_user 
-            ON daily_tasks(user_id, completed, created_at DESC)
-        """)
-        logger.info("  ✅ Created: idx_daily_tasks_user (daily task queries)")
+        try:
+            # Index 4: Daily tasks (MEDIUM)
+            # Queries: "WHERE user_id = ? AND completed = 0"
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_daily_tasks_user 
+                ON daily_tasks(user_id, completed, created_at DESC)
+            """)
+            logger.info("  ✅ Created: idx_daily_tasks_user (daily task queries)")
+        except sqlite3.OperationalError as e:
+            logger.warning(f"  ⚠️ Could not create idx_daily_tasks_user: {e}")
         
-        # Index 5: Bookmarks optimization (MEDIUM)
-        # Queries: "WHERE user_id = ? ORDER BY created_at DESC"
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_bookmarks_user 
-            ON user_bookmarks_v2(user_id, created_at DESC)
-        """)
-        logger.info("  🔖 Created: idx_bookmarks_user (bookmark queries)")
+        try:
+            # Index 5: Bookmarks optimization (MEDIUM)
+            # Queries: "WHERE user_id = ? ORDER BY created_at DESC"
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_bookmarks_user 
+                ON user_bookmarks_v2(user_id, created_at DESC)
+            """)
+            logger.info("  🔖 Created: idx_bookmarks_user (bookmark queries)")
+        except sqlite3.OperationalError as e:
+            logger.warning(f"  ⚠️ Could not create idx_bookmarks_user: {e}")
         
-        # Index 6: Analytics (MEDIUM)
-        # Queries: "WHERE created_at > ? GROUP BY user_id"
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_analytics_date 
-            ON analytics(created_at DESC, user_id)
-        """)
-        logger.info("  📈 Created: idx_analytics_date (analytics queries)")
+        try:
+            # Index 6: Analytics (MEDIUM)
+            # Queries: "WHERE created_at > ? GROUP BY user_id"
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_analytics_date 
+                ON analytics(created_at DESC, user_id)
+            """)
+            logger.info("  📈 Created: idx_analytics_date (analytics queries)")
+        except sqlite3.OperationalError as e:
+            logger.warning(f"  ⚠️ Could not create idx_analytics_date: {e}")
         
         conn.commit()
         logger.info("✅ Database indices created successfully (v0.38.0 - QUICK WIN #2)")
