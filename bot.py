@@ -1615,6 +1615,77 @@ def migrate_database() -> None:
     with get_db() as conn:
         cursor = conn.cursor()
         
+        # 🆕 v0.37.14: CRITICAL FIX - Пересоздание таблицы users если она неполная
+        # (это может случиться если БД была создана старой версией кода)
+        logger.info("  🔍 Проверка полноты схемы таблицы users...")
+        required_columns = {
+            'user_id', 'username', 'first_name', 'created_at', 'total_requests',
+            'last_request_at', 'is_banned', 'ban_reason', 'daily_requests',
+            'daily_reset_at', 'knowledge_level', 'xp', 'level', 'badges',
+            'requests_today', 'last_request_date'
+        }
+        
+        cursor.execute("PRAGMA table_info(users)")
+        existing_columns = {row[1] for row in cursor.fetchall()}
+        
+        missing_columns = required_columns - existing_columns
+        
+        if missing_columns:
+            logger.warning(f"⚠️ КРИТИЧНО: В таблице users отсутствуют колонки: {missing_columns}")
+            logger.warning(f"   Текущие колонки: {existing_columns}")
+            logger.warning("   🔧 Пересоздаём таблицу users с полной схемой...")
+            
+            try:
+                # Сохраняем существующие данные
+                cursor.execute("SELECT user_id, username FROM users")
+                existing_users = cursor.fetchall()
+                logger.info(f"   💾 Сохранено {len(existing_users)} пользователей")
+                
+                # Переименовываем старую таблицу
+                cursor.execute("ALTER TABLE users RENAME TO users_old")
+                
+                # Создаём новую таблицу с правильной схемой
+                cursor.execute("""
+                    CREATE TABLE users (
+                        user_id INTEGER PRIMARY KEY,
+                        username TEXT,
+                        first_name TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        total_requests INTEGER DEFAULT 0,
+                        last_request_at TIMESTAMP,
+                        is_banned BOOLEAN DEFAULT 0,
+                        ban_reason TEXT,
+                        daily_requests INTEGER DEFAULT 0,
+                        daily_reset_at TIMESTAMP,
+                        knowledge_level TEXT DEFAULT 'unknown',
+                        xp INTEGER DEFAULT 0,
+                        level INTEGER DEFAULT 1,
+                        badges TEXT DEFAULT '[]',
+                        requests_today INTEGER DEFAULT 0,
+                        last_request_date TEXT
+                    )
+                """)
+                
+                # Мигрируем данные
+                for user_id, username in existing_users:
+                    cursor.execute("""
+                        INSERT INTO users (user_id, username, created_at)
+                        VALUES (?, ?, CURRENT_TIMESTAMP)
+                    """, (user_id, username))
+                
+                # Удаляем старую таблицу
+                cursor.execute("DROP TABLE users_old")
+                
+                conn.commit()
+                logger.info("   ✅ Таблица users успешно пересоздана с полной схемой!")
+                
+            except Exception as e:
+                logger.error(f"   ❌ ОШИБКА при пересоздании таблицы users: {e}")
+                conn.rollback()
+                raise
+        else:
+            logger.info("   ✅ Таблица users имеет полную схему")
+        
         # Миграция users
         migrations_needed = False
         
