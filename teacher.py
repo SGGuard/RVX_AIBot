@@ -480,11 +480,23 @@ async def teach_lesson(
         
         except httpx.ConnectError as e:
             logger.error(f"❌ Connection error при запросе к {teach_api_url}: {str(e)[:100]}")
-            logger.warning(f"⚠️ Используется fallback урок (API недоступен)")
+            logger.info(f"📡 API недоступен, пытаемся использовать Gemini напрямую...")
+            # ✅ v0.37.9: Fallback к прямому вызову Gemini
+            gemini_result = await teach_lesson_via_gemini_direct(topic, difficulty_level)
+            if gemini_result and gemini_result.get("lesson_title"):
+                logger.info(f"✅ Gemini создал урок: {gemini_result.get('lesson_title')}")
+                return gemini_result
+            logger.warning(f"⚠️ Gemini тоже не сработал, используется встроенный fallback")
             return _get_fallback_lesson(topic, difficulty_level)
         except asyncio.TimeoutError:
             logger.error(f"❌ Timeout (30s) при запросе к {teach_api_url}")
-            logger.warning(f"⚠️ Используется fallback урок (API не ответил)")
+            logger.info(f"📡 API timeout, пытаемся использовать Gemini напрямую...")
+            # ✅ v0.37.9: Fallback к прямому вызову Gemini
+            gemini_result = await teach_lesson_via_gemini_direct(topic, difficulty_level)
+            if gemini_result and gemini_result.get("lesson_title"):
+                logger.info(f"✅ Gemini создал урок: {gemini_result.get('lesson_title')}")
+                return gemini_result
+            logger.warning(f"⚠️ Gemini тоже не сработал, используется встроенный fallback")
             return _get_fallback_lesson(topic, difficulty_level)
         except Exception as e:
             logger.error(f"❌ Ошибка при создании урока: {e}", exc_info=True)
@@ -494,4 +506,93 @@ async def teach_lesson(
     except Exception as e:
         logger.error(f"❌ Критическая ошибка в teach_lesson: {e}", exc_info=True)
         return _get_fallback_lesson(topic, difficulty_level)
+
+
+async def teach_lesson_via_gemini_direct(
+    topic: str,
+    difficulty_level: str = "beginner"
+) -> Optional[Dict[str, Any]]:
+    """
+    ✅ v0.37.9: Вызывает Gemini НАПРЯМУЮ, обходя API сервер.
+    
+    Это решает проблему падения API при большой нагрузке.
+    Используется как fallback когда API недоступен.
+    
+    Преимущества:
+    - Не зависит от отдельного API процесса
+    - Быстрее (нет HTTP overhead)
+    - Более надежно (2 процесса вместо 3)
+    """
+    try:
+        from google import genai
+        
+        gemini_api_key = os.getenv("GEMINI_API_KEY")
+        gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+        
+        if not gemini_api_key:
+            logger.error("❌ GEMINI_API_KEY не установлен")
+            return _get_fallback_lesson(topic, difficulty_level)
+        
+        topic_info = TEACHING_TOPICS.get(topic, {})
+        level_info = DIFFICULTY_LEVELS.get(difficulty_level, {})
+        
+        prompt = f"""Создай интерактивный урок по криптографии с высокой ценностью.
+
+ТЕМА: {topic_info.get('name', topic)}
+УРОВЕНЬ: {level_info.get('name', difficulty_level)}
+ОПИСАНИЕ: {topic_info.get('description', '')}
+
+ТРЕБОВАНИЯ:
+1. Ответь ТОЛЬКО JSON (без markdown, без ```json кода)
+2. Структура:
+{{
+  "lesson_title": "Название урока (максимум 50 символов)",
+  "content": "Подробное объяснение (200-400 слов, с примерами для уровня {difficulty_level})",
+  "key_points": ["Пункт 1", "Пункт 2", "Пункт 3", "Пункт 4"],
+  "real_world_example": "Практический пример как это используется (50-100 слов)",
+  "practice_question": "Вопрос для проверки понимания",
+  "next_topics": ["Рекомендуемая тема 1", "Рекомендуемая тема 2"]
+}}
+
+ПРИМЕЧАНИЯ:
+- Уровень {difficulty_level}: {'для начинающих, базовые концепции' if difficulty_level == 'beginner' else 'более глубокий анализ' if difficulty_level in ['intermediate', 'advanced'] else 'для экспертов, углубленный анализ'}
+- Используй точные технические термины
+- Добавь практические примеры
+- Сделай контент интересным и полезным"""
+
+        logger.info(f"🤖 Вызываю Gemini напрямую для {topic} ({difficulty_level})")
+        
+        client = genai.Client(api_key=gemini_api_key)
+        response = client.models.generate_content(
+            model=gemini_model,
+            contents=prompt
+        )
+        
+        if not response.text:
+            logger.warning("❌ Gemini вернул пустой ответ")
+            return _get_fallback_lesson(topic, difficulty_level)
+        
+        # Парсим JSON из ответа
+        try:
+            lesson_data = json.loads(response.text)
+            
+            # Валидируем структуру
+            required_fields = ["lesson_title", "content", "key_points", "real_world_example", "practice_question", "next_topics"]
+            if all(field in lesson_data for field in required_fields):
+                logger.info(f"✅ Gemini создал урок: {lesson_data.get('lesson_title')}")
+                lesson_data["is_gemini_direct"] = True
+                return lesson_data
+            else:
+                logger.warning(f"⚠️ Неполная структура от Gemini: {list(lesson_data.keys())}")
+                return _get_fallback_lesson(topic, difficulty_level)
+                
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ Не смог распарсить JSON от Gemini: {e}")
+            logger.debug(f"Ответ Gemini: {response.text[:200]}")
+            return _get_fallback_lesson(topic, difficulty_level)
+            
+    except Exception as e:
+        logger.error(f"❌ Ошибка при вызове Gemini напрямую: {e}", exc_info=True)
+        return _get_fallback_lesson(topic, difficulty_level)
+
 
