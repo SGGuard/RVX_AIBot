@@ -22,7 +22,7 @@ from pydantic import BaseModel, field_validator, ValidationInfo, ValidationError
 # ============================================================================
 # 🔧 CRITICAL: Clean up old bot processes on startup
 # ============================================================================
-def cleanup_stale_bot_processes():
+def cleanup_stale_bot_processes() -> None:
     """
     ULTRA-AGGRESSIVE cleanup to prevent 409 Conflicts (Python-only, no external commands)
     - Kills ALL bot.py processes except current
@@ -103,7 +103,7 @@ if env_path.exists():
 else:
     load_dotenv(verbose=True)
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand, CallbackQuery
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from telegram.error import TelegramError, TimedOut, NetworkError, Conflict
 from telegram.constants import ParseMode, ChatAction
@@ -397,7 +397,7 @@ class RVXFormatter(logging.Formatter):
         return super().format(record)
 
 
-def setup_logger(name=None, level=logging.INFO):
+def setup_logger(name: Optional[str] = None, level: int = logging.INFO) -> logging.Logger:
     """Configure unified logger with file and console handlers"""
     logger = logging.getLogger(name or __name__)
     logger.setLevel(level)
@@ -4809,7 +4809,7 @@ async def call_api_with_retry(news_text: str, user_id: Optional[int] = None) -> 
 # ДЕКОРАТОРЫ
 # =============================================================================
 
-def admin_only(func):
+def admin_only(func: Callable) -> Callable:
     """Декоратор для команд, доступных только администраторам."""
     @wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -5700,7 +5700,7 @@ def get_bookmark_count(user_id: int, bookmark_type: str = None) -> int:
         return 0
 
 
-async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE, period: str):
+async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE, period: str) -> None:
     """Показывает таблицу лидеров за период."""
     user = update.effective_user
     user_id = user.id
@@ -6836,7 +6836,7 @@ async def lesson_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         log_analytics_event("lesson_viewed", user_id, {"course": course_name, "lesson": lesson_num})
 
 
-async def handle_start_course_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, course_name: str, query):
+async def handle_start_course_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, course_name: str, query: CallbackQuery) -> None:
     """
     Обработчик для запуска курса через callback кнопку с интерактивным UI.
     
@@ -7339,7 +7339,7 @@ FREE_RESOURCES = {
 }
 
 
-async def show_resources_menu(update: Update, query=None):
+async def show_resources_menu(update: Update, query: Optional[CallbackQuery] = None) -> None:
     """Показывает главное меню ресурсов с категориями."""
     keyboard = []
     
@@ -7378,7 +7378,7 @@ async def show_resources_menu(update: Update, query=None):
         logger.error(f"Ошибка при отправке меню ресурсов: {e}")
 
 
-async def show_resources_category(update: Update, context: ContextTypes.DEFAULT_TYPE, category_index: int):
+async def show_resources_category(update: Update, context: ContextTypes.DEFAULT_TYPE, category_index: int) -> None:
     """Показывает ресурсы конкретной категории."""
     query = update.callback_query
     categories = list(FREE_RESOURCES.keys())
@@ -7758,7 +7758,7 @@ def get_recommended_lesson(user_id: int) -> dict:
         logger.warning(f"Ошибка при получении рекомендации: {e}")
         return {}
 
-async def _launch_teaching_lesson(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, topic: str, difficulty: str, query=None):
+async def _launch_teaching_lesson(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, topic: str, difficulty: str, query: Optional[CallbackQuery] = None) -> None:
     """Вспомогательная функция для запуска урока и показа результата с кнопками."""
     try:
         topic_info = TEACHING_TOPICS.get(topic, {})
@@ -8777,7 +8777,7 @@ async def activities_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 # QUIZ SYSTEM (v0.19.0) - ФУНКЦИИ ДЛЯ РАБОТЫ С ТЕСТАМИ
 # =============================================================================
 
-async def show_quiz_for_lesson(update: Update, context: ContextTypes.DEFAULT_TYPE, course_name: str, lesson_num: int):
+async def show_quiz_for_lesson(update: Update, context: ContextTypes.DEFAULT_TYPE, course_name: str, lesson_num: int) -> None:
     """Показывает первый вопрос квиза для урока."""
     query = update.callback_query
     user = query.from_user
@@ -8903,7 +8903,7 @@ async def show_quiz_question(update: Update, context: ContextTypes.DEFAULT_TYPE)
             pass
 
 
-async def handle_quiz_answer(update: Update, context: ContextTypes.DEFAULT_TYPE, course_name: str, lesson_id: int, q_idx: int, answer_idx: int):
+async def handle_quiz_answer(update: Update, context: ContextTypes.DEFAULT_TYPE, course_name: str, lesson_id: int, q_idx: int, answer_idx: int) -> None:
     """
     Обрабатывает ответ на вопрос квиза с проверкой и feedback.
     
@@ -13185,7 +13185,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 # 📊 CRYPTO DAILY DIGEST (v0.27.0)
 # ============================================================================
 
-async def send_crypto_digest(context: ContextTypes.DEFAULT_TYPE):
+async def send_crypto_digest(context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     ✅ v0.28.0: Ежедневный крипто дайджест в 9:00 UTC
     Теперь использует daily_digest_scheduler для консистентной отправки
@@ -13227,7 +13227,7 @@ async def send_crypto_digest(context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Ошибка при отправке дайджеста: {e}", exc_info=True)
 
-async def periodic_cache_cleanup(context: ContextTypes.DEFAULT_TYPE):
+async def periodic_cache_cleanup(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Периодическая очистка старого кэша."""
     if ENABLE_AUTO_CACHE_CLEANUP:
         logger.info("🧹 Запуск автоматической очистки кэша...")
@@ -13240,7 +13240,7 @@ async def periodic_cache_cleanup(context: ContextTypes.DEFAULT_TYPE):
 # BACKGROUND JOBS (v0.17.0)
 # =============================================================================
 
-async def update_leaderboard_cache(context: ContextTypes.DEFAULT_TYPE):
+async def update_leaderboard_cache(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обновляет кэш рейтингов каждый час (v0.17.0)."""
     logger.info("📊 Обновление кэша рейтингов...")
     try:
@@ -13458,7 +13458,7 @@ async def graceful_shutdown(application) -> None:
     except Exception as e:
         logger.error(f"Ошибка во время graceful shutdown: {e}")
 
-def main():
+def main() -> None:
     """Запуск бота."""
     # ✅ CRITICAL: Ensure we're running in worker dyno on Railway
     # Prevent double-polling that causes "Conflict: terminated by other getUpdates"
