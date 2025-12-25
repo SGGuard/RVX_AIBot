@@ -4893,6 +4893,257 @@ def get_user_rank(user_id: int, period: str = "all") -> Optional[Tuple[int, int,
         return (rank, xp, level, requests)
 
 
+# =============================================================================
+# USER PROFILE SYSTEM v0.37.15
+# =============================================================================
+
+def get_user_profile_data(user_id: int) -> dict:
+    """Собирает все данные профиля пользователя."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        # Основная информация
+        cursor.execute("""
+            SELECT user_id, username, first_name, xp, level, created_at, total_requests, badges
+            FROM users WHERE user_id = ?
+        """, (user_id,))
+        
+        user_data = cursor.fetchone()
+        if not user_data:
+            return None
+        
+        user_id, username, first_name, xp, level, created_at, total_requests, badges_json = user_data
+        
+        # Парсим бейджи
+        try:
+            badges = json.loads(badges_json) if badges_json else []
+        except:
+            badges = []
+        
+        # Статистика активности
+        # Пройденные уроки (из user_progress)
+        cursor.execute("""
+            SELECT COUNT(DISTINCT lesson_id) FROM user_progress 
+            WHERE user_id = ? AND completed_at IS NOT NULL
+        """, (user_id,))
+        lessons_completed = cursor.fetchone()[0] or 0
+        
+        # Сданные тесты (из user_quiz_stats)
+        cursor.execute("""
+            SELECT COUNT(*) FROM user_quiz_stats 
+            WHERE user_id = ? AND is_perfect_score = 1
+        """, (user_id,))
+        perfect_tests = cursor.fetchone()[0] or 0
+        
+        # Попытки тестов (все попытки)
+        cursor.execute("""
+            SELECT COUNT(*) FROM user_quiz_stats 
+            WHERE user_id = ?
+        """, (user_id,))
+        total_tests = cursor.fetchone()[0] or 0
+        
+        # Вопросы которые задавал пользователь
+        cursor.execute("""
+            SELECT COUNT(*) FROM user_questions 
+            WHERE user_id = ?
+        """, (user_id,))
+        questions_asked = cursor.fetchone()[0] or 0
+        
+        # Дней активности подряд (примерный подсчет)
+        cursor.execute("""
+            SELECT DATE('now') as today, created_at FROM users WHERE user_id = ?
+        """, (user_id,))
+        dates = cursor.fetchone()
+        days_active = 1  # Минимум 1 день
+        
+        return {
+            'user_id': user_id,
+            'username': username or f'User#{user_id}',
+            'first_name': first_name,
+            'xp': xp or 0,
+            'level': level or 1,
+            'created_at': created_at,
+            'total_requests': total_requests or 0,
+            'badges': badges,
+            'lessons_completed': lessons_completed,
+            'perfect_tests': perfect_tests,
+            'total_tests': total_tests,
+            'questions_asked': questions_asked,
+            'days_active': days_active
+        }
+
+
+def format_user_profile(profile_data: dict) -> str:
+    """Форматирует профиль в красивое сообщение."""
+    if not profile_data:
+        return "❌ Профиль не найден"
+    
+    # Определяем статус на основе уровня
+    if profile_data['level'] >= 50:
+        status = "🎓 Эксперт"
+    elif profile_data['level'] >= 30:
+        status = "📚 Продвинутый"
+    elif profile_data['level'] >= 10:
+        status = "⭐ Ученик"
+    else:
+        status = "🌱 Новичок"
+    
+    # Прогресс-бар к следующему уровню (каждый уровень = 100 XP)
+    xp_in_level = profile_data['xp'] % 100
+    progress_bar = "▓" * (xp_in_level // 10) + "░" * (10 - xp_in_level // 10)
+    
+    # Текст профиля
+    text = (
+        f"👤 <b>ВАШ ПРОФИЛЬ</b>\n"
+        f"{'═' * 40}\n\n"
+        
+        f"<b>📊 ОСНОВНАЯ ИНФОРМАЦИЯ</b>\n"
+        f"Ник: <b>{profile_data['username']}</b>\n"
+        f"Статус: {status}\n"
+        f"Уровень: <b>{profile_data['level']}</b> 🎯\n"
+        f"XP: <b>{profile_data['xp']}</b> / {profile_data['level'] * 100}\n"
+        f"Прогресс: [{progress_bar}] {xp_in_level}%\n\n"
+        
+        f"<b>📈 СТАТИСТИКА АКТИВНОСТИ</b>\n"
+        f"🔹 Пройдено уроков: {profile_data['lessons_completed']}/24\n"
+        f"🔹 Сдано тестов идеально: {profile_data['perfect_tests']}/{profile_data['total_tests']}\n"
+        f"🔹 Задано вопросов: {profile_data['questions_asked']}\n"
+        f"🔹 Дней подряд активен: {profile_data['days_active']}\n\n"
+    )
+    
+    # Добавляем бейджи если есть
+    if profile_data['badges']:
+        badge_emojis = {
+            'first_lesson': '🎓',
+            'first_test': '✅',
+            'first_question': '💬',
+            'level_5': '⭐',
+            'level_10': '🌟',
+            'perfect_score': '🎯',
+            'daily_active': '🔥',
+            'helper': '👐'
+        }
+        
+        badge_names = {
+            'first_lesson': 'Первый урок',
+            'first_test': 'Первый тест',
+            'first_question': 'Первый вопрос',
+            'level_5': 'Уровень 5',
+            'level_10': 'Уровень 10',
+            'perfect_score': 'Идеальный результат',
+            'daily_active': 'Ежедневный активист',
+            'helper': 'Помощник'
+        }
+        
+        text += f"<b>🏅 ДОСТИЖЕНИЯ ({len(profile_data['badges'])})</b>\n"
+        for badge in profile_data['badges'][:5]:  # Показываем максимум 5
+            emoji = badge_emojis.get(badge, '🎖️')
+            name = badge_names.get(badge, badge)
+            text += f"{emoji} {name}\n"
+        
+        if len(profile_data['badges']) > 5:
+            text += f"... и ещё {len(profile_data['badges']) - 5} достижений\n"
+        text += "\n"
+    
+    # Рекомендация развития
+    text += f"<b>🎓 РЕКОМЕНДАЦИИ</b>\n"
+    
+    if profile_data['lessons_completed'] < 5:
+        text += "📚 Пройди первые 5 уроков для лучшего понимания\n"
+    
+    if profile_data['total_tests'] < profile_data['lessons_completed']:
+        text += "✅ Попробуй пройти тесты по пройденным темам\n"
+    
+    if profile_data['questions_asked'] == 0:
+        text += "💬 Задай свой первый вопрос нашему ИИ\n"
+    
+    if profile_data['xp'] < profile_data['level'] * 100:
+        remaining_xp = (profile_data['level'] * 100) - profile_data['xp']
+        text += f"🚀 Ещё {remaining_xp} XP до следующего уровня!\n"
+    
+    text += "\n" + "═" * 40
+    
+    return text
+
+
+def get_user_recommendations(user_id: int) -> dict:
+    """Получает рекомендации развития для пользователя."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        # Получаем пройденные темы
+        cursor.execute("""
+            SELECT DISTINCT topic FROM teaching_lessons 
+            WHERE user_id = ? AND difficulty = 'advanced'
+            ORDER BY created_at DESC
+        """, (user_id,))
+        
+        completed_topics = [row[0] for row in cursor.fetchall()]
+        
+        # Определяем следующую рекомендуемую тему
+        all_topics = list(TEACHING_TOPICS.keys())
+        uncompleted = [t for t in all_topics if t not in completed_topics]
+        
+        next_topic = uncompleted[0] if uncompleted else all_topics[0]
+        
+        # Тема с наименьшим прогрессом (слабая сторона)
+        cursor.execute("""
+            SELECT topic, COUNT(*) as attempts FROM teaching_lessons 
+            WHERE user_id = ?
+            GROUP BY topic
+            ORDER BY COUNT(*) ASC
+            LIMIT 1
+        """, (user_id,))
+        
+        weak_topic_data = cursor.fetchone()
+        weak_topic = weak_topic_data[0] if weak_topic_data else None
+        
+        return {
+            'next_topic': next_topic,
+            'weak_topic': weak_topic,
+            'completed_count': len(completed_topics),
+            'total_topics': len(all_topics)
+        }
+
+
+@log_command
+async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Показывает профиль пользователя с достижениями и рекомендациями."""
+    user_id = update.effective_user.id
+    
+    # Сохраняем пользователя
+    save_user(user_id, update.effective_user.username or "", update.effective_user.first_name)
+    
+    try:
+        # Получаем данные профиля
+        profile_data = get_user_profile_data(user_id)
+        
+        if not profile_data:
+            await update.message.reply_text("❌ Ошибка загрузки профиля")
+            return
+        
+        # Форматируем сообщение
+        text = format_user_profile(profile_data)
+        
+        # Кнопки
+        keyboard = [
+            [InlineKeyboardButton("📚 Все достижения", callback_data="profile_all_badges")],
+            [InlineKeyboardButton("📊 Детальная статистика", callback_data="profile_stats")],
+            [InlineKeyboardButton("🚀 Начать урок", callback_data="teach_recommended")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
+        ]
+        
+        await update.message.reply_text(
+            text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка в profile_command: {e}", exc_info=True)
+        await update.message.reply_text("❌ Ошибка загрузки профиля")
+
+
 @log_command
 async def leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показывает рейтинг пользователей."""
@@ -5432,19 +5683,22 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             InlineKeyboardButton("🏆 Лидерборд", callback_data="start_leaderboard")
         ],
         [
-            InlineKeyboardButton("🎯 Ежедневные задачи", callback_data="start_quests"),
-            InlineKeyboardButton("📚 Ресурсы", callback_data="start_resources")
+            InlineKeyboardButton("👤 Мой профиль", callback_data="start_profile"),
+            InlineKeyboardButton("🎯 Ежедневные", callback_data="start_quests")
         ],
         [
-            InlineKeyboardButton("📌 Закладки", callback_data="start_bookmarks"),
-            InlineKeyboardButton("🧮 Калькулятор", callback_data="start_calculator")
+            InlineKeyboardButton("📚 Ресурсы", callback_data="start_resources"),
+            InlineKeyboardButton("📌 Закладки", callback_data="start_bookmarks")
         ],
         [
-            InlineKeyboardButton("📦 Дропы", callback_data="start_airdrops"),
-            InlineKeyboardButton("🔥 Активности", callback_data="start_activities")
+            InlineKeyboardButton("🧮 Калькулятор", callback_data="start_calculator"),
+            InlineKeyboardButton("📦 Дропы", callback_data="start_airdrops")
         ],
         [
-            InlineKeyboardButton("📜 История", callback_data="start_history"),
+            InlineKeyboardButton("🔥 Активности", callback_data="start_activities"),
+            InlineKeyboardButton("📜 История", callback_data="start_history")
+        ],
+        [
             InlineKeyboardButton("⚙️ Меню", callback_data="start_menu")
         ]
     ]
@@ -8536,6 +8790,134 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     user = query.from_user
     
     logger.info(f"🔘 Callback получен: {data} от пользователя {user.id}")
+    
+    # ============ PROFILE CALLBACKS v0.37.15 ============
+    if data == "start_profile":
+        try:
+            # Создаём fake update для передачи в profile_command
+            profile_data = get_user_profile_data(user.id)
+            
+            if not profile_data:
+                await query.edit_message_text("❌ Ошибка загрузки профиля")
+                return
+            
+            # Форматируем сообщение
+            text = format_user_profile(profile_data)
+            
+            # Кнопки
+            keyboard = [
+                [InlineKeyboardButton("🏅 Все достижения", callback_data="profile_all_badges")],
+                [InlineKeyboardButton("📊 Статистика", callback_data="profile_stats")],
+                [InlineKeyboardButton("🚀 Начать урок", callback_data="teach_menu")],
+                [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
+            ]
+            
+            await query.edit_message_text(
+                text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка в profile callback: {e}", exc_info=True)
+            await query.edit_message_text("❌ Ошибка загрузки профиля")
+        return
+    
+    if data == "profile_all_badges":
+        try:
+            profile_data = get_user_profile_data(user.id)
+            
+            if not profile_data:
+                await query.answer("❌ Ошибка загрузки", show_alert=True)
+                return
+            
+            # Описания бейджей
+            badge_info = {
+                'first_lesson': ('🎓', 'Первый урок', 'Ты начал своё обучение!'),
+                'first_test': ('✅', 'Первый тест', 'Ты прошел первый тест!'),
+                'first_question': ('💬', 'Первый вопрос', 'Ты задал первый вопрос ИИ!'),
+                'level_5': ('⭐', 'Уровень 5', 'Достигнут уровень 5'),
+                'level_10': ('🌟', 'Уровень 10', 'Достигнут уровень 10'),
+                'perfect_score': ('🎯', 'Идеальный результат', 'Ты решил тест на 100%!'),
+                'daily_active': ('🔥', 'Ежедневный активист', 'Ты активен 7 дней подряд'),
+                'helper': ('👐', 'Помощник', 'Ты помогал другим пользователям')
+            }
+            
+            text = "<b>🏅 ВСЕ ТОИ ДОСТИЖЕНИЯ\n</b>═════════════════\n\n"
+            
+            if not profile_data['badges']:
+                text += "Здесь пока нет достижений 😢\n\nНачни обучение чтобы разблокировать первые награды!"
+            else:
+                for badge in profile_data['badges']:
+                    emoji, name, desc = badge_info.get(badge, ('🎖️', badge, 'Награда'))
+                    text += f"{emoji} <b>{name}</b>\n"
+                    text += f"   <i>{desc}</i>\n\n"
+                
+                text += f"\n<b>Всего достижений:</b> {len(profile_data['badges'])}/8"
+            
+            keyboard = [[InlineKeyboardButton("⬅️ Назад к профилю", callback_data="start_profile")]]
+            
+            await query.edit_message_text(
+                text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка в profile_all_badges: {e}", exc_info=True)
+            await query.answer("❌ Ошибка загрузки", show_alert=True)
+        return
+    
+    if data == "profile_stats":
+        try:
+            profile_data = get_user_profile_data(user.id)
+            
+            if not profile_data:
+                await query.answer("❌ Ошибка загрузки", show_alert=True)
+                return
+            
+            # Вычисляем процент прогресса
+            total_lessons = 24
+            lessons_percent = (profile_data['lessons_completed'] / total_lessons * 100) if total_lessons > 0 else 0
+            
+            # Процент тестов
+            tests_percent = (profile_data['perfect_tests'] / max(profile_data['total_tests'], 1) * 100) if profile_data['total_tests'] > 0 else 0
+            
+            text = (
+                "<b>📊 ДЕТАЛЬНАЯ СТАТИСТИКА\n</b>"
+                "════════════════════════════\n\n"
+                
+                f"<b>📚 ОБУЧЕНИЕ</b>\n"
+                f"Пройдено уроков: {profile_data['lessons_completed']}/24\n"
+                f"Прогресс: {'▓' * int(lessons_percent/10)}{'░' * (10 - int(lessons_percent/10))} {lessons_percent:.0f}%\n\n"
+                
+                f"<b>✅ ТЕСТЫ</b>\n"
+                f"Попыток: {profile_data['total_tests']}\n"
+                f"Идеальные результаты: {profile_data['perfect_tests']}\n"
+                f"Процент успеха: {tests_percent:.0f}%\n\n"
+                
+                f"<b>💬 ВОПРОСЫ</b>\n"
+                f"Задано вопросов: {profile_data['questions_asked']}\n"
+                f"Дней активен: {profile_data['days_active']}\n\n"
+                
+                f"<b>📈 РОСТ</b>\n"
+                f"Текущий уровень: {profile_data['level']}\n"
+                f"Текущий XP: {profile_data['xp']}\n"
+                f"До следующего уровня: {max(0, profile_data['level'] * 100 - profile_data['xp'])} XP\n"
+            )
+            
+            keyboard = [[InlineKeyboardButton("⬅️ Назад к профилю", callback_data="start_profile")]]
+            
+            await query.edit_message_text(
+                text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка в profile_stats: {e}", exc_info=True)
+            await query.answer("❌ Ошибка загрузки", show_alert=True)
+        return
     
     # ============ RETRY IMAGE CALLBACK ============
     if data == "retry_image":
