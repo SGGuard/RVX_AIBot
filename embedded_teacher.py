@@ -6,6 +6,9 @@ Embedded Teaching System - генерирует качественные уро�
 from dataclasses import dataclass
 from typing import Optional
 import random
+import logging
+
+logger = logging.getLogger("RVX_EMBEDDED_TEACHER")
 
 @dataclass
 class EmbeddedLesson:
@@ -893,8 +896,12 @@ def get_embedded_lesson(topic: str, difficulty: str = "beginner") -> Optional[Em
     
     lessons = EMBEDDED_CURRICULUM[topic_lower]
     if difficulty_lower not in lessons:
-        # Возвращаем beginner если запрошена несуществующая сложность
-        return lessons.get("beginner")
+        # ❌ v0.37.7 FIX: НЕ возвращаем beginner как fallback!
+        # Это вызывает дублирование контента (expert видит beginner)
+        # Вместо этого возвращаем None, чтобы вызывающий код
+        # мог использовать API или другую стратегию
+        logger.warning(f"⚠️ embedded_teacher: '{difficulty_lower}' не существует для '{topic_lower}' (доступны: {list(lessons.keys())})")
+        return None
     
     return lessons[difficulty_lower]
 
