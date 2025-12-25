@@ -1,0 +1,1001 @@
+2025-12-25T01:49:45.392034789Z [err]  2025-12-25 01:49:45,386 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:50:05.404027883Z [err]  2025-12-25 01:49:55,471 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:50:05.553000190Z [err]  2025-12-25 01:50:05,548 - apscheduler.executors.default - INFO - Running job "periodic_metrics_snapshot (trigger: interval[6:00:00], next run at: 2025-12-25 07:50:05 UTC)" (scheduled at 2025-12-25 01:50:05.539937+00:00)
+2025-12-25T01:50:05.553005017Z [err]  2025-12-25 01:50:05,548 - __main__ - INFO - 📊 Req=0 (0%) | Users=0 | Resp=0.0ms
+2025-12-25T01:50:05.553008082Z [err]  2025-12-25 01:50:05,548 - apscheduler.executors.default - INFO - Job "periodic_metrics_snapshot (trigger: interval[6:00:00], next run at: 2025-12-25 07:50:05 UTC)" executed successfully
+2025-12-25T01:50:05.556920010Z [err]  2025-12-25 01:50:05,555 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:50:25.561190819Z [err]  2025-12-25 01:50:15,639 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:50:25.741597540Z [err]  2025-12-25 01:50:25,724 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:50:45.743316951Z [err]  2025-12-25 01:50:35,811 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:50:45.898360184Z [err]  2025-12-25 01:50:45,895 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:51:05.897376451Z [err]  2025-12-25 01:50:55,980 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:51:06.074863021Z [err]  2025-12-25 01:51:06,071 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:51:26.055254771Z [err]  2025-12-25 01:51:16,156 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:51:26.242699077Z [err]  2025-12-25 01:51:26,241 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:51:46.233459133Z [err]  2025-12-25 01:51:36,325 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:51:46.439497731Z [err]  2025-12-25 01:51:46,409 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:52:06.380555696Z [err]  2025-12-25 01:51:56,494 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:52:06.597267404Z [err]  2025-12-25 01:52:06,579 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:52:26.592855301Z [err]  2025-12-25 01:52:16,663 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:52:26.753259094Z [err]  2025-12-25 01:52:26,749 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:52:46.749449801Z [err]  2025-12-25 01:52:36,834 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:52:46.933371362Z [err]  2025-12-25 01:52:46,918 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:53:06.954700875Z [err]  2025-12-25 01:52:57,004 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:53:07.106766510Z [err]  2025-12-25 01:53:07,089 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:53:27.106227667Z [err]  2025-12-25 01:53:17,175 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:53:27.285420384Z [err]  2025-12-25 01:53:27,263 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:53:35.560315160Z [err]  2025-12-25 01:53:35,548 - apscheduler.executors.default - INFO - Running job "bot_health_check (trigger: interval[0:05:00], next run at: 2025-12-25 01:58:35 UTC)" (scheduled at 2025-12-25 01:53:35.540091+00:00)
+2025-12-25T01:53:35.560319947Z [err]  2025-12-25 01:53:35,549 - __main__ - INFO - 💊 HEALTH CHECK: Users=1 | Uptime=0.1h | ErrorRate=0.0% | CacheHits=0 | AvgResponse=0ms
+2025-12-25T01:53:35.560322982Z [err]  2025-12-25 01:53:35,549 - apscheduler.executors.default - INFO - Job "bot_health_check (trigger: interval[0:05:00], next run at: 2025-12-25 01:58:35 UTC)" executed successfully
+2025-12-25T01:53:37.353574598Z [err]  2025-12-25 01:53:37,349 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:53:57.356923795Z [err]  2025-12-25 01:53:47,437 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:53:57.523997963Z [err]  2025-12-25 01:53:57,522 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:54:17.524922323Z [err]  2025-12-25 01:54:07,606 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:54:17.704093316Z [err]  2025-12-25 01:54:17,691 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:54:37.699619849Z [err]  2025-12-25 01:54:27,776 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:54:37.864230652Z [err]  2025-12-25 01:54:37,862 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:54:57.878609005Z [err]  2025-12-25 01:54:47,948 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:54:58.033170283Z [err]  2025-12-25 01:54:58,032 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:55:18.029238932Z [err]  2025-12-25 01:55:08,117 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:55:18.209770496Z [err]  2025-12-25 01:55:18,205 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:55:38.202958117Z [err]  2025-12-25 01:55:28,294 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:55:38.429319307Z [err]  2025-12-25 01:55:38,379 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:55:58.384914330Z [err]  2025-12-25 01:55:48,465 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:55:58.555506935Z [err]  2025-12-25 01:55:58,550 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:56:18.522447471Z [err]  2025-12-25 01:56:08,635 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:56:18.746913799Z [err]  2025-12-25 01:56:18,721 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:56:38.723738987Z [err]  2025-12-25 01:56:28,810 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:56:38.929990341Z [err]  2025-12-25 01:56:38,896 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:56:58.978197760Z [err]  2025-12-25 01:56:48,981 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:56:59.091853037Z [err]  2025-12-25 01:56:59,067 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:57:19.094664316Z [err]  2025-12-25 01:57:09,152 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:57:19.243582879Z [err]  2025-12-25 01:57:19,237 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:57:39.217665059Z [err]  2025-12-25 01:57:29,322 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:57:39.483587091Z [err]  2025-12-25 01:57:39,408 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:57:59.484523781Z [err]  2025-12-25 01:57:49,492 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:57:59.595177566Z [err]  2025-12-25 01:57:59,578 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:58:19.593521063Z [err]  2025-12-25 01:58:09,663 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:58:19.749293888Z [err]  2025-12-25 01:58:19,747 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:58:39.697261067Z [err]  2025-12-25 01:58:29,839 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:58:39.697264352Z [err]  2025-12-25 01:58:35,545 - apscheduler.executors.default - INFO - Running job "bot_health_check (trigger: interval[0:05:00], next run at: 2025-12-25 02:03:35 UTC)" (scheduled at 2025-12-25 01:58:35.540091+00:00)
+2025-12-25T01:58:39.697267216Z [err]  2025-12-25 01:58:35,545 - __main__ - INFO - 💊 HEALTH CHECK: Users=1 | Uptime=0.2h | ErrorRate=0.0% | CacheHits=0 | AvgResponse=0ms
+2025-12-25T01:58:39.697270120Z [err]  2025-12-25 01:58:35,545 - apscheduler.executors.default - INFO - Job "bot_health_check (trigger: interval[0:05:00], next run at: 2025-12-25 02:03:35 UTC)" executed successfully
+2025-12-25T01:58:39.973547806Z [err]  2025-12-25 01:58:39,924 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:58:59.990197569Z [err]  2025-12-25 01:58:50,009 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:59:00.096862229Z [err]  2025-12-25 01:59:00,094 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:59:20.092662077Z [err]  2025-12-25 01:59:10,178 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:59:20.286469704Z [err]  2025-12-25 01:59:20,263 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:59:36.000000000Z [inf]  Starting Container
+2025-12-25T01:59:37.000000000Z [inf]  Starting Container
+2025-12-25T01:59:37.809436792Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-25T01:59:38.916187393Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-25T01:59:39.000000000Z [inf]  Stopping Container
+2025-12-25T01:59:39.932148510Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-25T01:59:40.334302190Z [err]  2025-12-25 01:59:30,350 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:59:40.442999109Z [err]  2025-12-25 01:59:40,435 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7987474870:AAHRbzkpivFyvJMVYbBQ49LzAstW9BZej-I/getUpdates "HTTP/1.1 200 OK"
+2025-12-25T01:59:41.296556139Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-25T01:59:42.649877358Z [err]  2025-12-25 01:59:42,232 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T01:59:42.649887948Z [err]  2025-12-25 01:59:42,232 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T01:59:42.649893098Z [err]  2025-12-25 01:59:42,232 - __main__ - INFO -   • Добавление колонки course_name в user_progress...
+2025-12-25T01:59:42.649896738Z [err]  2025-12-25 01:59:42,233 - __main__ - INFO - ✅ Миграция успешно завершена (v0.37.0 - Teaching Module Phase 1)
+2025-12-25T01:59:42.649900698Z [err]  2025-12-25 01:59:42,233 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T01:59:42.649905038Z [err]  2025-12-25 01:59:42,233 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T01:59:42.650007996Z [err]  /usr/local/lib/python3.12/site-packages/pydantic/_internal/_config.py:345: UserWarning: Valid config keys have changed in V2:
+2025-12-25T01:59:42.650012815Z [err]  * 'max_anystr_length' has been renamed to 'str_max_length'
+2025-12-25T01:59:42.650016325Z [err]    warnings.warn(message, UserWarning)
+2025-12-25T01:59:42.650020005Z [err]  2025-12-25 01:59:42,204 - __main__ - INFO - ✅ BotState инициализирован
+2025-12-25T01:59:42.650023745Z [err]  2025-12-25 01:59:42,205 - __main__ - INFO - ✅ BotMetrics инициализирован
+2025-12-25T01:59:42.650027635Z [err]  2025-12-25 01:59:42,211 - __main__ - INFO - ℹ️  Таблица conversation_history не существует, будет создана позже
+2025-12-25T01:59:42.650031285Z [err]  2025-12-25 01:59:42,230 - __main__ - INFO - ✅ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-25T01:59:42.650034395Z [err]  2025-12-25 01:59:42,232 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T01:59:42.651388437Z [err]  2025-12-25 01:59:42,235 - __main__ - ERROR - ❌ DB ошибка: no such column: course_id
+2025-12-25T01:59:42.651394517Z [err]  Traceback (most recent call last):
+2025-12-25T01:59:42.651398417Z [err]    File "/app/bot.py", line 1535, in get_db
+2025-12-25T01:59:42.651402247Z [err]      yield conn
+2025-12-25T01:59:42.651407267Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T01:59:42.651410956Z [err]      cursor.execute("""
+2025-12-25T01:59:42.651414506Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T01:59:42.651418656Z [inf]  🔧 CLEANUP: Current PID = 2
+2025-12-25T01:59:42.651421756Z [inf]  ⏳ Waiting 3 seconds for Telegram polling lock to release...
+2025-12-25T01:59:42.651424356Z [err]  2025-12-25 01:59:42,233 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T01:59:42.651424976Z [inf]  ✅ Process cleanup completed
+2025-12-25T01:59:42.651427146Z [err]  2025-12-25 01:59:42,234 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T01:59:42.651429026Z [inf]  ✅ Process cleanup completed
+2025-12-25T01:59:42.651429896Z [err]  2025-12-25 01:59:42,235 - __main__ - INFO -   📊 Created: idx_users_leaderboard (leaderboard queries)
+2025-12-25T01:59:42.651432916Z [err]  2025-12-25 01:59:42,235 - __main__ - INFO -   📝 Created: idx_requests_user_date (user request history)
+2025-12-25T01:59:42.651433206Z [inf]  ⚠️ Redis connection failed: Error 111 connecting to localhost:6379. Connection refused., falling back to in-memory cache
+2025-12-25T01:59:42.651436626Z [inf]  
+2025-12-25T01:59:42.651439746Z [inf]  ================================================================================
+2025-12-25T01:59:42.651442696Z [inf]  🚀 INITIALIZING v0.25.0 CORE SYSTEMS
+2025-12-25T01:59:42.651445676Z [inf]  ================================================================================
+2025-12-25T01:59:42.652577192Z [err]      ^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-12-25T01:59:42.652580182Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T01:59:42.652582822Z [err]      cursor.execute("""
+2025-12-25T01:59:42.652586272Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T01:59:42.652593042Z [inf]  
+2025-12-25T01:59:42.652600722Z [err]  Traceback (most recent call last):
+2025-12-25T01:59:42.652601002Z [inf]  ✅ Event tracker initialized
+2025-12-25T01:59:42.652608622Z [inf]  ✅ AI honesty system loaded
+2025-12-25T01:59:42.652609412Z [err]    File "/app/bot.py", line 13834, in <module>
+2025-12-25T01:59:42.652615582Z [inf]  ✅ Analytics system ready
+2025-12-25T01:59:42.652617242Z [err]      main()
+2025-12-25T01:59:42.652621362Z [inf]  ✅ Config loaded: BOT_ADMIN_IDS=[7216426044, 0]
+2025-12-25T01:59:42.652625471Z [err]    File "/app/bot.py", line 13189, in main
+2025-12-25T01:59:42.652627791Z [inf]  ✅ Cache enabled: True
+2025-12-25T01:59:42.652634041Z [inf]  ✅ Analytics enabled: True
+2025-12-25T01:59:42.652634281Z [err]      create_database_indices()  # ✅ v0.38.0: Database indices for performance
+2025-12-25T01:59:42.652639101Z [inf]  ================================================================================
+2025-12-25T01:59:42.771076999Z [inf]  ======================================================================
+2025-12-25T01:59:42.771079839Z [inf]  🤖 RVX Telegram Bot - Starting
+2025-12-25T01:59:42.771082159Z [inf]  ======================================================================
+2025-12-25T01:59:42.771084549Z [inf]  📡 API Configuration:
+2025-12-25T01:59:42.771086949Z [inf]     • API is in separate Railway service
+2025-12-25T01:59:42.771089129Z [inf]     • Bot will connect to API_URL from environment
+2025-12-25T01:59:42.771092039Z [inf]  ======================================================================
+2025-12-25T01:59:42.771094489Z [inf]  ❌ Bot error: Command '['/usr/local/bin/python', 'bot.py']' returned non-zero exit status 1.
+2025-12-25T01:59:43.899476494Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-25T01:59:44.000000000Z [inf]  Stopping Container
+2025-12-25T01:59:45.537693447Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-25T01:59:46.929181584Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-25T01:59:47.662355803Z [err]  /usr/local/lib/python3.12/site-packages/pydantic/_internal/_config.py:345: UserWarning: Valid config keys have changed in V2:
+2025-12-25T01:59:47.662358912Z [err]  * 'max_anystr_length' has been renamed to 'str_max_length'
+2025-12-25T01:59:47.662361962Z [err]    warnings.warn(message, UserWarning)
+2025-12-25T01:59:47.662364862Z [err]  2025-12-25 01:59:47,494 - __main__ - INFO - ✅ BotState инициализирован
+2025-12-25T01:59:47.662367392Z [err]  2025-12-25 01:59:47,495 - __main__ - INFO - ✅ BotMetrics инициализирован
+2025-12-25T01:59:47.662370482Z [err]  2025-12-25 01:59:47,497 - __main__ - INFO - 📋 Столбцы ДО миграции: ['content', 'id', 'intent', 'message_length', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T01:59:47.662373342Z [err]  2025-12-25 01:59:47,497 - __main__ - INFO -   ⚡ Добавляем столбец message_type в conversation_history...
+2025-12-25T01:59:47.662376712Z [err]  2025-12-25 01:59:47,498 - __main__ - INFO - ✅ Столбец message_type добавлен успешно
+2025-12-25T01:59:47.662379462Z [err]  2025-12-25 01:59:47,498 - __main__ - INFO - ✅ Столбцы ПОСЛЕ миграции: ['content', 'id', 'intent', 'message_length', 'message_type', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T01:59:47.662382232Z [err]  2025-12-25 01:59:47,498 - __main__ - ERROR - 🚨 КРИТИЧНО: Отсутствуют столбцы: {'created_at'}
+2025-12-25T01:59:47.662385272Z [err]  2025-12-25 01:59:47,499 - __main__ - INFO - ✅ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-25T01:59:47.662387982Z [err]  2025-12-25 01:59:47,500 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T01:59:47.662394882Z [err]  2025-12-25 01:59:47,500 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T01:59:47.663424131Z [err]  2025-12-25 01:59:47,501 - __main__ - INFO -   📊 Created: idx_users_leaderboard (leaderboard queries)
+2025-12-25T01:59:47.663435030Z [err]  2025-12-25 01:59:47,500 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T01:59:47.663435320Z [err]  2025-12-25 01:59:47,501 - __main__ - INFO -   📝 Created: idx_requests_user_date (user request history)
+2025-12-25T01:59:47.663442990Z [err]  2025-12-25 01:59:47,500 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T01:59:47.663443290Z [err]  2025-12-25 01:59:47,501 - __main__ - ERROR - ❌ DB ошибка: no such column: course_id
+2025-12-25T01:59:47.663451000Z [err]  2025-12-25 01:59:47,500 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T01:59:47.663451560Z [err]  Traceback (most recent call last):
+2025-12-25T01:59:47.663459820Z [err]    File "/app/bot.py", line 1535, in get_db
+2025-12-25T01:59:47.663460300Z [err]  2025-12-25 01:59:47,501 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T01:59:47.663469150Z [err]      yield conn
+2025-12-25T01:59:47.663469320Z [err]  2025-12-25 01:59:47,501 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T01:59:47.663477459Z [err]  2025-12-25 01:59:47,501 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T01:59:47.663478339Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T01:59:47.663482909Z [err]      cursor.execute("""
+2025-12-25T01:59:47.663486359Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T01:59:47.663489839Z [inf]  🔧 CLEANUP: Current PID = 2
+2025-12-25T01:59:47.663494209Z [inf]  ⏳ Waiting 3 seconds for Telegram polling lock to release...
+2025-12-25T01:59:47.664127116Z [inf]  🚀 INITIALIZING v0.25.0 CORE SYSTEMS
+2025-12-25T01:59:47.664134266Z [inf]  ================================================================================
+2025-12-25T01:59:47.664140396Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T01:59:47.664143946Z [inf]  ✅ Event tracker initialized
+2025-12-25T01:59:47.664148926Z [err]      ^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-12-25T01:59:47.664151816Z [inf]  ✅ AI honesty system loaded
+2025-12-25T01:59:47.664157556Z [inf]  ✅ Process cleanup completed
+2025-12-25T01:59:47.664160036Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T01:59:47.664160516Z [inf]  ✅ Analytics system ready
+2025-12-25T01:59:47.664167816Z [inf]  ✅ Process cleanup completed
+2025-12-25T01:59:47.664169526Z [err]      main()
+2025-12-25T01:59:47.664174535Z [err]      cursor.execute("""
+2025-12-25T01:59:47.664178245Z [inf]  
+2025-12-25T01:59:47.664179365Z [inf]  ⚠️ Redis connection failed: Error 111 connecting to localhost:6379. Connection refused., falling back to in-memory cache
+2025-12-25T01:59:47.664183465Z [err]    File "/app/bot.py", line 13189, in main
+2025-12-25T01:59:47.664187095Z [inf]  
+2025-12-25T01:59:47.664187605Z [err]  Traceback (most recent call last):
+2025-12-25T01:59:47.664190155Z [inf]  ✅ Config loaded: BOT_ADMIN_IDS=[7216426044, 0]
+2025-12-25T01:59:47.664194555Z [err]      create_database_indices()  # ✅ v0.38.0: Database indices for performance
+2025-12-25T01:59:47.664198375Z [inf]  ================================================================================
+2025-12-25T01:59:47.664198405Z [err]    File "/app/bot.py", line 13834, in <module>
+2025-12-25T01:59:47.664207655Z [inf]  ✅ Cache enabled: True
+2025-12-25T01:59:47.664213165Z [inf]  ✅ Analytics enabled: True
+2025-12-25T01:59:47.664217325Z [inf]  ================================================================================
+2025-12-25T01:59:47.958174067Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-25T01:59:47.960254926Z [inf]     • Bot will connect to API_URL from environment
+2025-12-25T01:59:47.960258856Z [inf]  ======================================================================
+2025-12-25T01:59:47.960262506Z [inf]  ❌ Bot error: Command '['/usr/local/bin/python', 'bot.py']' returned non-zero exit status 1.
+2025-12-25T01:59:47.960286995Z [inf]  ======================================================================
+2025-12-25T01:59:47.960290255Z [inf]  🤖 RVX Telegram Bot - Starting
+2025-12-25T01:59:47.960293415Z [inf]  ======================================================================
+2025-12-25T01:59:47.960296705Z [inf]  📡 API Configuration:
+2025-12-25T01:59:47.960299745Z [inf]     • API is in separate Railway service
+2025-12-25T01:59:49.069514929Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-25T01:59:51.291776363Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-25T01:59:52.243720937Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-25T01:59:52.755881067Z [err]  /usr/local/lib/python3.12/site-packages/pydantic/_internal/_config.py:345: UserWarning: Valid config keys have changed in V2:
+2025-12-25T01:59:52.755884227Z [err]  * 'max_anystr_length' has been renamed to 'str_max_length'
+2025-12-25T01:59:52.755887057Z [err]    warnings.warn(message, UserWarning)
+2025-12-25T01:59:52.755890166Z [err]  2025-12-25 01:59:52,662 - __main__ - INFO - ✅ BotState инициализирован
+2025-12-25T01:59:52.755892716Z [err]  2025-12-25 01:59:52,662 - __main__ - INFO - ✅ BotMetrics инициализирован
+2025-12-25T01:59:52.755895686Z [err]  2025-12-25 01:59:52,664 - __main__ - INFO - 📋 Столбцы ДО миграции: ['content', 'id', 'intent', 'message_length', 'message_type', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T01:59:52.755900946Z [err]  2025-12-25 01:59:52,664 - __main__ - INFO - ✅ Столбцы ПОСЛЕ миграции: ['content', 'id', 'intent', 'message_length', 'message_type', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T01:59:52.755903996Z [err]  2025-12-25 01:59:52,664 - __main__ - ERROR - 🚨 КРИТИЧНО: Отсутствуют столбцы: {'created_at'}
+2025-12-25T01:59:52.755906966Z [err]  2025-12-25 01:59:52,665 - __main__ - INFO - ✅ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-25T01:59:52.755909716Z [err]  2025-12-25 01:59:52,665 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T01:59:52.755913026Z [err]  2025-12-25 01:59:52,665 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T01:59:52.755915986Z [err]  2025-12-25 01:59:52,665 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T01:59:52.755918896Z [err]  2025-12-25 01:59:52,666 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T01:59:52.756671841Z [inf]  ⚠️ Redis connection failed: Error 111 connecting to localhost:6379. Connection refused., falling back to in-memory cache
+2025-12-25T01:59:52.756697640Z [err]  2025-12-25 01:59:52,666 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T01:59:52.756703500Z [err]  2025-12-25 01:59:52,666 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T01:59:52.756707900Z [err]  2025-12-25 01:59:52,666 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T01:59:52.756710890Z [err]  2025-12-25 01:59:52,666 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T01:59:52.756713840Z [err]  2025-12-25 01:59:52,667 - __main__ - INFO -   📊 Created: idx_users_leaderboard (leaderboard queries)
+2025-12-25T01:59:52.756716400Z [err]  2025-12-25 01:59:52,667 - __main__ - INFO -   📝 Created: idx_requests_user_date (user request history)
+2025-12-25T01:59:52.756719200Z [err]  2025-12-25 01:59:52,667 - __main__ - ERROR - ❌ DB ошибка: no such column: course_id
+2025-12-25T01:59:52.756722070Z [err]  Traceback (most recent call last):
+2025-12-25T01:59:52.756724990Z [err]    File "/app/bot.py", line 1535, in get_db
+2025-12-25T01:59:52.756727759Z [err]      yield conn
+2025-12-25T01:59:52.756730159Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T01:59:52.756733089Z [err]      cursor.execute("""
+2025-12-25T01:59:52.756736049Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T01:59:52.756738819Z [inf]  🔧 CLEANUP: Current PID = 2
+2025-12-25T01:59:52.756741609Z [inf]  ⏳ Waiting 3 seconds for Telegram polling lock to release...
+2025-12-25T01:59:52.756744499Z [inf]  ✅ Process cleanup completed
+2025-12-25T01:59:52.756747029Z [inf]  ✅ Process cleanup completed
+2025-12-25T01:59:52.757858576Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T01:59:52.757874056Z [inf]  
+2025-12-25T01:59:52.757879676Z [inf]  ================================================================================
+2025-12-25T01:59:52.757882786Z [inf]  🚀 INITIALIZING v0.25.0 CORE SYSTEMS
+2025-12-25T01:59:52.757886666Z [inf]  ================================================================================
+2025-12-25T01:59:52.757889516Z [inf]  ✅ Event tracker initialized
+2025-12-25T01:59:52.757892365Z [inf]  ✅ AI honesty system loaded
+2025-12-25T01:59:52.757894985Z [inf]  ✅ Analytics system ready
+2025-12-25T01:59:52.757897575Z [inf]  ✅ Config loaded: BOT_ADMIN_IDS=[7216426044, 0]
+2025-12-25T01:59:52.757900455Z [inf]  ✅ Cache enabled: True
+2025-12-25T01:59:52.757903445Z [inf]  ✅ Analytics enabled: True
+2025-12-25T01:59:52.757906275Z [inf]  ================================================================================
+2025-12-25T01:59:52.757908755Z [inf]  
+2025-12-25T01:59:52.757911605Z [err]  Traceback (most recent call last):
+2025-12-25T01:59:52.757914645Z [err]    File "/app/bot.py", line 13834, in <module>
+2025-12-25T01:59:52.757917205Z [err]      main()
+2025-12-25T01:59:52.757920025Z [err]    File "/app/bot.py", line 13189, in main
+2025-12-25T01:59:52.757923135Z [err]      create_database_indices()  # ✅ v0.38.0: Database indices for performance
+2025-12-25T01:59:52.757928685Z [err]      ^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-12-25T01:59:52.757931425Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T01:59:52.757934755Z [err]      cursor.execute("""
+2025-12-25T01:59:53.095101833Z [inf]  ======================================================================
+2025-12-25T01:59:53.095104583Z [inf]  🤖 RVX Telegram Bot - Starting
+2025-12-25T01:59:53.095108043Z [inf]  ======================================================================
+2025-12-25T01:59:53.095110303Z [inf]  📡 API Configuration:
+2025-12-25T01:59:53.095112713Z [inf]     • API is in separate Railway service
+2025-12-25T01:59:53.095115023Z [inf]     • Bot will connect to API_URL from environment
+2025-12-25T01:59:53.095117273Z [inf]  ======================================================================
+2025-12-25T01:59:53.095120173Z [inf]  ❌ Bot error: Command '['/usr/local/bin/python', 'bot.py']' returned non-zero exit status 1.
+2025-12-25T01:59:57.838068683Z [err]  /usr/local/lib/python3.12/site-packages/pydantic/_internal/_config.py:345: UserWarning: Valid config keys have changed in V2:
+2025-12-25T01:59:57.838074363Z [err]  * 'max_anystr_length' has been renamed to 'str_max_length'
+2025-12-25T01:59:57.838078023Z [err]    warnings.warn(message, UserWarning)
+2025-12-25T01:59:57.838081152Z [err]  2025-12-25 01:59:57,836 - __main__ - INFO - ✅ BotState инициализирован
+2025-12-25T01:59:57.838084062Z [err]  2025-12-25 01:59:57,836 - __main__ - INFO - ✅ BotMetrics инициализирован
+2025-12-25T01:59:57.842865014Z [err]  2025-12-25 01:59:57,838 - __main__ - INFO - 📋 Столбцы ДО миграции: ['content', 'id', 'intent', 'message_length', 'message_type', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T01:59:57.842869504Z [err]  2025-12-25 01:59:57,838 - __main__ - INFO - ✅ Столбцы ПОСЛЕ миграции: ['content', 'id', 'intent', 'message_length', 'message_type', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T01:59:57.842872404Z [err]  2025-12-25 01:59:57,838 - __main__ - ERROR - 🚨 КРИТИЧНО: Отсутствуют столбцы: {'created_at'}
+2025-12-25T01:59:57.842874973Z [err]  2025-12-25 01:59:57,839 - __main__ - INFO - ✅ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-25T01:59:57.842877403Z [err]  2025-12-25 01:59:57,839 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T01:59:57.842879843Z [err]  2025-12-25 01:59:57,840 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T01:59:57.842882113Z [err]  2025-12-25 01:59:57,840 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T01:59:57.842884683Z [err]  2025-12-25 01:59:57,840 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T01:59:57.842886863Z [err]  2025-12-25 01:59:57,840 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T01:59:57.842889453Z [err]  2025-12-25 01:59:57,840 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T01:59:57.842891953Z [err]  2025-12-25 01:59:57,840 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T01:59:57.842894433Z [err]  2025-12-25 01:59:57,840 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T01:59:57.843661107Z [err]  2025-12-25 01:59:57,841 - __main__ - INFO -   📊 Created: idx_users_leaderboard (leaderboard queries)
+2025-12-25T01:59:57.843665356Z [err]  2025-12-25 01:59:57,841 - __main__ - INFO -   📝 Created: idx_requests_user_date (user request history)
+2025-12-25T01:59:57.844569518Z [err]  2025-12-25 01:59:57,841 - __main__ - ERROR - ❌ DB ошибка: no such column: course_id
+2025-12-25T01:59:57.844572208Z [err]  Traceback (most recent call last):
+2025-12-25T01:59:57.844575498Z [err]    File "/app/bot.py", line 1535, in get_db
+2025-12-25T01:59:57.844578138Z [err]      yield conn
+2025-12-25T01:59:57.844580928Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T01:59:57.844584058Z [err]      cursor.execute("""
+2025-12-25T01:59:57.844586678Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T01:59:57.845903340Z [inf]  🔧 CLEANUP: Current PID = 2
+2025-12-25T01:59:57.845912110Z [inf]  ⏳ Waiting 3 seconds for Telegram polling lock to release...
+2025-12-25T01:59:57.845915870Z [inf]  ✅ Process cleanup completed
+2025-12-25T01:59:57.845919470Z [inf]  ✅ Process cleanup completed
+2025-12-25T01:59:57.845922740Z [inf]  ⚠️ Redis connection failed: Error 111 connecting to localhost:6379. Connection refused., falling back to in-memory cache
+2025-12-25T01:59:57.845927030Z [inf]  
+2025-12-25T01:59:57.845930270Z [inf]  ================================================================================
+2025-12-25T01:59:57.845935359Z [inf]  🚀 INITIALIZING v0.25.0 CORE SYSTEMS
+2025-12-25T01:59:57.845938309Z [inf]  ================================================================================
+2025-12-25T01:59:57.845941649Z [inf]  ✅ Event tracker initialized
+2025-12-25T01:59:57.845944959Z [inf]  ✅ AI honesty system loaded
+2025-12-25T01:59:57.845948069Z [inf]  ✅ Analytics system ready
+2025-12-25T01:59:57.845952809Z [inf]  ✅ Config loaded: BOT_ADMIN_IDS=[7216426044, 0]
+2025-12-25T01:59:57.845955829Z [inf]  ✅ Cache enabled: True
+2025-12-25T01:59:57.845958619Z [inf]  ✅ Analytics enabled: True
+2025-12-25T01:59:57.845961839Z [inf]  ================================================================================
+2025-12-25T01:59:57.845965119Z [inf]  
+2025-12-25T01:59:57.845968149Z [err]  Traceback (most recent call last):
+2025-12-25T01:59:57.845971459Z [err]    File "/app/bot.py", line 13834, in <module>
+2025-12-25T01:59:57.850934586Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T01:59:57.850940956Z [err]      main()
+2025-12-25T01:59:57.850946006Z [err]    File "/app/bot.py", line 13189, in main
+2025-12-25T01:59:57.850949096Z [err]      create_database_indices()  # ✅ v0.38.0: Database indices for performance
+2025-12-25T01:59:57.850952006Z [err]      ^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-12-25T01:59:57.850954906Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T01:59:57.850957726Z [err]      cursor.execute("""
+2025-12-25T01:59:58.237235067Z [inf]  ======================================================================
+2025-12-25T01:59:58.237245846Z [inf]  🤖 RVX Telegram Bot - Starting
+2025-12-25T01:59:58.237250986Z [inf]  ======================================================================
+2025-12-25T01:59:58.237255146Z [inf]  📡 API Configuration:
+2025-12-25T01:59:58.237259536Z [inf]     • API is in separate Railway service
+2025-12-25T01:59:58.237263286Z [inf]     • Bot will connect to API_URL from environment
+2025-12-25T01:59:58.237266836Z [inf]  ======================================================================
+2025-12-25T01:59:58.237270756Z [inf]  ❌ Bot error: Command '['/usr/local/bin/python', 'bot.py']' returned non-zero exit status 1.
+2025-12-25T02:00:03.059220168Z [err]  /usr/local/lib/python3.12/site-packages/pydantic/_internal/_config.py:345: UserWarning: Valid config keys have changed in V2:
+2025-12-25T02:00:03.059223328Z [err]  * 'max_anystr_length' has been renamed to 'str_max_length'
+2025-12-25T02:00:03.059226318Z [err]    warnings.warn(message, UserWarning)
+2025-12-25T02:00:03.059988301Z [err]  2025-12-25 02:00:03,059 - __main__ - INFO - ✅ BotState инициализирован
+2025-12-25T02:00:03.059991241Z [err]  2025-12-25 02:00:03,059 - __main__ - INFO - ✅ BotMetrics инициализирован
+2025-12-25T02:00:03.063625216Z [err]  2025-12-25 02:00:03,061 - __main__ - INFO - 📋 Столбцы ДО миграции: ['content', 'id', 'intent', 'message_length', 'message_type', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T02:00:03.063628136Z [err]  2025-12-25 02:00:03,061 - __main__ - INFO - ✅ Столбцы ПОСЛЕ миграции: ['content', 'id', 'intent', 'message_length', 'message_type', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T02:00:03.063630636Z [err]  2025-12-25 02:00:03,061 - __main__ - ERROR - 🚨 КРИТИЧНО: Отсутствуют столбцы: {'created_at'}
+2025-12-25T02:00:03.063633716Z [err]  2025-12-25 02:00:03,062 - __main__ - INFO - ✅ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-25T02:00:03.063636216Z [err]  2025-12-25 02:00:03,062 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T02:00:03.063638896Z [err]  2025-12-25 02:00:03,062 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T02:00:03.063641476Z [err]  2025-12-25 02:00:03,062 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T02:00:03.063644006Z [err]  2025-12-25 02:00:03,063 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T02:00:03.063646576Z [err]  2025-12-25 02:00:03,063 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T02:00:03.063649046Z [err]  2025-12-25 02:00:03,063 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T02:00:03.064406870Z [err]  2025-12-25 02:00:03,063 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T02:00:03.064409750Z [err]  2025-12-25 02:00:03,063 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T02:00:03.064411790Z [err]  2025-12-25 02:00:03,063 - __main__ - INFO -   📊 Created: idx_users_leaderboard (leaderboard queries)
+2025-12-25T02:00:03.064413870Z [err]  2025-12-25 02:00:03,063 - __main__ - INFO -   📝 Created: idx_requests_user_date (user request history)
+2025-12-25T02:00:03.069561734Z [inf]  ✅ Analytics system ready
+2025-12-25T02:00:03.069566064Z [inf]  ✅ Config loaded: BOT_ADMIN_IDS=[7216426044, 0]
+2025-12-25T02:00:03.069579313Z [inf]  ✅ Cache enabled: True
+2025-12-25T02:00:03.069586523Z [inf]  ⚠️ Redis connection failed: Error 111 connecting to localhost:6379. Connection refused., falling back to in-memory cache
+2025-12-25T02:00:03.069588123Z [err]      cursor.execute("""
+2025-12-25T02:00:03.069588513Z [inf]  ✅ Analytics enabled: True
+2025-12-25T02:00:03.069600023Z [inf]  
+2025-12-25T02:00:03.069600303Z [inf]  ================================================================================
+2025-12-25T02:00:03.069601643Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T02:00:03.069604873Z [err]  2025-12-25 02:00:03,063 - __main__ - ERROR - ❌ DB ошибка: no such column: course_id
+2025-12-25T02:00:03.069611693Z [inf]  ================================================================================
+2025-12-25T02:00:03.069614233Z [inf]  🔧 CLEANUP: Current PID = 2
+2025-12-25T02:00:03.069619952Z [inf]  🚀 INITIALIZING v0.25.0 CORE SYSTEMS
+2025-12-25T02:00:03.069624602Z [err]  Traceback (most recent call last):
+2025-12-25T02:00:03.069624762Z [inf]  ⏳ Waiting 3 seconds for Telegram polling lock to release...
+2025-12-25T02:00:03.069629492Z [inf]  ================================================================================
+2025-12-25T02:00:03.069634462Z [inf]  ✅ Process cleanup completed
+2025-12-25T02:00:03.069635962Z [err]    File "/app/bot.py", line 1535, in get_db
+2025-12-25T02:00:03.069640902Z [inf]  ✅ Event tracker initialized
+2025-12-25T02:00:03.069643582Z [inf]  ✅ Process cleanup completed
+2025-12-25T02:00:03.069648152Z [inf]  ✅ AI honesty system loaded
+2025-12-25T02:00:03.069648372Z [err]      yield conn
+2025-12-25T02:00:03.069653352Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T02:00:03.070748629Z [inf]  
+2025-12-25T02:00:03.070751769Z [err]  Traceback (most recent call last):
+2025-12-25T02:00:03.070754379Z [err]    File "/app/bot.py", line 13834, in <module>
+2025-12-25T02:00:03.070756919Z [err]      main()
+2025-12-25T02:00:03.070759049Z [err]    File "/app/bot.py", line 13189, in main
+2025-12-25T02:00:03.075812525Z [err]      create_database_indices()  # ✅ v0.38.0: Database indices for performance
+2025-12-25T02:00:03.075815105Z [err]      ^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-12-25T02:00:03.075817914Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T02:00:03.075820824Z [err]      cursor.execute("""
+2025-12-25T02:00:03.075823394Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T02:00:03.429937830Z [inf]  ======================================================================
+2025-12-25T02:00:03.429941820Z [inf]  🤖 RVX Telegram Bot - Starting
+2025-12-25T02:00:03.429950910Z [inf]  ======================================================================
+2025-12-25T02:00:03.429954150Z [inf]  📡 API Configuration:
+2025-12-25T02:00:03.429956910Z [inf]     • API is in separate Railway service
+2025-12-25T02:00:03.429959340Z [inf]     • Bot will connect to API_URL from environment
+2025-12-25T02:00:03.429963460Z [inf]  ======================================================================
+2025-12-25T02:00:03.429965850Z [inf]  ❌ Bot error: Command '['/usr/local/bin/python', 'bot.py']' returned non-zero exit status 1.
+2025-12-25T02:00:08.228416476Z [err]  /usr/local/lib/python3.12/site-packages/pydantic/_internal/_config.py:345: UserWarning: Valid config keys have changed in V2:
+2025-12-25T02:00:08.228422506Z [err]  * 'max_anystr_length' has been renamed to 'str_max_length'
+2025-12-25T02:00:08.228426356Z [err]    warnings.warn(message, UserWarning)
+2025-12-25T02:00:08.240681001Z [err]  2025-12-25 02:00:08,234 - __main__ - INFO - ✅ BotState инициализирован
+2025-12-25T02:00:08.240686961Z [err]  2025-12-25 02:00:08,234 - __main__ - INFO - ✅ BotMetrics инициализирован
+2025-12-25T02:00:08.240692331Z [err]  2025-12-25 02:00:08,237 - __main__ - INFO - 📋 Столбцы ДО миграции: ['content', 'id', 'intent', 'message_length', 'message_type', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T02:00:08.240695841Z [err]  2025-12-25 02:00:08,237 - __main__ - INFO - ✅ Столбцы ПОСЛЕ миграции: ['content', 'id', 'intent', 'message_length', 'message_type', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T02:00:08.240699461Z [err]  2025-12-25 02:00:08,237 - __main__ - ERROR - 🚨 КРИТИЧНО: Отсутствуют столбцы: {'created_at'}
+2025-12-25T02:00:08.240703111Z [err]  2025-12-25 02:00:08,238 - __main__ - INFO - ✅ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-25T02:00:08.240707071Z [err]  2025-12-25 02:00:08,238 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T02:00:08.240710451Z [err]  2025-12-25 02:00:08,239 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T02:00:08.240715901Z [err]  2025-12-25 02:00:08,239 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T02:00:08.240720790Z [err]  2025-12-25 02:00:08,239 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T02:00:08.240724060Z [err]  2025-12-25 02:00:08,239 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T02:00:08.240727700Z [err]  2025-12-25 02:00:08,239 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T02:00:08.242414186Z [err]  2025-12-25 02:00:08,239 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T02:00:08.242419096Z [err]  2025-12-25 02:00:08,240 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T02:00:08.242423206Z [err]  2025-12-25 02:00:08,240 - __main__ - INFO -   📊 Created: idx_users_leaderboard (leaderboard queries)
+2025-12-25T02:00:08.242425976Z [err]  2025-12-25 02:00:08,240 - __main__ - INFO -   📝 Created: idx_requests_user_date (user request history)
+2025-12-25T02:00:08.243679899Z [err]  2025-12-25 02:00:08,240 - __main__ - ERROR - ❌ DB ошибка: no such column: course_id
+2025-12-25T02:00:08.243685479Z [err]  Traceback (most recent call last):
+2025-12-25T02:00:08.243689089Z [err]    File "/app/bot.py", line 1535, in get_db
+2025-12-25T02:00:08.243692619Z [err]      yield conn
+2025-12-25T02:00:08.243695659Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T02:00:08.243697919Z [err]      cursor.execute("""
+2025-12-25T02:00:08.243700719Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T02:00:08.245442493Z [inf]  🔧 CLEANUP: Current PID = 2
+2025-12-25T02:00:08.245447993Z [inf]  ⏳ Waiting 3 seconds for Telegram polling lock to release...
+2025-12-25T02:00:08.245451863Z [inf]  ✅ Process cleanup completed
+2025-12-25T02:00:08.245455223Z [inf]  ✅ Process cleanup completed
+2025-12-25T02:00:08.245458603Z [inf]  ⚠️ Redis connection failed: Error 111 connecting to localhost:6379. Connection refused., falling back to in-memory cache
+2025-12-25T02:00:08.245462213Z [inf]  
+2025-12-25T02:00:08.245465623Z [inf]  ================================================================================
+2025-12-25T02:00:08.245468993Z [inf]  🚀 INITIALIZING v0.25.0 CORE SYSTEMS
+2025-12-25T02:00:08.245472353Z [inf]  ================================================================================
+2025-12-25T02:00:08.245476052Z [inf]  ✅ Event tracker initialized
+2025-12-25T02:00:08.245480152Z [inf]  ✅ AI honesty system loaded
+2025-12-25T02:00:08.245482922Z [inf]  ✅ Analytics system ready
+2025-12-25T02:00:08.245485812Z [inf]  ✅ Config loaded: BOT_ADMIN_IDS=[7216426044, 0]
+2025-12-25T02:00:08.245489342Z [inf]  ✅ Cache enabled: True
+2025-12-25T02:00:08.245492182Z [inf]  ✅ Analytics enabled: True
+2025-12-25T02:00:08.245495852Z [inf]  ================================================================================
+2025-12-25T02:00:08.245498912Z [inf]  
+2025-12-25T02:00:08.245502232Z [err]  Traceback (most recent call last):
+2025-12-25T02:00:08.245505022Z [err]    File "/app/bot.py", line 13834, in <module>
+2025-12-25T02:00:08.251022357Z [err]      main()
+2025-12-25T02:00:08.251025607Z [err]    File "/app/bot.py", line 13189, in main
+2025-12-25T02:00:08.251028977Z [err]      create_database_indices()  # ✅ v0.38.0: Database indices for performance
+2025-12-25T02:00:08.251032097Z [err]      ^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-12-25T02:00:08.251034587Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T02:00:08.251037637Z [err]      cursor.execute("""
+2025-12-25T02:00:08.251040487Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T02:00:08.835496792Z [inf]  ======================================================================
+2025-12-25T02:00:08.835500212Z [inf]  🤖 RVX Telegram Bot - Starting
+2025-12-25T02:00:08.835503532Z [inf]  ======================================================================
+2025-12-25T02:00:08.835507971Z [inf]  📡 API Configuration:
+2025-12-25T02:00:08.835511771Z [inf]     • API is in separate Railway service
+2025-12-25T02:00:08.835514991Z [inf]     • Bot will connect to API_URL from environment
+2025-12-25T02:00:08.835518071Z [inf]  ======================================================================
+2025-12-25T02:00:08.835521321Z [inf]  ❌ Bot error: Command '['/usr/local/bin/python', 'bot.py']' returned non-zero exit status 1.
+2025-12-25T02:00:13.399274516Z [err]  /usr/local/lib/python3.12/site-packages/pydantic/_internal/_config.py:345: UserWarning: Valid config keys have changed in V2:
+2025-12-25T02:00:13.399279766Z [err]  * 'max_anystr_length' has been renamed to 'str_max_length'
+2025-12-25T02:00:13.399283276Z [err]    warnings.warn(message, UserWarning)
+2025-12-25T02:00:13.404451159Z [err]  2025-12-25 02:00:13,400 - __main__ - INFO - ✅ BotState инициализирован
+2025-12-25T02:00:13.404453949Z [err]  2025-12-25 02:00:13,400 - __main__ - INFO - ✅ BotMetrics инициализирован
+2025-12-25T02:00:13.404457319Z [err]  2025-12-25 02:00:13,402 - __main__ - INFO - 📋 Столбцы ДО миграции: ['content', 'id', 'intent', 'message_length', 'message_type', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T02:00:13.404460559Z [err]  2025-12-25 02:00:13,403 - __main__ - INFO - ✅ Столбцы ПОСЛЕ миграции: ['content', 'id', 'intent', 'message_length', 'message_type', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T02:00:13.404463059Z [err]  2025-12-25 02:00:13,403 - __main__ - ERROR - 🚨 КРИТИЧНО: Отсутствуют столбцы: {'created_at'}
+2025-12-25T02:00:13.404465959Z [err]  2025-12-25 02:00:13,403 - __main__ - INFO - ✅ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-25T02:00:13.404469639Z [err]  2025-12-25 02:00:13,404 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T02:00:13.405905449Z [err]  2025-12-25 02:00:13,404 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T02:00:13.405910619Z [err]  2025-12-25 02:00:13,404 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T02:00:13.405913729Z [err]  2025-12-25 02:00:13,404 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T02:00:13.405916159Z [err]  2025-12-25 02:00:13,404 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T02:00:13.405927939Z [err]  2025-12-25 02:00:13,404 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T02:00:13.405931118Z [err]  2025-12-25 02:00:13,405 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T02:00:13.405933928Z [err]  2025-12-25 02:00:13,405 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T02:00:13.406760432Z [err]  2025-12-25 02:00:13,405 - __main__ - INFO -   📊 Created: idx_users_leaderboard (leaderboard queries)
+2025-12-25T02:00:13.406762892Z [err]  2025-12-25 02:00:13,405 - __main__ - INFO -   📝 Created: idx_requests_user_date (user request history)
+2025-12-25T02:00:13.413285186Z [err]  2025-12-25 02:00:13,405 - __main__ - ERROR - ❌ DB ошибка: no such column: course_id
+2025-12-25T02:00:13.413289916Z [err]  Traceback (most recent call last):
+2025-12-25T02:00:13.413292436Z [err]    File "/app/bot.py", line 1535, in get_db
+2025-12-25T02:00:13.413295206Z [err]      yield conn
+2025-12-25T02:00:13.413299006Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T02:00:13.413302326Z [err]      cursor.execute("""
+2025-12-25T02:00:13.413305416Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T02:00:13.413308456Z [inf]  🔧 CLEANUP: Current PID = 2
+2025-12-25T02:00:13.413313326Z [inf]  ⏳ Waiting 3 seconds for Telegram polling lock to release...
+2025-12-25T02:00:13.413314866Z [inf]  ✅ Event tracker initialized
+2025-12-25T02:00:13.413318596Z [inf]  ✅ Process cleanup completed
+2025-12-25T02:00:13.413323215Z [inf]  ✅ Process cleanup completed
+2025-12-25T02:00:13.413329005Z [inf]  ⚠️ Redis connection failed: Error 111 connecting to localhost:6379. Connection refused., falling back to in-memory cache
+2025-12-25T02:00:13.413331405Z [inf]  ✅ AI honesty system loaded
+2025-12-25T02:00:13.413334265Z [inf]  
+2025-12-25T02:00:13.413340745Z [inf]  ================================================================================
+2025-12-25T02:00:13.413343435Z [inf]  ✅ Analytics system ready
+2025-12-25T02:00:13.413347275Z [inf]  🚀 INITIALIZING v0.25.0 CORE SYSTEMS
+2025-12-25T02:00:13.413351875Z [inf]  ================================================================================
+2025-12-25T02:00:13.413361795Z [inf]  ✅ Config loaded: BOT_ADMIN_IDS=[7216426044, 0]
+2025-12-25T02:00:13.413367195Z [inf]  ✅ Cache enabled: True
+2025-12-25T02:00:13.413372854Z [inf]  ✅ Analytics enabled: True
+2025-12-25T02:00:13.413381924Z [inf]  ================================================================================
+2025-12-25T02:00:13.414542570Z [inf]  
+2025-12-25T02:00:13.414549780Z [err]  Traceback (most recent call last):
+2025-12-25T02:00:13.414554440Z [err]    File "/app/bot.py", line 13834, in <module>
+2025-12-25T02:00:13.414558740Z [err]      main()
+2025-12-25T02:00:13.414563200Z [err]    File "/app/bot.py", line 13189, in main
+2025-12-25T02:00:13.414568050Z [err]      create_database_indices()  # ✅ v0.38.0: Database indices for performance
+2025-12-25T02:00:13.414573060Z [err]      ^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-12-25T02:00:13.414577279Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T02:00:13.414582089Z [err]      cursor.execute("""
+2025-12-25T02:00:13.414586439Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T02:00:13.902271677Z [inf]  ======================================================================
+2025-12-25T02:00:13.902274657Z [inf]  🤖 RVX Telegram Bot - Starting
+2025-12-25T02:00:13.902278007Z [inf]  ======================================================================
+2025-12-25T02:00:13.902281767Z [inf]  📡 API Configuration:
+2025-12-25T02:00:13.902284777Z [inf]     • API is in separate Railway service
+2025-12-25T02:00:13.902287797Z [inf]     • Bot will connect to API_URL from environment
+2025-12-25T02:00:13.902291437Z [inf]  ======================================================================
+2025-12-25T02:00:13.902294697Z [inf]  ❌ Bot error: Command '['/usr/local/bin/python', 'bot.py']' returned non-zero exit status 1.
+2025-12-25T02:00:18.518959774Z [err]  /usr/local/lib/python3.12/site-packages/pydantic/_internal/_config.py:345: UserWarning: Valid config keys have changed in V2:
+2025-12-25T02:00:18.518963834Z [err]  * 'max_anystr_length' has been renamed to 'str_max_length'
+2025-12-25T02:00:18.518966774Z [err]    warnings.warn(message, UserWarning)
+2025-12-25T02:00:18.519833746Z [err]  2025-12-25 02:00:18,519 - __main__ - INFO - ✅ BotState инициализирован
+2025-12-25T02:00:18.519836805Z [err]  2025-12-25 02:00:18,519 - __main__ - INFO - ✅ BotMetrics инициализирован
+2025-12-25T02:00:18.525326393Z [err]  2025-12-25 02:00:18,521 - __main__ - INFO - 📋 Столбцы ДО миграции: ['content', 'id', 'intent', 'message_length', 'message_type', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T02:00:18.525330023Z [err]  2025-12-25 02:00:18,521 - __main__ - INFO - ✅ Столбцы ПОСЛЕ миграции: ['content', 'id', 'intent', 'message_length', 'message_type', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T02:00:18.525336542Z [err]  2025-12-25 02:00:18,521 - __main__ - ERROR - 🚨 КРИТИЧНО: Отсутствуют столбцы: {'created_at'}
+2025-12-25T02:00:18.525339812Z [err]  2025-12-25 02:00:18,522 - __main__ - INFO - ✅ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-25T02:00:18.525344122Z [err]  2025-12-25 02:00:18,522 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T02:00:18.525347052Z [err]  2025-12-25 02:00:18,522 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T02:00:18.525350362Z [err]  2025-12-25 02:00:18,522 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T02:00:18.525354772Z [err]  2025-12-25 02:00:18,523 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T02:00:18.525357892Z [err]  2025-12-25 02:00:18,523 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T02:00:18.525360882Z [err]  2025-12-25 02:00:18,523 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T02:00:18.525363712Z [err]  2025-12-25 02:00:18,523 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T02:00:18.525366092Z [err]  2025-12-25 02:00:18,523 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T02:00:18.526752413Z [err]  2025-12-25 02:00:18,523 - __main__ - INFO -   📊 Created: idx_users_leaderboard (leaderboard queries)
+2025-12-25T02:00:18.526757023Z [err]  2025-12-25 02:00:18,523 - __main__ - INFO -   📝 Created: idx_requests_user_date (user request history)
+2025-12-25T02:00:18.526759833Z [err]  2025-12-25 02:00:18,523 - __main__ - ERROR - ❌ DB ошибка: no such column: course_id
+2025-12-25T02:00:18.526762663Z [err]  Traceback (most recent call last):
+2025-12-25T02:00:18.526765373Z [err]    File "/app/bot.py", line 1535, in get_db
+2025-12-25T02:00:18.526767903Z [err]      yield conn
+2025-12-25T02:00:18.526770623Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T02:00:18.526773563Z [err]      cursor.execute("""
+2025-12-25T02:00:18.526776682Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T02:00:18.532085402Z [inf]  🔧 CLEANUP: Current PID = 2
+2025-12-25T02:00:18.532091232Z [inf]  ⏳ Waiting 3 seconds for Telegram polling lock to release...
+2025-12-25T02:00:18.532096342Z [inf]  ✅ Process cleanup completed
+2025-12-25T02:00:18.532100582Z [inf]  ✅ Process cleanup completed
+2025-12-25T02:00:18.532104402Z [inf]  ⚠️ Redis connection failed: Error 111 connecting to localhost:6379. Connection refused., falling back to in-memory cache
+2025-12-25T02:00:18.532109062Z [inf]  
+2025-12-25T02:00:18.532113252Z [inf]  ================================================================================
+2025-12-25T02:00:18.532116991Z [inf]  🚀 INITIALIZING v0.25.0 CORE SYSTEMS
+2025-12-25T02:00:18.532121291Z [inf]  ================================================================================
+2025-12-25T02:00:18.532124831Z [inf]  ✅ Event tracker initialized
+2025-12-25T02:00:18.532128691Z [inf]  ✅ AI honesty system loaded
+2025-12-25T02:00:18.532132681Z [inf]  ✅ Analytics system ready
+2025-12-25T02:00:18.532136541Z [inf]  ✅ Config loaded: BOT_ADMIN_IDS=[7216426044, 0]
+2025-12-25T02:00:18.532140451Z [inf]  ✅ Cache enabled: True
+2025-12-25T02:00:18.532144001Z [inf]  ✅ Analytics enabled: True
+2025-12-25T02:00:18.532148401Z [inf]  ================================================================================
+2025-12-25T02:00:18.532151831Z [inf]  
+2025-12-25T02:00:18.532155461Z [err]  Traceback (most recent call last):
+2025-12-25T02:00:18.532159151Z [err]    File "/app/bot.py", line 13834, in <module>
+2025-12-25T02:00:18.532163480Z [err]      main()
+2025-12-25T02:00:18.532166880Z [err]    File "/app/bot.py", line 13189, in main
+2025-12-25T02:00:18.532959443Z [err]      create_database_indices()  # ✅ v0.38.0: Database indices for performance
+2025-12-25T02:00:18.532962853Z [err]      ^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-12-25T02:00:18.532965693Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T02:00:18.532968413Z [err]      cursor.execute("""
+2025-12-25T02:00:18.532970973Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T02:00:18.966809915Z [inf]  ======================================================================
+2025-12-25T02:00:18.966818655Z [inf]  🤖 RVX Telegram Bot - Starting
+2025-12-25T02:00:18.966821815Z [inf]  ======================================================================
+2025-12-25T02:00:18.966824655Z [inf]  📡 API Configuration:
+2025-12-25T02:00:18.966827785Z [inf]     • API is in separate Railway service
+2025-12-25T02:00:18.966830625Z [inf]     • Bot will connect to API_URL from environment
+2025-12-25T02:00:18.966833405Z [inf]  ======================================================================
+2025-12-25T02:00:18.966837055Z [inf]  ❌ Bot error: Command '['/usr/local/bin/python', 'bot.py']' returned non-zero exit status 1.
+2025-12-25T02:00:23.781615497Z [err]  /usr/local/lib/python3.12/site-packages/pydantic/_internal/_config.py:345: UserWarning: Valid config keys have changed in V2:
+2025-12-25T02:00:23.781621957Z [err]  * 'max_anystr_length' has been renamed to 'str_max_length'
+2025-12-25T02:00:23.781624966Z [err]    warnings.warn(message, UserWarning)
+2025-12-25T02:00:23.781627906Z [err]  2025-12-25 02:00:23,773 - __main__ - INFO - ✅ BotState инициализирован
+2025-12-25T02:00:23.781630676Z [err]  2025-12-25 02:00:23,773 - __main__ - INFO - ✅ BotMetrics инициализирован
+2025-12-25T02:00:23.781633626Z [err]  2025-12-25 02:00:23,775 - __main__ - INFO - 📋 Столбцы ДО миграции: ['content', 'id', 'intent', 'message_length', 'message_type', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T02:00:23.781637106Z [err]  2025-12-25 02:00:23,775 - __main__ - INFO - ✅ Столбцы ПОСЛЕ миграции: ['content', 'id', 'intent', 'message_length', 'message_type', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T02:00:23.781639506Z [err]  2025-12-25 02:00:23,775 - __main__ - ERROR - 🚨 КРИТИЧНО: Отсутствуют столбцы: {'created_at'}
+2025-12-25T02:00:23.781641836Z [err]  2025-12-25 02:00:23,775 - __main__ - INFO - ✅ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-25T02:00:23.781645146Z [err]  2025-12-25 02:00:23,776 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T02:00:23.781648016Z [err]  2025-12-25 02:00:23,776 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T02:00:23.781650916Z [err]  2025-12-25 02:00:23,776 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T02:00:23.781653986Z [err]  2025-12-25 02:00:23,776 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T02:00:23.782497799Z [err]  2025-12-25 02:00:23,776 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T02:00:23.782505149Z [err]  2025-12-25 02:00:23,777 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T02:00:23.782510078Z [err]  2025-12-25 02:00:23,777 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T02:00:23.782511398Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T02:00:23.782514238Z [err]  2025-12-25 02:00:23,777 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T02:00:23.782517508Z [err]  2025-12-25 02:00:23,777 - __main__ - INFO -   📊 Created: idx_users_leaderboard (leaderboard queries)
+2025-12-25T02:00:23.782523028Z [err]  2025-12-25 02:00:23,777 - __main__ - INFO -   📝 Created: idx_requests_user_date (user request history)
+2025-12-25T02:00:23.782525308Z [err]      cursor.execute("""
+2025-12-25T02:00:23.782528518Z [err]  2025-12-25 02:00:23,777 - __main__ - ERROR - ❌ DB ошибка: no such column: course_id
+2025-12-25T02:00:23.782533308Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T02:00:23.782535358Z [err]  Traceback (most recent call last):
+2025-12-25T02:00:23.782540458Z [inf]  🔧 CLEANUP: Current PID = 2
+2025-12-25T02:00:23.782540688Z [err]    File "/app/bot.py", line 1535, in get_db
+2025-12-25T02:00:23.782547798Z [err]      yield conn
+2025-12-25T02:00:23.782548558Z [inf]  ⏳ Waiting 3 seconds for Telegram polling lock to release...
+2025-12-25T02:00:23.782555778Z [inf]  ✅ Process cleanup completed
+2025-12-25T02:00:23.782559097Z [inf]  ✅ Process cleanup completed
+2025-12-25T02:00:23.782562477Z [inf]  ⚠️ Redis connection failed: Error 111 connecting to localhost:6379. Connection refused., falling back to in-memory cache
+2025-12-25T02:00:23.783401900Z [inf]  
+2025-12-25T02:00:23.783406940Z [inf]  ================================================================================
+2025-12-25T02:00:23.783409470Z [inf]  🚀 INITIALIZING v0.25.0 CORE SYSTEMS
+2025-12-25T02:00:23.783411970Z [inf]  ================================================================================
+2025-12-25T02:00:23.783414640Z [inf]  ✅ Event tracker initialized
+2025-12-25T02:00:23.783417710Z [inf]  ✅ AI honesty system loaded
+2025-12-25T02:00:23.783420380Z [inf]  ✅ Analytics system ready
+2025-12-25T02:00:23.783423250Z [inf]  ✅ Config loaded: BOT_ADMIN_IDS=[7216426044, 0]
+2025-12-25T02:00:23.783426250Z [inf]  ✅ Cache enabled: True
+2025-12-25T02:00:23.783428640Z [inf]  ✅ Analytics enabled: True
+2025-12-25T02:00:23.783430940Z [inf]  ================================================================================
+2025-12-25T02:00:23.783433160Z [inf]  
+2025-12-25T02:00:23.783435720Z [err]  Traceback (most recent call last):
+2025-12-25T02:00:23.783438050Z [err]    File "/app/bot.py", line 13834, in <module>
+2025-12-25T02:00:23.783992388Z [err]      main()
+2025-12-25T02:00:23.783996928Z [err]    File "/app/bot.py", line 13189, in main
+2025-12-25T02:00:23.788589453Z [err]      create_database_indices()  # ✅ v0.38.0: Database indices for performance
+2025-12-25T02:00:23.788592783Z [err]      ^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-12-25T02:00:23.788595213Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T02:00:23.788597753Z [err]      cursor.execute("""
+2025-12-25T02:00:23.788600243Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T02:00:24.209656038Z [inf]  ======================================================================
+2025-12-25T02:00:24.209659748Z [inf]  🤖 RVX Telegram Bot - Starting
+2025-12-25T02:00:24.209662318Z [inf]  ======================================================================
+2025-12-25T02:00:24.209664668Z [inf]  📡 API Configuration:
+2025-12-25T02:00:24.209667238Z [inf]     • API is in separate Railway service
+2025-12-25T02:00:24.209670378Z [inf]     • Bot will connect to API_URL from environment
+2025-12-25T02:00:24.209673178Z [inf]  ======================================================================
+2025-12-25T02:00:24.209676078Z [inf]  ❌ Bot error: Command '['/usr/local/bin/python', 'bot.py']' returned non-zero exit status 1.
+2025-12-25T02:00:29.068516985Z [err]  /usr/local/lib/python3.12/site-packages/pydantic/_internal/_config.py:345: UserWarning: Valid config keys have changed in V2:
+2025-12-25T02:00:29.068520815Z [err]  * 'max_anystr_length' has been renamed to 'str_max_length'
+2025-12-25T02:00:29.068523575Z [err]    warnings.warn(message, UserWarning)
+2025-12-25T02:00:29.068526725Z [err]  2025-12-25 02:00:28,940 - __main__ - INFO - ✅ BotState инициализирован
+2025-12-25T02:00:29.068529215Z [err]  2025-12-25 02:00:28,940 - __main__ - INFO - ✅ BotMetrics инициализирован
+2025-12-25T02:00:29.068532635Z [err]  2025-12-25 02:00:28,942 - __main__ - INFO - 📋 Столбцы ДО миграции: ['content', 'id', 'intent', 'message_length', 'message_type', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T02:00:29.068534735Z [err]  2025-12-25 02:00:28,942 - __main__ - INFO - ✅ Столбцы ПОСЛЕ миграции: ['content', 'id', 'intent', 'message_length', 'message_type', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T02:00:29.068537225Z [err]  2025-12-25 02:00:28,942 - __main__ - ERROR - 🚨 КРИТИЧНО: Отсутствуют столбцы: {'created_at'}
+2025-12-25T02:00:29.068539555Z [err]  2025-12-25 02:00:28,943 - __main__ - INFO - ✅ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-25T02:00:29.068541965Z [err]  2025-12-25 02:00:28,943 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T02:00:29.068544415Z [err]  2025-12-25 02:00:28,944 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T02:00:29.068546985Z [err]  2025-12-25 02:00:28,944 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T02:00:29.068549705Z [err]  2025-12-25 02:00:28,944 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T02:00:29.069928546Z [err]  2025-12-25 02:00:28,944 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T02:00:29.069932656Z [err]  2025-12-25 02:00:28,944 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T02:00:29.069936006Z [err]  2025-12-25 02:00:28,944 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T02:00:29.069939636Z [err]  2025-12-25 02:00:28,944 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T02:00:29.069944056Z [err]  2025-12-25 02:00:28,945 - __main__ - INFO -   📊 Created: idx_users_leaderboard (leaderboard queries)
+2025-12-25T02:00:29.069947406Z [err]  2025-12-25 02:00:28,945 - __main__ - INFO -   📝 Created: idx_requests_user_date (user request history)
+2025-12-25T02:00:29.069951106Z [err]  2025-12-25 02:00:28,945 - __main__ - ERROR - ❌ DB ошибка: no such column: course_id
+2025-12-25T02:00:29.069954756Z [err]  Traceback (most recent call last):
+2025-12-25T02:00:29.069957976Z [err]    File "/app/bot.py", line 1535, in get_db
+2025-12-25T02:00:29.069961455Z [err]      yield conn
+2025-12-25T02:00:29.069964595Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T02:00:29.069967815Z [err]      cursor.execute("""
+2025-12-25T02:00:29.069971575Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T02:00:29.069974805Z [inf]  🔧 CLEANUP: Current PID = 2
+2025-12-25T02:00:29.069977835Z [inf]  ⏳ Waiting 3 seconds for Telegram polling lock to release...
+2025-12-25T02:00:29.069983415Z [inf]  ✅ Process cleanup completed
+2025-12-25T02:00:29.069986795Z [inf]  ✅ Process cleanup completed
+2025-12-25T02:00:29.069991195Z [inf]  ⚠️ Redis connection failed: Error 111 connecting to localhost:6379. Connection refused., falling back to in-memory cache
+2025-12-25T02:00:29.070867777Z [inf]  
+2025-12-25T02:00:29.070871227Z [inf]  ================================================================================
+2025-12-25T02:00:29.070874597Z [inf]  🚀 INITIALIZING v0.25.0 CORE SYSTEMS
+2025-12-25T02:00:29.070878847Z [inf]  ================================================================================
+2025-12-25T02:00:29.070882337Z [inf]  ✅ Event tracker initialized
+2025-12-25T02:00:29.070885537Z [inf]  ✅ AI honesty system loaded
+2025-12-25T02:00:29.070888676Z [inf]  ✅ Analytics system ready
+2025-12-25T02:00:29.070891996Z [inf]  ✅ Config loaded: BOT_ADMIN_IDS=[7216426044, 0]
+2025-12-25T02:00:29.070895286Z [inf]  ✅ Cache enabled: True
+2025-12-25T02:00:29.070898786Z [inf]  ✅ Analytics enabled: True
+2025-12-25T02:00:29.070902236Z [inf]  ================================================================================
+2025-12-25T02:00:29.070905366Z [inf]  
+2025-12-25T02:00:29.070910956Z [err]  Traceback (most recent call last):
+2025-12-25T02:00:29.070914066Z [err]    File "/app/bot.py", line 13834, in <module>
+2025-12-25T02:00:29.070917136Z [err]      main()
+2025-12-25T02:00:29.070920086Z [err]    File "/app/bot.py", line 13189, in main
+2025-12-25T02:00:29.070923126Z [err]      create_database_indices()  # ✅ v0.38.0: Database indices for performance
+2025-12-25T02:00:29.070926126Z [err]      ^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-12-25T02:00:29.070929526Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T02:00:29.070932576Z [err]      cursor.execute("""
+2025-12-25T02:00:29.070935895Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T02:00:29.422301384Z [inf]  ======================================================================
+2025-12-25T02:00:29.422306894Z [inf]  🤖 RVX Telegram Bot - Starting
+2025-12-25T02:00:29.422310004Z [inf]  ======================================================================
+2025-12-25T02:00:29.422312564Z [inf]  📡 API Configuration:
+2025-12-25T02:00:29.422315074Z [inf]     • API is in separate Railway service
+2025-12-25T02:00:29.422317684Z [inf]     • Bot will connect to API_URL from environment
+2025-12-25T02:00:29.422320704Z [inf]  ======================================================================
+2025-12-25T02:00:29.422323363Z [inf]  ❌ Bot error: Command '['/usr/local/bin/python', 'bot.py']' returned non-zero exit status 1.
+2025-12-25T02:00:34.190853211Z [err]  /usr/local/lib/python3.12/site-packages/pydantic/_internal/_config.py:345: UserWarning: Valid config keys have changed in V2:
+2025-12-25T02:00:34.190855871Z [err]  * 'max_anystr_length' has been renamed to 'str_max_length'
+2025-12-25T02:00:34.190858511Z [err]    warnings.warn(message, UserWarning)
+2025-12-25T02:00:34.190861401Z [err]  2025-12-25 02:00:34,163 - __main__ - INFO - ✅ BotState инициализирован
+2025-12-25T02:00:34.190863791Z [err]  2025-12-25 02:00:34,163 - __main__ - INFO - ✅ BotMetrics инициализирован
+2025-12-25T02:00:34.190867851Z [err]  2025-12-25 02:00:34,165 - __main__ - INFO - 📋 Столбцы ДО миграции: ['content', 'id', 'intent', 'message_length', 'message_type', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T02:00:34.190870641Z [err]  2025-12-25 02:00:34,165 - __main__ - INFO - ✅ Столбцы ПОСЛЕ миграции: ['content', 'id', 'intent', 'message_length', 'message_type', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T02:00:34.190873430Z [err]  2025-12-25 02:00:34,165 - __main__ - ERROR - 🚨 КРИТИЧНО: Отсутствуют столбцы: {'created_at'}
+2025-12-25T02:00:34.190876530Z [err]  2025-12-25 02:00:34,166 - __main__ - INFO - ✅ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-25T02:00:34.190879350Z [err]  2025-12-25 02:00:34,166 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T02:00:34.190882160Z [err]  2025-12-25 02:00:34,167 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T02:00:34.190884830Z [err]  2025-12-25 02:00:34,167 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T02:00:34.190887670Z [err]  2025-12-25 02:00:34,167 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T02:00:34.191823830Z [inf]  ✅ Process cleanup completed
+2025-12-25T02:00:34.191831980Z [inf]  ⚠️ Redis connection failed: Error 111 connecting to localhost:6379. Connection refused., falling back to in-memory cache
+2025-12-25T02:00:34.191836880Z [err]  2025-12-25 02:00:34,167 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T02:00:34.191843240Z [err]  2025-12-25 02:00:34,167 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T02:00:34.191847240Z [err]  2025-12-25 02:00:34,167 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T02:00:34.191851729Z [err]  2025-12-25 02:00:34,167 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T02:00:34.191855799Z [err]  2025-12-25 02:00:34,168 - __main__ - INFO -   📊 Created: idx_users_leaderboard (leaderboard queries)
+2025-12-25T02:00:34.191858909Z [err]  2025-12-25 02:00:34,168 - __main__ - INFO -   📝 Created: idx_requests_user_date (user request history)
+2025-12-25T02:00:34.191861769Z [err]  2025-12-25 02:00:34,168 - __main__ - ERROR - ❌ DB ошибка: no such column: course_id
+2025-12-25T02:00:34.191865019Z [err]  Traceback (most recent call last):
+2025-12-25T02:00:34.191869159Z [err]    File "/app/bot.py", line 1535, in get_db
+2025-12-25T02:00:34.191872509Z [err]      yield conn
+2025-12-25T02:00:34.191875799Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T02:00:34.191878959Z [err]      cursor.execute("""
+2025-12-25T02:00:34.191884250Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T02:00:34.191887630Z [inf]  🔧 CLEANUP: Current PID = 2
+2025-12-25T02:00:34.191891810Z [inf]  ⏳ Waiting 3 seconds for Telegram polling lock to release...
+2025-12-25T02:00:34.191894840Z [inf]  ✅ Process cleanup completed
+2025-12-25T02:00:34.193267591Z [err]      main()
+2025-12-25T02:00:34.193276171Z [err]    File "/app/bot.py", line 13189, in main
+2025-12-25T02:00:34.193276241Z [inf]  
+2025-12-25T02:00:34.193282501Z [err]      create_database_indices()  # ✅ v0.38.0: Database indices for performance
+2025-12-25T02:00:34.193286891Z [err]      ^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-12-25T02:00:34.193290161Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T02:00:34.193294300Z [inf]  ================================================================================
+2025-12-25T02:00:34.193296430Z [err]      cursor.execute("""
+2025-12-25T02:00:34.193300830Z [inf]  🚀 INITIALIZING v0.25.0 CORE SYSTEMS
+2025-12-25T02:00:34.193302680Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T02:00:34.193305390Z [inf]  ================================================================================
+2025-12-25T02:00:34.193308560Z [inf]  ✅ Event tracker initialized
+2025-12-25T02:00:34.193311720Z [inf]  ✅ AI honesty system loaded
+2025-12-25T02:00:34.193314380Z [inf]  ✅ Analytics system ready
+2025-12-25T02:00:34.193317010Z [inf]  ✅ Config loaded: BOT_ADMIN_IDS=[7216426044, 0]
+2025-12-25T02:00:34.193319730Z [inf]  ✅ Cache enabled: True
+2025-12-25T02:00:34.193322630Z [inf]  ✅ Analytics enabled: True
+2025-12-25T02:00:34.193325140Z [inf]  ================================================================================
+2025-12-25T02:00:34.193328020Z [inf]  
+2025-12-25T02:00:34.193330650Z [err]  Traceback (most recent call last):
+2025-12-25T02:00:34.193333690Z [err]    File "/app/bot.py", line 13834, in <module>
+2025-12-25T02:00:34.576692014Z [inf]  ======================================================================
+2025-12-25T02:00:34.576698534Z [inf]  🤖 RVX Telegram Bot - Starting
+2025-12-25T02:00:34.576701393Z [inf]  ======================================================================
+2025-12-25T02:00:34.576703833Z [inf]  📡 API Configuration:
+2025-12-25T02:00:34.576706543Z [inf]     • API is in separate Railway service
+2025-12-25T02:00:34.576710093Z [inf]     • Bot will connect to API_URL from environment
+2025-12-25T02:00:34.576713343Z [inf]  ======================================================================
+2025-12-25T02:00:34.576715653Z [inf]  ❌ Bot error: Command '['/usr/local/bin/python', 'bot.py']' returned non-zero exit status 1.
+2025-12-25T02:01:13.000000000Z [inf]  Starting Container
+2025-12-25T02:01:14.605874228Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-25T02:01:14.605880863Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-25T02:01:15.000000000Z [inf]  Starting Container
+2025-12-25T02:01:15.173542126Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-25T02:01:15.662126470Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-25T02:01:16.171573364Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-25T02:01:16.905799895Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-25T02:01:17.000000000Z [inf]  Stopping Container
+2025-12-25T02:01:17.465507179Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-25T02:01:17.952170339Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-25T02:01:18.753364867Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-25T02:01:19.000000000Z [inf]  Stopping Container
+2025-12-25T02:01:19.286623043Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-25T02:01:20.007861982Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-25T02:01:22.065578786Z [err]  2025-12-25 02:01:21,008 - __main__ - INFO - ✅ BotState инициализирован
+2025-12-25T02:01:22.065594322Z [err]  2025-12-25 02:01:21,008 - __main__ - INFO - ✅ BotMetrics инициализирован
+2025-12-25T02:01:22.065608396Z [err]  2025-12-25 02:01:21,018 - __main__ - INFO - ℹ️  Таблица conversation_history не существует, будет создана позже
+2025-12-25T02:01:22.065613451Z [err]  /usr/local/lib/python3.12/site-packages/pydantic/_internal/_config.py:345: UserWarning: Valid config keys have changed in V2:
+2025-12-25T02:01:22.065618942Z [err]  * 'max_anystr_length' has been renamed to 'str_max_length'
+2025-12-25T02:01:22.065629419Z [err]    warnings.warn(message, UserWarning)
+2025-12-25T02:01:22.065641905Z [err]  2025-12-25 02:01:21,058 - __main__ - INFO - ✅ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-25T02:01:22.065650845Z [err]  2025-12-25 02:01:21,062 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T02:01:22.065658404Z [err]  2025-12-25 02:01:21,063 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T02:01:22.065663951Z [err]  2025-12-25 02:01:21,063 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T02:01:22.065669544Z [err]  2025-12-25 02:01:21,063 - __main__ - INFO -   • Добавление колонки course_name в user_progress...
+2025-12-25T02:01:22.065675339Z [err]  2025-12-25 02:01:21,065 - __main__ - INFO - ✅ Миграция успешно завершена (v0.37.0 - Teaching Module Phase 1)
+2025-12-25T02:01:22.065680374Z [err]  2025-12-25 02:01:21,065 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T02:01:22.065685778Z [err]  2025-12-25 02:01:21,066 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T02:01:22.067905026Z [err]  2025-12-25 02:01:21,066 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T02:01:22.067916147Z [err]  2025-12-25 02:01:21,067 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T02:01:22.067925674Z [err]  2025-12-25 02:01:21,068 - __main__ - INFO -   📊 Created: idx_users_leaderboard (leaderboard queries)
+2025-12-25T02:01:22.067931408Z [err]  2025-12-25 02:01:21,069 - __main__ - INFO -   📝 Created: idx_requests_user_date (user request history)
+2025-12-25T02:01:22.067937129Z [err]  2025-12-25 02:01:21,070 - __main__ - ERROR - ❌ DB ошибка: no such column: course_id
+2025-12-25T02:01:22.067943709Z [err]  Traceback (most recent call last):
+2025-12-25T02:01:22.067949140Z [err]    File "/app/bot.py", line 1535, in get_db
+2025-12-25T02:01:22.067957150Z [err]      yield conn
+2025-12-25T02:01:22.067963456Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T02:01:22.067970201Z [err]      cursor.execute("""
+2025-12-25T02:01:22.067976460Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T02:01:22.067982239Z [inf]  🔧 CLEANUP: Current PID = 2
+2025-12-25T02:01:22.067988086Z [inf]  ⏳ Waiting 3 seconds for Telegram polling lock to release...
+2025-12-25T02:01:22.067992909Z [inf]  ✅ Process cleanup completed
+2025-12-25T02:01:22.067998734Z [inf]  ✅ Process cleanup completed
+2025-12-25T02:01:22.068004023Z [inf]  ⚠️ Redis connection failed: Error 111 connecting to localhost:6379. Connection refused., falling back to in-memory cache
+2025-12-25T02:01:22.068008806Z [inf]  
+2025-12-25T02:01:22.068014617Z [inf]  ================================================================================
+2025-12-25T02:01:22.068021947Z [inf]  🚀 INITIALIZING v0.25.0 CORE SYSTEMS
+2025-12-25T02:01:22.068027913Z [inf]  ================================================================================
+2025-12-25T02:01:22.068330000Z [inf]  ✅ Event tracker initialized
+2025-12-25T02:01:22.068339201Z [inf]  ✅ AI honesty system loaded
+2025-12-25T02:01:22.068347424Z [inf]  ✅ Analytics system ready
+2025-12-25T02:01:22.068354322Z [inf]  ✅ Config loaded: BOT_ADMIN_IDS=[7216426044, 0]
+2025-12-25T02:01:22.068360442Z [inf]  ✅ Cache enabled: True
+2025-12-25T02:01:22.068368538Z [inf]  ✅ Analytics enabled: True
+2025-12-25T02:01:22.068375523Z [inf]  ================================================================================
+2025-12-25T02:01:22.068382723Z [inf]  
+2025-12-25T02:01:22.068390069Z [err]  Traceback (most recent call last):
+2025-12-25T02:01:22.068397421Z [err]    File "/app/bot.py", line 13834, in <module>
+2025-12-25T02:01:22.068405317Z [err]      main()
+2025-12-25T02:01:22.068412371Z [err]    File "/app/bot.py", line 13189, in main
+2025-12-25T02:01:22.068419227Z [err]      create_database_indices()  # ✅ v0.38.0: Database indices for performance
+2025-12-25T02:01:22.068425737Z [err]      ^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-12-25T02:01:22.068434605Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T02:01:22.068440667Z [err]      cursor.execute("""
+2025-12-25T02:01:22.068447273Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T02:01:22.068454073Z [inf]  ======================================================================
+2025-12-25T02:01:22.068532545Z [inf]  🤖 RVX Telegram Bot - Starting
+2025-12-25T02:01:22.068539984Z [inf]  ======================================================================
+2025-12-25T02:01:22.068546646Z [inf]  📡 API Configuration:
+2025-12-25T02:01:22.068552923Z [inf]     • API is in separate Railway service
+2025-12-25T02:01:22.068559303Z [inf]     • Bot will connect to API_URL from environment
+2025-12-25T02:01:22.068567182Z [inf]  ======================================================================
+2025-12-25T02:01:22.069370694Z [inf]  ❌ Bot error: Command '['/usr/local/bin/python', 'bot.py']' returned non-zero exit status 1.
+2025-12-25T02:01:28.208627288Z [err]  2025-12-25 02:01:27,889 - __main__ - INFO - ✅ Столбцы ПОСЛЕ миграции: ['content', 'id', 'intent', 'message_length', 'message_type', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T02:01:28.208639244Z [err]  2025-12-25 02:01:27,889 - __main__ - ERROR - 🚨 КРИТИЧНО: Отсутствуют столбцы: {'created_at'}
+2025-12-25T02:01:28.208648783Z [err]  2025-12-25 02:01:27,890 - __main__ - INFO - ✅ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-25T02:01:28.208654655Z [err]  2025-12-25 02:01:27,891 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T02:01:28.208659324Z [err]  2025-12-25 02:01:27,892 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T02:01:28.208687658Z [err]  /usr/local/lib/python3.12/site-packages/pydantic/_internal/_config.py:345: UserWarning: Valid config keys have changed in V2:
+2025-12-25T02:01:28.208695113Z [err]  * 'max_anystr_length' has been renamed to 'str_max_length'
+2025-12-25T02:01:28.208701039Z [err]    warnings.warn(message, UserWarning)
+2025-12-25T02:01:28.208707104Z [err]  2025-12-25 02:01:27,882 - __main__ - INFO - ✅ BotState инициализирован
+2025-12-25T02:01:28.208712954Z [err]  2025-12-25 02:01:27,882 - __main__ - INFO - ✅ BotMetrics инициализирован
+2025-12-25T02:01:28.208719358Z [err]  2025-12-25 02:01:27,885 - __main__ - INFO - 📋 Столбцы ДО миграции: ['content', 'id', 'intent', 'message_length', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T02:01:28.208725500Z [err]  2025-12-25 02:01:27,886 - __main__ - INFO -   ⚡ Добавляем столбец message_type в conversation_history...
+2025-12-25T02:01:28.208731612Z [err]  2025-12-25 02:01:27,888 - __main__ - INFO - ✅ Столбец message_type добавлен успешно
+2025-12-25T02:01:28.211653018Z [err]  2025-12-25 02:01:27,892 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T02:01:28.211659276Z [err]  2025-12-25 02:01:27,892 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T02:01:28.211664740Z [err]  2025-12-25 02:01:27,892 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T02:01:28.211670621Z [err]  2025-12-25 02:01:27,893 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T02:01:28.211676388Z [err]  2025-12-25 02:01:27,893 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T02:01:28.211681741Z [err]  2025-12-25 02:01:27,894 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T02:01:28.211688019Z [err]  2025-12-25 02:01:27,894 - __main__ - INFO -   📊 Created: idx_users_leaderboard (leaderboard queries)
+2025-12-25T02:01:28.211694148Z [err]  2025-12-25 02:01:27,894 - __main__ - INFO -   📝 Created: idx_requests_user_date (user request history)
+2025-12-25T02:01:28.211700444Z [err]  2025-12-25 02:01:27,894 - __main__ - ERROR - ❌ DB ошибка: no such column: course_id
+2025-12-25T02:01:28.211706426Z [err]  Traceback (most recent call last):
+2025-12-25T02:01:28.211711770Z [err]    File "/app/bot.py", line 1535, in get_db
+2025-12-25T02:01:28.211717647Z [err]      yield conn
+2025-12-25T02:01:28.211724293Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T02:01:28.211729854Z [err]      cursor.execute("""
+2025-12-25T02:01:28.211735209Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T02:01:28.211742564Z [inf]  🔧 CLEANUP: Current PID = 2
+2025-12-25T02:01:28.211748154Z [inf]  ⏳ Waiting 3 seconds for Telegram polling lock to release...
+2025-12-25T02:01:28.212358138Z [err]    File "/app/bot.py", line 13189, in main
+2025-12-25T02:01:28.212363146Z [inf]  ✅ Process cleanup completed
+2025-12-25T02:01:28.212374938Z [inf]  ================================================================================
+2025-12-25T02:01:28.212377243Z [inf]  ✅ Process cleanup completed
+2025-12-25T02:01:28.212382392Z [inf]  🚀 INITIALIZING v0.25.0 CORE SYSTEMS
+2025-12-25T02:01:28.212389527Z [inf]  ================================================================================
+2025-12-25T02:01:28.212390301Z [inf]  ⚠️ Redis connection failed: Error 111 connecting to localhost:6379. Connection refused., falling back to in-memory cache
+2025-12-25T02:01:28.212398776Z [inf]  ✅ Event tracker initialized
+2025-12-25T02:01:28.212400420Z [inf]  ================================================================================
+2025-12-25T02:01:28.212403929Z [inf]  
+2025-12-25T02:01:28.212406009Z [inf]  ✅ AI honesty system loaded
+2025-12-25T02:01:28.212412837Z [inf]  ✅ Analytics system ready
+2025-12-25T02:01:28.212418629Z [inf]  
+2025-12-25T02:01:28.212421849Z [inf]  ✅ Config loaded: BOT_ADMIN_IDS=[7216426044, 0]
+2025-12-25T02:01:28.212427582Z [inf]  ✅ Cache enabled: True
+2025-12-25T02:01:28.212432594Z [err]  Traceback (most recent call last):
+2025-12-25T02:01:28.212434046Z [inf]  ✅ Analytics enabled: True
+2025-12-25T02:01:28.212440095Z [err]    File "/app/bot.py", line 13834, in <module>
+2025-12-25T02:01:28.212446393Z [err]      main()
+2025-12-25T02:01:28.212802296Z [err]      create_database_indices()  # ✅ v0.38.0: Database indices for performance
+2025-12-25T02:01:28.212824821Z [err]      ^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-12-25T02:01:28.212831544Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T02:01:28.212837603Z [err]      cursor.execute("""
+2025-12-25T02:01:28.212844559Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T02:01:28.445222289Z [inf]  ======================================================================
+2025-12-25T02:01:28.445228342Z [inf]  🤖 RVX Telegram Bot - Starting
+2025-12-25T02:01:28.445234176Z [inf]  ======================================================================
+2025-12-25T02:01:28.445240408Z [inf]  📡 API Configuration:
+2025-12-25T02:01:28.445246966Z [inf]     • API is in separate Railway service
+2025-12-25T02:01:28.445252909Z [inf]     • Bot will connect to API_URL from environment
+2025-12-25T02:01:28.445347912Z [inf]  ======================================================================
+2025-12-25T02:01:28.445356285Z [inf]  ❌ Bot error: Command '['/usr/local/bin/python', 'bot.py']' returned non-zero exit status 1.
+2025-12-25T02:01:34.627042493Z [err]  /usr/local/lib/python3.12/site-packages/pydantic/_internal/_config.py:345: UserWarning: Valid config keys have changed in V2:
+2025-12-25T02:01:34.627048323Z [err]  * 'max_anystr_length' has been renamed to 'str_max_length'
+2025-12-25T02:01:34.627053893Z [err]    warnings.warn(message, UserWarning)
+2025-12-25T02:01:34.640041828Z [err]  2025-12-25 02:01:34,638 - __main__ - INFO - ✅ BotState инициализирован
+2025-12-25T02:01:34.640050465Z [err]  2025-12-25 02:01:34,639 - __main__ - INFO - ✅ BotMetrics инициализирован
+2025-12-25T02:01:34.647384487Z [err]  2025-12-25 02:01:34,643 - __main__ - INFO - 📋 Столбцы ДО миграции: ['content', 'id', 'intent', 'message_length', 'message_type', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T02:01:34.647392898Z [err]  2025-12-25 02:01:34,643 - __main__ - INFO - ✅ Столбцы ПОСЛЕ миграции: ['content', 'id', 'intent', 'message_length', 'message_type', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T02:01:34.647399258Z [err]  2025-12-25 02:01:34,643 - __main__ - ERROR - 🚨 КРИТИЧНО: Отсутствуют столбцы: {'created_at'}
+2025-12-25T02:01:34.647405145Z [err]  2025-12-25 02:01:34,645 - __main__ - INFO - ✅ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-25T02:01:34.647411589Z [err]  2025-12-25 02:01:34,646 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T02:01:34.648644103Z [err]  2025-12-25 02:01:34,647 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T02:01:34.648651852Z [err]  2025-12-25 02:01:34,647 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T02:01:34.648657558Z [err]  2025-12-25 02:01:34,648 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T02:01:34.648663650Z [err]  2025-12-25 02:01:34,648 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T02:01:34.649959419Z [err]  2025-12-25 02:01:34,648 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T02:01:34.649966919Z [err]  2025-12-25 02:01:34,649 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T02:01:34.651442181Z [err]  2025-12-25 02:01:34,649 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T02:01:34.651451376Z [err]  2025-12-25 02:01:34,650 - __main__ - INFO -   📊 Created: idx_users_leaderboard (leaderboard queries)
+2025-12-25T02:01:34.651457420Z [err]  2025-12-25 02:01:34,650 - __main__ - INFO -   📝 Created: idx_requests_user_date (user request history)
+2025-12-25T02:01:35.182367670Z [inf]  ================================================================================
+2025-12-25T02:01:35.182382290Z [inf]  ✅ AI honesty system loaded
+2025-12-25T02:01:35.182389971Z [err]  2025-12-25 02:01:34,650 - __main__ - ERROR - ❌ DB ошибка: no such column: course_id
+2025-12-25T02:01:35.182390896Z [inf]  ✅ Analytics system ready
+2025-12-25T02:01:35.182396365Z [err]  Traceback (most recent call last):
+2025-12-25T02:01:35.182399360Z [inf]  ✅ Config loaded: BOT_ADMIN_IDS=[7216426044, 0]
+2025-12-25T02:01:35.182404024Z [err]    File "/app/bot.py", line 1535, in get_db
+2025-12-25T02:01:35.182405745Z [inf]  ✅ Cache enabled: True
+2025-12-25T02:01:35.182409989Z [err]      yield conn
+2025-12-25T02:01:35.182414048Z [inf]  ✅ Analytics enabled: True
+2025-12-25T02:01:35.182416057Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T02:01:35.182419706Z [inf]  ⚠️ Redis connection failed: Error 111 connecting to localhost:6379. Connection refused., falling back to in-memory cache
+2025-12-25T02:01:35.182423076Z [err]      cursor.execute("""
+2025-12-25T02:01:35.182431041Z [inf]  
+2025-12-25T02:01:35.182431560Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T02:01:35.182437516Z [inf]  ================================================================================
+2025-12-25T02:01:35.182440050Z [inf]  🔧 CLEANUP: Current PID = 2
+2025-12-25T02:01:35.182446081Z [inf]  🚀 INITIALIZING v0.25.0 CORE SYSTEMS
+2025-12-25T02:01:35.182447526Z [inf]  ⏳ Waiting 3 seconds for Telegram polling lock to release...
+2025-12-25T02:01:35.182453564Z [inf]  ✅ Process cleanup completed
+2025-12-25T02:01:35.182462195Z [inf]  ✅ Process cleanup completed
+2025-12-25T02:01:35.182464230Z [inf]  ================================================================================
+2025-12-25T02:01:35.182470472Z [inf]  ✅ Event tracker initialized
+2025-12-25T02:01:35.184911984Z [inf]  
+2025-12-25T02:01:35.184922970Z [err]  Traceback (most recent call last):
+2025-12-25T02:01:35.184928447Z [err]    File "/app/bot.py", line 13834, in <module>
+2025-12-25T02:01:35.184933009Z [err]      main()
+2025-12-25T02:01:35.184937306Z [err]    File "/app/bot.py", line 13189, in main
+2025-12-25T02:01:35.184941445Z [err]      create_database_indices()  # ✅ v0.38.0: Database indices for performance
+2025-12-25T02:01:35.184945745Z [err]      ^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-12-25T02:01:35.184949891Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T02:01:35.184953872Z [err]      cursor.execute("""
+2025-12-25T02:01:35.184958252Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T02:01:35.184962743Z [inf]  ======================================================================
+2025-12-25T02:01:35.184966881Z [inf]  🤖 RVX Telegram Bot - Starting
+2025-12-25T02:01:35.184971034Z [inf]  ======================================================================
+2025-12-25T02:01:35.184975144Z [inf]  📡 API Configuration:
+2025-12-25T02:01:35.184980342Z [inf]     • API is in separate Railway service
+2025-12-25T02:01:35.184984727Z [inf]     • Bot will connect to API_URL from environment
+2025-12-25T02:01:35.184988567Z [inf]  ======================================================================
+2025-12-25T02:01:35.184992683Z [inf]  ❌ Bot error: Command '['/usr/local/bin/python', 'bot.py']' returned non-zero exit status 1.
+2025-12-25T02:01:41.380610590Z [err]  /usr/local/lib/python3.12/site-packages/pydantic/_internal/_config.py:345: UserWarning: Valid config keys have changed in V2:
+2025-12-25T02:01:41.380617117Z [err]  * 'max_anystr_length' has been renamed to 'str_max_length'
+2025-12-25T02:01:41.380622032Z [err]    warnings.warn(message, UserWarning)
+2025-12-25T02:01:41.397614611Z [err]  2025-12-25 02:01:41,390 - __main__ - INFO - ✅ BotState инициализирован
+2025-12-25T02:01:41.397619181Z [err]  2025-12-25 02:01:41,390 - __main__ - INFO - ✅ BotMetrics инициализирован
+2025-12-25T02:01:41.397623497Z [err]  2025-12-25 02:01:41,394 - __main__ - INFO - 📋 Столбцы ДО миграции: ['content', 'id', 'intent', 'message_length', 'message_type', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T02:01:41.397631932Z [err]  2025-12-25 02:01:41,394 - __main__ - INFO - ✅ Столбцы ПОСЛЕ миграции: ['content', 'id', 'intent', 'message_length', 'message_type', 'role', 'timestamp', 'tokens_estimate', 'user_id']
+2025-12-25T02:01:41.397636835Z [err]  2025-12-25 02:01:41,394 - __main__ - ERROR - 🚨 КРИТИЧНО: Отсутствуют столбцы: {'created_at'}
+2025-12-25T02:01:41.397645659Z [err]  2025-12-25 02:01:41,395 - __main__ - INFO - ✅ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-25T02:01:41.397652046Z [err]  2025-12-25 02:01:41,396 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T02:01:41.399654753Z [err]  2025-12-25 02:01:41,397 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T02:01:41.399663783Z [err]  2025-12-25 02:01:41,397 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T02:01:41.399672251Z [err]  2025-12-25 02:01:41,397 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T02:01:41.399678855Z [err]  2025-12-25 02:01:41,397 - __main__ - INFO - 🔄 Проверка необходимости миграции...
+2025-12-25T02:01:41.399686639Z [err]  2025-12-25 02:01:41,398 - __main__ - INFO -   🔍 Проверка полноты схемы таблицы users...
+2025-12-25T02:01:41.399692328Z [err]  2025-12-25 02:01:41,398 - __main__ - INFO -    ✅ Таблица users имеет полную схему
+2025-12-25T02:01:41.400629670Z [err]  2025-12-25 02:01:41,399 - __main__ - INFO - ✅ Миграция не требуется, схема актуальна
+2025-12-25T02:01:41.400638770Z [err]  2025-12-25 02:01:41,399 - __main__ - INFO -   📊 Created: idx_users_leaderboard (leaderboard queries)
+2025-12-25T02:01:41.400644430Z [err]  2025-12-25 02:01:41,400 - __main__ - INFO -   📝 Created: idx_requests_user_date (user request history)
+2025-12-25T02:01:41.407032801Z [err]  2025-12-25 02:01:41,400 - __main__ - ERROR - ❌ DB ошибка: no such column: course_id
+2025-12-25T02:01:41.407043706Z [err]  Traceback (most recent call last):
+2025-12-25T02:01:41.407048724Z [err]    File "/app/bot.py", line 1535, in get_db
+2025-12-25T02:01:41.407053148Z [err]      yield conn
+2025-12-25T02:01:41.407057625Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T02:01:41.407061929Z [err]      cursor.execute("""
+2025-12-25T02:01:41.407065859Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T02:01:41.409538271Z [inf]  ✅ Cache enabled: True
+2025-12-25T02:01:41.409547660Z [inf]  ✅ Analytics enabled: True
+2025-12-25T02:01:41.409552760Z [inf]  ================================================================================
+2025-12-25T02:01:41.409557816Z [inf]  
+2025-12-25T02:01:41.409563092Z [err]  Traceback (most recent call last):
+2025-12-25T02:01:41.409567599Z [inf]  🔧 CLEANUP: Current PID = 2
+2025-12-25T02:01:41.409569741Z [err]    File "/app/bot.py", line 13834, in <module>
+2025-12-25T02:01:41.409575774Z [inf]  ⏳ Waiting 3 seconds for Telegram polling lock to release...
+2025-12-25T02:01:41.409580653Z [inf]  ✅ Process cleanup completed
+2025-12-25T02:01:41.409585217Z [inf]  ✅ Process cleanup completed
+2025-12-25T02:01:41.409589580Z [inf]  ⚠️ Redis connection failed: Error 111 connecting to localhost:6379. Connection refused., falling back to in-memory cache
+2025-12-25T02:01:41.409594221Z [inf]  
+2025-12-25T02:01:41.409599999Z [inf]  ================================================================================
+2025-12-25T02:01:41.409604274Z [inf]  🚀 INITIALIZING v0.25.0 CORE SYSTEMS
+2025-12-25T02:01:41.409609635Z [inf]  ================================================================================
+2025-12-25T02:01:41.409614346Z [inf]  ✅ Event tracker initialized
+2025-12-25T02:01:41.409618291Z [inf]  ✅ AI honesty system loaded
+2025-12-25T02:01:41.409623714Z [inf]  ✅ Analytics system ready
+2025-12-25T02:01:41.409628009Z [inf]  ✅ Config loaded: BOT_ADMIN_IDS=[7216426044, 0]
+2025-12-25T02:01:41.415894241Z [err]      main()
+2025-12-25T02:01:41.415899152Z [err]    File "/app/bot.py", line 13189, in main
+2025-12-25T02:01:41.417167580Z [err]      create_database_indices()  # ✅ v0.38.0: Database indices for performance
+2025-12-25T02:01:41.417172771Z [err]      ^^^^^^^^^^^^^^^^^^^^^^^^^
+2025-12-25T02:01:41.417177737Z [err]    File "/app/bot.py", line 2058, in create_database_indices
+2025-12-25T02:01:41.417181923Z [err]      cursor.execute("""
+2025-12-25T02:01:41.417185829Z [err]  sqlite3.OperationalError: no such column: course_id
+2025-12-25T02:01:42.219608203Z [inf]  ======================================================================
+2025-12-25T02:01:42.219618310Z [inf]  📡 API Configuration:
+2025-12-25T02:01:42.219621243Z [inf]  ❌ Bot error: Command '['/usr/local/bin/python', 'bot.py']' returned non-zero exit status 1.
+2025-12-25T02:01:42.219634909Z [inf]     • API is in separate Railway service
+2025-12-25T02:01:42.219640422Z [inf]     • Bot will connect to API_URL from environment
+2025-12-25T02:01:42.219648898Z [inf]  ======================================================================
+2025-12-25T02:01:42.219761486Z [inf]  ======================================================================
+2025-12-25T02:01:42.219767502Z [inf]  🤖 RVX Telegram Bot - Starting
