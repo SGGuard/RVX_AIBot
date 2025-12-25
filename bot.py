@@ -9341,6 +9341,28 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await show_leaderboard(update, context, "all")
         return
     
+    # ============ MENU CALLBACKS (v0.38.0 FIX) ============
+    
+    if data == "show_stats":
+        await stats_command(update, context)
+        return
+    
+    if data == "menu_stats":
+        await stats_command(update, context)
+        return
+    
+    if data == "menu_learn":
+        await learn_command(update, context)
+        return
+    
+    if data == "menu_tools":
+        await show_resources_menu(update, query)
+        return
+    
+    if data == "menu_help":
+        await help_command(update, context)
+        return
+    
     # ============ LESSON SELECTION (Interactive Mode) ============
     if data.startswith("lesson_"):
         # Парсим: lesson_<course_name>_<lesson_num>
