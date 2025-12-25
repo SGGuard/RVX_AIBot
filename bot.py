@@ -7143,7 +7143,7 @@ async def _launch_teaching_lesson(update: Update, context: ContextTypes.DEFAULT_
         keyboard = [
             [
                 InlineKeyboardButton("✅ Понял!", callback_data=f"teach_understood_{topic}"),
-                InlineKeyboardButton("❓ Еще вопрос", callback_data=f"teach_question_{topic}")
+                InlineKeyboardButton("🎯 Что дальше?", callback_data=f"teach_question_{topic}")
             ],
             [
                 InlineKeyboardButton("📚 Другая тема", callback_data="teach_menu"),
@@ -10501,16 +10501,74 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         topic = data.replace("teach_question_", "")
         
         keyboard = [
-            [InlineKeyboardButton("💬 Используй /ask для уточнений", url="https://t.me/dummy")],
-            [InlineKeyboardButton("📚 Другая тема", callback_data="teach_menu")],
+            [InlineKeyboardButton("✅ Проверить знания", callback_data=f"teach_test_{topic}")],
+            [InlineKeyboardButton("📚 Смежные темы", callback_data=f"teach_related_{topic}")],
+            [InlineKeyboardButton("📖 Другая тема", callback_data="teach_menu")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
         ]
         
         try:
             await query.edit_message_text(
-                "💬 <b>УТОЧНЯЮЩИЕ ВОПРОСЫ</b>\n\n"
-                "Используйте команду <code>/ask [ваш вопрос]</code> чтобы задать уточняющий вопрос!\n\n"
-                "<i>Пример:</i> <code>/ask Как это работает с другими блокчейнами?</code>",
+                "🎓 <b>ЧТО ДАЛЬШЕ?</b>\n\n"
+                "✅ <b>Проверить знания</b> - мини-тест по этой теме\n"
+                "📚 <b>Смежные темы</b> - рекомендуемые уроки для углубления\n"
+                "📖 <b>Другая тема</b> - выбрать другой предмет для обучения",
+                parse_mode=ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        except:
+            pass
+        return
+    
+    # Обработчик "Проверить знания" - показать описание или запустить тест
+    if data.startswith("teach_test_"):
+        topic = data.replace("teach_test_", "")
+        keyboard = [
+            [InlineKeyboardButton("🎯 Начать тест", callback_data=f"start_test_{topic}")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data=f"teach_question_{topic}")]
+        ]
+        try:
+            await query.edit_message_text(
+                f"✅ <b>Проверка знаний по теме:</b> {TEACHING_TOPICS.get(topic, {}).get('name', topic)}\n\n"
+                "Ответь на вопросы и проверь свое понимание материала!\n"
+                "За каждый правильный ответ получишь опыт. 🎯",
+                parse_mode=ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        except:
+            pass
+        return
+    
+    # Обработчик "Смежные темы" - показать рекомендации
+    if data.startswith("teach_related_"):
+        topic = data.replace("teach_related_", "")
+        
+        # Определяем смежные темы для каждого топика
+        related_topics = {
+            "crypto_basics": ["trading", "security"],
+            "trading": ["crypto_basics", "tokenomics"],
+            "web3": ["defi", "nft"],
+            "defi": ["web3", "security"],
+            "ai": ["security", "tokenomics"],
+            "nft": ["web3", "trading"],
+            "security": ["crypto_basics", "ai"],
+            "tokenomics": ["trading", "defi"]
+        }
+        
+        related = related_topics.get(topic, ["crypto_basics", "web3"])
+        
+        keyboard = []
+        for rel_topic in related[:2]:
+            keyboard.append([InlineKeyboardButton(
+                f"📚 {TEACHING_TOPICS.get(rel_topic, {}).get('name', rel_topic)}", 
+                callback_data=f"teach_topic_{rel_topic}"
+            )])
+        keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data=f"teach_question_{topic}")])
+        
+        try:
+            await query.edit_message_text(
+                f"📚 <b>Рекомендуемые темы для углубления после '{TEACHING_TOPICS.get(topic, {}).get('name', topic)}':</b>\n\n"
+                "Эти темы расширят твое понимание крипто и помогут развиваться дальше! 🚀",
                 parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
