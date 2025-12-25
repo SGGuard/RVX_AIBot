@@ -5336,7 +5336,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         f"📈 <b>Уровень:</b> <i>{level_name}</i> • <b>XP:</b> <i>{user_xp}</i>\n"
         f"🎯 <b>Курсов:</b> <i>{courses_completed}/3</i> • <b>Тестов:</b> <i>{tests_passed}</i>\n\n"
         
-        f"{quests_preview}"
         f"<b>════════════════════════════════════════</b>\n"
         f"<b>👇 Выбери действие из меню ниже чтобы начать!</b>\n"
     )
