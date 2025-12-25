@@ -7018,10 +7018,12 @@ def get_recommended_lesson(user_id: int) -> dict:
             # Проверяем от simple к hard: если не пройдена следующая сложность
             for level in ['beginner', 'intermediate', 'advanced', 'expert']:
                 if level not in completed_difficulties:
+                    topic_name = TEACHING_TOPICS.get(topic, {}).get('name', topic)
                     return {
                         'topic': topic,
                         'difficulty': level,
-                        'reason': f"Продолжи тему <b>{TEACHING_TOPICS.get(topic, {}).get('name', topic)}</b>"
+                        'reason': f"Продолжи тему <b>{topic_name}</b>",
+                        'clean_reason': f"Продолжи тему {topic_name}"
                     }
         
         # 2. Новая тема (если все основные пройдены)
@@ -7032,19 +7034,23 @@ def get_recommended_lesson(user_id: int) -> dict:
         if unstarted_topics:
             # Рекомендуем новую тему с рекомендуемой сложностью
             next_topic = sorted(unstarted_topics)[0]
+            topic_name = TEACHING_TOPICS.get(next_topic, {}).get('name', next_topic)
             return {
                 'topic': next_topic,
                 'difficulty': recommended_difficulty,
-                'reason': f"Изучи новую тему: <b>{TEACHING_TOPICS.get(next_topic, {}).get('name', next_topic)}</b>"
+                'reason': f"Изучи новую тему: <b>{topic_name}</b>",
+                'clean_reason': f"Изучи новую тему: {topic_name}"
             }
         
         # 3. Если всё пройдено, рекомендуем повторение на наивысшей сложности
         if completed:
             hardest_topic = max(completed.keys(), key=lambda t: len(completed[t]['difficulties']))
+            topic_name = TEACHING_TOPICS.get(hardest_topic, {}).get('name', hardest_topic)
             return {
                 'topic': hardest_topic,
                 'difficulty': 'expert',
-                'reason': f"Закрепи: <b>{TEACHING_TOPICS.get(hardest_topic, {}).get('name', hardest_topic)}</b> на expert"
+                'reason': f"Закрепи: <b>{topic_name}</b> на expert",
+                'clean_reason': f"Закрепи: {topic_name} на expert"
             }
         
         # Нет рекомендации
@@ -10474,7 +10480,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         # Если есть рекомендация, добавляем кнопку перейти к ней
         if recommended:
             keyboard.insert(0, [InlineKeyboardButton(
-                f"🚀 {recommended['reason'][:30]}...",
+                f"🚀 {recommended.get('clean_reason', recommended['reason'])[:30]}...",
                 callback_data=f"teach_start_{recommended['topic']}_{recommended['difficulty']}"
             )])
         
