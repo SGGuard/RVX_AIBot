@@ -2006,6 +2006,35 @@ async def teach_lesson(payload: TeachingPayload) -> JSONResponse:
     logger.info(f"📚 Запрос урока: {topic} ({difficulty})")
     
     try:
+        # ✅ v0.37.7 FIX: Проверяем что уровень существует ДО загрузки
+        available_difficulties = get_difficulties_for_topic(topic)
+        
+        if difficulty not in available_difficulties:
+            # Если expert не существует, используем advanced вместо beginner fallback
+            if difficulty == "expert" and "advanced" in available_difficulties:
+                logger.info(f"📚 Уровень '{difficulty}' не в embedded, используем 'advanced' для expert request")
+                difficulty = "advanced"
+            elif not available_difficulties:
+                # Тема вообще не существует в embedded
+                logger.warning(f"⚠️ Тема '{topic}' не найдена в embedded_teacher")
+                available_topics = get_all_topics()
+                duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
+                request_counter["fallback"] += 1
+                
+                return TeachingResponse(
+                    lesson_title="Выбор темы обучения",
+                    content=f"Тема '{topic}' недоступна. Доступные темы: {', '.join(available_topics)}. Пожалуйста, выберите одну из предложенных тем.",
+                    key_points=available_topics,
+                    real_world_example="Выберите интересующую вас тему для подробного изучения.",
+                    practice_question="Какую тему криптографии вы хотели бы изучить?",
+                    next_topics=available_topics,
+                    processing_time_ms=round(duration_ms, 2)
+                )
+            else:
+                # Уровень не существует, используем первый доступный
+                logger.warning(f"⚠️ Уровень '{difficulty}' не существует для '{topic}' (доступны: {available_difficulties}), используем '{available_difficulties[0]}'")
+                difficulty = available_difficulties[0]
+        
         # Попробуем использовать встроенный урок (быстро и надежно)
         logger.info(f"🎓 Ищу встроенный урок для '{topic}' ({difficulty})...")
         

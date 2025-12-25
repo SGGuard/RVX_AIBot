@@ -77,13 +77,15 @@ def _get_fallback_lesson(topic: str, difficulty_level: str) -> Optional[Dict[str
     
     # Пытаемся получить встроенный урок как fallback для хорошего качества контента
     try:
-        from embedded_teacher import get_embedded_lesson, convert_topic_name_to_embedded
+        from embedded_teacher import get_embedded_lesson
+        # convert_topic_name_to_embedded это функция в этом файле, не в embedded_teacher
         embedded_topic = convert_topic_name_to_embedded(topic)
+        logger.info(f"📚 Fallback: пытаемся загрузить {fallback_difficulty} встроенный для {embedded_topic}")
         embedded_lesson = get_embedded_lesson(embedded_topic, fallback_difficulty)
         if embedded_lesson:
-            logger.info(f"✅ Fallback: используем {fallback_difficulty} встроенный урок вместо offline")
+            logger.info(f"✅ Fallback успешен: используем {fallback_difficulty} встроенный вместо offline")
             return {
-                "lesson_title": f"⚠️ {embedded_lesson.lesson_title} (offline API, используется встроенный урок)",
+                "lesson_title": f"⚠️ {embedded_lesson.lesson_title} (API временно недоступен, используется встроенный)",
                 "content": embedded_lesson.content,
                 "key_points": embedded_lesson.key_points,
                 "real_world_example": embedded_lesson.real_world_example,
@@ -91,8 +93,12 @@ def _get_fallback_lesson(topic: str, difficulty_level: str) -> Optional[Dict[str
                 "next_topics": embedded_lesson.next_topics,
                 "is_fallback": True
             }
+        else:
+            logger.warning(f"⚠️ get_embedded_lesson вернул None")
+    except ImportError as e:
+        logger.warning(f"⚠️ Импорт embedded_teacher не сработал: {e}")
     except Exception as e:
-        logger.warning(f"⚠️ Встроенный fallback не сработал: {e}")
+        logger.warning(f"⚠️ Встроенный fallback не сработал: {type(e).__name__}: {e}")
     
     # Если даже встроенный не сработал, возвращаем скучный fallback
     fallback_content = f"""
