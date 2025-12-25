@@ -8331,6 +8331,7 @@ async def show_quiz_results(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     score_percentage = (correct_count / total_questions * 100) if total_questions > 0 else 0
     xp_earned = int(score_percentage * 2)  # До 200 XP за 100%
     is_perfect = (score_percentage == 100)
+    message_suffix = ""  # Инициализируем переменную для добавления информации о повторе
     
     # Формируем сообщение с результатами
     if score_percentage == 100:
@@ -8360,10 +8361,32 @@ async def show_quiz_results(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         emoji = "✅" if resp['is_correct'] else "❌"
         message += f"\n{emoji} Q{resp['q_num']}: {resp['is_correct']}"
     
+    # Инициализируем переменную для отслеживания первого прохождения
+    already_completed = False
+    
     # Сохраняем результаты в БД
     try:
         with get_db() as conn:
             cursor = conn.cursor()
+            
+            # 🆕 ЗАЩИТА ОТ АБУЗА: Проверяем, проходил ли уже пользователь этот тест
+            cursor.execute("""
+                SELECT id FROM user_quiz_stats 
+                WHERE user_id = ? AND lesson_id = ?
+                LIMIT 1
+            """, (user.id, lesson_num))
+            
+            already_completed = cursor.fetchone() is not None
+            actual_xp_earned = 0  # По умолчанию XP не начисляем при повторе
+            
+            if already_completed:
+                # Пользователь уже проходил этот тест
+                logger.info(f"ℹ️ Пользователь {user.id} повторно проходит тест {lesson_num} - XP не начисляется")
+                message_suffix = "\n\n⚠️ <i>Вы уже проходили этот тест. XP не начисляется при повторных попытках.</i>"
+            else:
+                # Первое прохождение - начисляем XP
+                actual_xp_earned = xp_earned
+                logger.info(f"✅ Первое прохождение теста {lesson_num} пользователем {user.id} - начисляем {xp_earned} XP")
             
             # Сохраняем каждый ответ
             for resp in quiz_session['responses']:
@@ -8371,22 +8394,25 @@ async def show_quiz_results(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                     INSERT INTO user_quiz_responses 
                     (user_id, lesson_id, question_number, selected_answer_index, is_correct, xp_earned)
                     VALUES (?, ?, ?, ?, ?, ?)
-                """, (user.id, lesson_num, resp['q_num'], resp['selected'], resp['is_correct'], xp_earned // total_questions))
+                """, (user.id, lesson_num, resp['q_num'], resp['selected'], resp['is_correct'], actual_xp_earned // total_questions if total_questions > 0 else 0))
             
-            # Сохраняем статистику по квизу
-            cursor.execute("""
-                INSERT INTO user_quiz_stats 
-                (user_id, lesson_id, total_questions, correct_answers, quiz_score, total_xp_earned, is_perfect_score)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (user.id, lesson_num, total_questions, correct_count, score_percentage, xp_earned, is_perfect))
-            
-            # Добавляем XP пользователю
-            add_xp_to_user(cursor, user.id, xp_earned)
+            # Сохраняем статистику по квизу только при первом прохождении
+            if not already_completed:
+                cursor.execute("""
+                    INSERT INTO user_quiz_stats 
+                    (user_id, lesson_id, total_questions, correct_answers, quiz_score, total_xp_earned, is_perfect_score)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (user.id, lesson_num, total_questions, correct_count, score_percentage, actual_xp_earned, is_perfect))
+                
+                # Добавляем XP пользователю ТОЛЬКО при первом прохождении
+                add_xp_to_user(cursor, user.id, actual_xp_earned)
             
             conn.commit()
             
     except Exception as e:
         logger.warning(f"⚠️ Ошибка при сохранении результатов квиза: {e}")
+        message_suffix = ""
+        already_completed = False
     
     # Кнопки навигации
     keyboard = [
@@ -8399,7 +8425,7 @@ async def show_quiz_results(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     keyboard = [row for row in keyboard if row]
     
     await query.edit_message_text(
-        message,
+        message + message_suffix,
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
