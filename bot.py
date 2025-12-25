@@ -32,9 +32,17 @@ def cleanup_stale_bot_processes():
     Note: Uses Python's psutil/os module only - no external pkill/ps commands
     which may not exist in Docker slim images
     """
+    # Early logger for startup (before full logger config)
+    init_logger = logging.getLogger('startup')
+    init_logger.setLevel(logging.DEBUG)
+    if not init_logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S'))
+        init_logger.addHandler(handler)
+    
     try:
         current_pid = os.getpid()
-        print(f"🔧 CLEANUP: Current PID = {current_pid}")
+        init_logger.info(f"CLEANUP: Current PID = {current_pid}")
         
         # Try to use psutil if available, otherwise skip process killing
         try:
@@ -50,7 +58,7 @@ def cleanup_stale_bot_processes():
                     if 'bot.py' in cmdline and pid != current_pid:
                         try:
                             os.kill(pid, 9)
-                            print(f"🗑️ Killed stale bot process PID={pid}")
+                            init_logger.debug(f"Killed stale bot process PID={pid}")
                         except ProcessLookupError:
                             pass
                     
@@ -58,7 +66,7 @@ def cleanup_stale_bot_processes():
                     if 'api_server' in cmdline or 'uvicorn' in cmdline:
                         try:
                             os.kill(pid, 9)
-                            print(f"🗑️ Killed api_server/uvicorn process PID={pid}")
+                            init_logger.debug(f"Killed api_server/uvicorn process PID={pid}")
                         except ProcessLookupError:
                             pass
                             
@@ -66,19 +74,17 @@ def cleanup_stale_bot_processes():
                     pass
         except ImportError:
             # psutil not available - just skip process killing
-            print("⚠️ psutil not available, skipping process killing")
+            init_logger.warning("psutil not available, skipping process killing")
         
         # CRITICAL: Sleep to let Telegram release the polling lock
-        print("⏳ Waiting 3 seconds for Telegram polling lock to release...")
+        init_logger.debug("Waiting 3 seconds for Telegram polling lock to release...")
         time.sleep(3)
         
     except Exception as e:
-        print(f"⚠️ Cleanup warning: {e}")
+        init_logger.error(f"Cleanup warning: {e}")
 
 # Run cleanup BEFORE anything else - this is the very first thing that runs
 cleanup_stale_bot_processes()
-print("✅ Process cleanup completed")
-print("✅ Process cleanup completed")
 
 # Fix SQLite3 datetime adapter deprecation warning (Python 3.12+)
 def _adapt_datetime(val: datetime) -> str:
@@ -162,7 +168,7 @@ try:
     from digest_formatter import format_digest
     CRYPTO_DIGEST_ENABLED = True
 except ImportError:
-    logger.warning("⚠️ Crypto digest modules not available")
+    logger.warning("Crypto digest modules not available")
     CRYPTO_DIGEST_ENABLED = False
 
 # Передовая система обучения (v0.21.0)
@@ -264,7 +270,7 @@ else:
             logger_init_source = "default localhost"
 
 logger_init = logging.getLogger("config_loader")
-logger_init.info(f"🔗 API_URL_NEWS configured: {API_URL_NEWS}")
+logger_init.info(f"API_URL_NEWS configured: {API_URL_NEWS}")
 logger_init.info(f"   Source: {logger_init_source}")
 
 BOT_API_KEY = os.getenv("BOT_API_KEY", "")  # ✅ API key for authentication
@@ -330,7 +336,7 @@ def require_auth(required_level: AuthLevel) -> Callable:
             user_level = get_user_auth_level(user_id)
             
             if user_level.value < required_level.value:
-                logger.warning(f"⚠️ Access denied for user {user_id} (level={user_level.name}, required={required_level.name})")
+                logger.warning(f"Access denied for user {user_id} (level={user_level.name}, required={required_level.name})")
                 await update.message.reply_text(f"❌ Недостаточно прав для этой команды")
                 return
             
@@ -360,18 +366,72 @@ ENABLE_AUTO_CACHE_CLEANUP = os.getenv("ENABLE_AUTO_CACHE_CLEANUP", "true").lower
 CACHE_MAX_AGE_DAYS = int(os.getenv("CACHE_MAX_AGE_DAYS", "7"))
 
 # =============================================================================
-# ЛОГИРОВАНИЕ
+# ЛОГИРОВАНИЕ (Unified Format v0.39.0)
 # =============================================================================
 
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO,
-    handlers=[
-        logging.FileHandler('bot.log', encoding='utf-8'),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
+class RVXFormatter(logging.Formatter):
+    """Unified logging formatter with emoji prefixes for console and structured logs for files"""
+    
+    LEVEL_EMOJI = {
+        logging.DEBUG: "🔍",
+        logging.INFO: "ℹ️",
+        logging.WARNING: "⚠️",
+        logging.ERROR: "❌",
+        logging.CRITICAL: "🔴"
+    }
+    
+    def __init__(self, fmt=None, datefmt=None, use_emoji=True):
+        super().__init__(fmt, datefmt)
+        self.use_emoji = use_emoji
+    
+    def format(self, record):
+        """Format log record with emoji prefix and consistent structure"""
+        if self.use_emoji:
+            emoji = self.LEVEL_EMOJI.get(record.levelno, "•")
+            record.msg = f"{emoji} {record.msg}"
+        
+        # Preserve original formatting if there's context data
+        if hasattr(record, 'user_id'):
+            record.msg += f" [user_id={record.user_id}]"
+        
+        return super().format(record)
+
+
+def setup_logger(name=None, level=logging.INFO):
+    """Configure unified logger with file and console handlers"""
+    logger = logging.getLogger(name or __name__)
+    logger.setLevel(level)
+    
+    # Clear existing handlers to avoid duplicates
+    logger.handlers.clear()
+    
+    # File handler (structured, no emoji)
+    file_handler = logging.FileHandler('bot.log', encoding='utf-8')
+    file_handler.setLevel(logging.DEBUG)
+    file_formatter = RVXFormatter(
+        fmt='%(asctime)s [%(levelname)-8s] %(name)s: %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+        use_emoji=False
+    )
+    file_handler.setFormatter(file_formatter)
+    
+    # Console handler (with emoji)
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_formatter = RVXFormatter(
+        fmt='%(asctime)s [%(levelname)-8s] %(message)s',
+        datefmt='%H:%M:%S',
+        use_emoji=True
+    )
+    console_handler.setFormatter(console_formatter)
+    
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+    
+    return logger
+
+
+logger = setup_logger(__name__)
 
 # =============================================================================
 # PYDANTIC MODELS FOR API RESPONSE VALIDATION (FIX #5: XSS/Injection Protection)
@@ -471,6 +531,162 @@ class BotResponse(BaseModel):
             error=warning,
             request_id=request_id
         )
+
+# =============================================================================
+# IP-BASED RATE LIMITING (v0.39.0 - QUICK WIN #3)
+# =============================================================================
+
+from collections import defaultdict
+from threading import Lock
+
+class IPRateLimiter:
+    """
+    IP-based rate limiter for DDoS protection.
+    
+    Features:
+        - Per-IP rate limiting (configurable requests per time window)
+        - Automatic cleanup of old entries
+        - Thread-safe operations
+        - Integration with logging
+    
+    Usage:
+        limiter = IPRateLimiter(max_requests=30, window_seconds=60)
+        if limiter.check_rate_limit(user_ip):
+            # Process request
+        else:
+            # Too many requests
+    """
+    
+    def __init__(self, max_requests: int = 30, window_seconds: int = 60, 
+                 cleanup_interval: int = 300):
+        """
+        Initialize rate limiter.
+        
+        Args:
+            max_requests: Maximum requests allowed in time window (default: 30)
+            window_seconds: Time window in seconds (default: 60)
+            cleanup_interval: Cleanup old entries every N seconds (default: 300)
+        """
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self.cleanup_interval = cleanup_interval
+        
+        # IP -> list of timestamps (in seconds)
+        self.request_times: Dict[str, List[float]] = defaultdict(list)
+        
+        # Lock for thread-safe operations
+        self.lock = Lock()
+        
+        # Cleanup tracking
+        self.last_cleanup = time.time()
+    
+    def check_rate_limit(self, ip_address: str) -> bool:
+        """
+        Check if request from IP should be allowed.
+        
+        Args:
+            ip_address: Client IP address (string)
+        
+        Returns:
+            True if request is allowed, False if rate limit exceeded
+        """
+        with self.lock:
+            current_time = time.time()
+            
+            # Auto-cleanup old entries periodically
+            if current_time - self.last_cleanup > self.cleanup_interval:
+                self._cleanup_old_entries(current_time)
+                self.last_cleanup = current_time
+            
+            # Get timestamps for this IP within the window
+            window_start = current_time - self.window_seconds
+            self.request_times[ip_address] = [
+                ts for ts in self.request_times[ip_address] 
+                if ts > window_start
+            ]
+            
+            # Check if limit exceeded
+            if len(self.request_times[ip_address]) >= self.max_requests:
+                logger.warning(
+                    f"Rate limit exceeded for IP {ip_address}: "
+                    f"{len(self.request_times[ip_address])}/{self.max_requests} "
+                    f"requests in {self.window_seconds}s"
+                )
+                return False
+            
+            # Add current request timestamp
+            self.request_times[ip_address].append(current_time)
+            return True
+    
+    def get_remaining_requests(self, ip_address: str) -> int:
+        """
+        Get remaining requests for IP address.
+        
+        Args:
+            ip_address: Client IP address
+        
+        Returns:
+            Number of remaining requests before hitting limit
+        """
+        with self.lock:
+            current_time = time.time()
+            window_start = current_time - self.window_seconds
+            
+            recent_requests = len([
+                ts for ts in self.request_times[ip_address] 
+                if ts > window_start
+            ])
+            
+            return max(0, self.max_requests - recent_requests)
+    
+    def reset_ip(self, ip_address: str) -> None:
+        """Reset rate limit for specific IP (admin only)."""
+        with self.lock:
+            if ip_address in self.request_times:
+                del self.request_times[ip_address]
+                logger.info(f"Rate limit reset for IP {ip_address}")
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Get rate limiter statistics."""
+        with self.lock:
+            total_ips = len(self.request_times)
+            blocked_ips = sum(
+                1 for requests in self.request_times.values()
+                if len(requests) >= self.max_requests
+            )
+            
+            return {
+                'total_tracked_ips': total_ips,
+                'blocked_ips': blocked_ips,
+                'max_requests_per_window': self.max_requests,
+                'window_seconds': self.window_seconds,
+                'cleanup_interval': self.cleanup_interval,
+            }
+    
+    def _cleanup_old_entries(self, current_time: float) -> None:
+        """
+        Remove IPs with no recent activity.
+        Called periodically to prevent memory leaks.
+        """
+        window_start = current_time - self.window_seconds
+        cleanup_count = 0
+        
+        # Find IPs with no requests in current window
+        ips_to_remove = [
+            ip for ip, timestamps in self.request_times.items()
+            if not any(ts > window_start for ts in timestamps)
+        ]
+        
+        for ip in ips_to_remove:
+            del self.request_times[ip]
+            cleanup_count += 1
+        
+        if cleanup_count > 0:
+            logger.debug(f"Rate limiter cleanup: removed {cleanup_count} inactive IPs")
+
+
+# Global rate limiter instance (30 requests per minute per IP)
+rate_limiter = IPRateLimiter(max_requests=30, window_seconds=60)
 
 # =============================================================================
 # STANDARDIZED ERROR HANDLING SYSTEM (v0.23.0)
@@ -671,7 +887,7 @@ async def send_channel_post(
         True если успешно, False если ошибка
     """
     if not UPDATE_CHANNEL_ID:
-        logger.warning("⚠️ UPDATE_CHANNEL_ID не установлен - посты не будут отправляться")
+        logger.warning("UPDATE_CHANNEL_ID не установлен - посты не будут отправляться")
         return False
     
     try:
@@ -681,13 +897,13 @@ async def send_channel_post(
             parse_mode=parse_mode,
             disable_notification=silent
         )
-        logger.info("📢 Пост отправлен в канал обновлений")
+        logger.info("Пост отправлен в канал обновлений")
         return True
     except TelegramError as e:
-        logger.error(f"❌ Ошибка при отправке поста в канал: {e}")
+        logger.error(f"Ошибка при отправке поста в канал: {e}")
         return False
     except Exception as e:
-        logger.error(f"❌ Неожиданная ошибка при отправке поста: {e}")
+        logger.error(f"Неожиданная ошибка при отправке поста: {e}")
         return False
 
 
@@ -1497,7 +1713,7 @@ def init_db_pool() -> None:
     global db_pool
     db_pool = DatabaseConnectionPool(DB_PATH, pool_size=DB_POOL_SIZE)
     stats = db_pool.get_stats()
-    logger.info(f"✅ Database pool initialized: {stats}")
+    logger.info(f"Database pool initialized: {stats}")
 
 # =============================================================================
 
@@ -1557,7 +1773,7 @@ def get_db() -> contextmanager:
                         conn.rollback()
                     except Exception as rollback_err:
                         logger.debug(f"Could not rollback on error: {rollback_err}")
-                logger.error(f"❌ DB ошибка: {e}", exc_info=True)
+                logger.error(f"DB ошибка: {e}", exc_info=True)
                 raise
         except sqlite3.Error as e:
             if conn:
@@ -1565,7 +1781,7 @@ def get_db() -> contextmanager:
                     conn.rollback()
                 except Exception as rollback_err:
                     logger.debug(f"Could not rollback: {rollback_err}")
-            logger.error(f"❌ DB ошибка: {e}", exc_info=True)
+            logger.error(f"DB ошибка: {e}", exc_info=True)
             raise
         except Exception as e:
             if conn:
@@ -1573,7 +1789,7 @@ def get_db() -> contextmanager:
                     conn.rollback()
                 except Exception as rollback_err:
                     logger.debug(f"Could not rollback: {rollback_err}")
-            logger.error(f"❌ Неожиданная ошибка БД: {e}", exc_info=True)
+            logger.error(f"Неожиданная ошибка БД: {e}", exc_info=True)
             raise
         finally:
             # Возвращаем соединение в пул (TIER 1 v0.22.0)
@@ -1599,7 +1815,7 @@ def check_column_exists(cursor: sqlite3.Cursor, table: str, column: str) -> bool
     
     # Проверка против whitelist - БЕЗОПАСНО ОТ SQL INJECTION
     if table not in ALLOWED_TABLES:
-        logger.warning(f"⚠️ Попытка доступа к запрещённой таблице: {table}")
+        logger.warning(f"Попытка доступа к запрещённой таблице: {table}")
         return False
     
     # ✅ БЕЗОПАСНО: Таблица проверена против whitelist перед PRAGMA
@@ -1610,14 +1826,14 @@ def check_column_exists(cursor: sqlite3.Cursor, table: str, column: str) -> bool
 
 def migrate_database() -> None:
     """Миграция базы данных к новой схеме v0.5.0."""
-    logger.info("🔄 Проверка необходимости миграции...")
+    logger.info("Проверка необходимости миграции...")
     
     with get_db() as conn:
         cursor = conn.cursor()
         
         # 🆕 v0.37.14: CRITICAL FIX - Пересоздание таблицы users если она неполная
         # (это может случиться если БД была создана старой версией кода)
-        logger.info("  🔍 Проверка полноты схемы таблицы users...")
+        logger.info("Проверка полноты схемы таблицы users...")
         required_columns = {
             'user_id', 'username', 'first_name', 'created_at', 'total_requests',
             'last_request_at', 'is_banned', 'ban_reason', 'daily_requests',
@@ -1631,15 +1847,15 @@ def migrate_database() -> None:
         missing_columns = required_columns - existing_columns
         
         if missing_columns:
-            logger.warning(f"⚠️ КРИТИЧНО: В таблице users отсутствуют колонки: {missing_columns}")
-            logger.warning(f"   Текущие колонки: {existing_columns}")
-            logger.warning("   🔧 Пересоздаём таблицу users с полной схемой...")
+            logger.warning(f"КРИТИЧНО: В таблице users отсутствуют колонки: {missing_columns}")
+            logger.warning(f"Текущие колонки: {existing_columns}")
+            logger.warning("Пересоздаём таблицу users с полной схемой...")
             
             try:
                 # Сохраняем существующие данные
                 cursor.execute("SELECT user_id, username FROM users")
                 existing_users = cursor.fetchall()
-                logger.info(f"   💾 Сохранено {len(existing_users)} пользователей")
+                logger.info(f"Сохранено {len(existing_users)} пользователей")
                 
                 # Переименовываем старую таблицу
                 cursor.execute("ALTER TABLE users RENAME TO users_old")
@@ -1677,51 +1893,51 @@ def migrate_database() -> None:
                 cursor.execute("DROP TABLE users_old")
                 
                 conn.commit()
-                logger.info("   ✅ Таблица users успешно пересоздана с полной схемой!")
+                logger.info("Таблица users успешно пересоздана с полной схемой!")
                 
             except Exception as e:
-                logger.error(f"   ❌ ОШИБКА при пересоздании таблицы users: {e}")
+                logger.error(f"ОШИБКА при пересоздании таблицы users: {e}")
                 conn.rollback()
                 raise
         else:
-            logger.info("   ✅ Таблица users имеет полную схему")
+            logger.info("Таблица users имеет полную схему")
         
         # Миграция users
         migrations_needed = False
         
         if not check_column_exists(cursor, 'users', 'is_banned'):
-            logger.info("  • Добавление колонки is_banned...")
+            logger.info("Добавление колонки is_banned...")
             cursor.execute("ALTER TABLE users ADD COLUMN is_banned BOOLEAN DEFAULT 0")
             migrations_needed = True
         
         if not check_column_exists(cursor, 'users', 'ban_reason'):
-            logger.info("  • Добавление колонки ban_reason...")
+            logger.info("Добавление колонки ban_reason...")
             cursor.execute("ALTER TABLE users ADD COLUMN ban_reason TEXT")
             migrations_needed = True
         
         if not check_column_exists(cursor, 'users', 'daily_requests'):
-            logger.info("  • Добавление колонки daily_requests...")
+            logger.info("Добавление колонки daily_requests...")
             cursor.execute("ALTER TABLE users ADD COLUMN daily_requests INTEGER DEFAULT 0")
             migrations_needed = True
         
         if not check_column_exists(cursor, 'users', 'daily_reset_at'):
-            logger.info("  • Добавление колонки daily_reset_at...")
+            logger.info("Добавление колонки daily_reset_at...")
             cursor.execute("ALTER TABLE users ADD COLUMN daily_reset_at TIMESTAMP")
             migrations_needed = True
         
         # NEW v0.5.0: Миграция новых полей для обучения
         if not check_column_exists(cursor, 'users', 'knowledge_level'):
-            logger.info("  • Добавление колонки knowledge_level...")
+            logger.info("Добавление колонки knowledge_level...")
             cursor.execute("ALTER TABLE users ADD COLUMN knowledge_level TEXT DEFAULT 'unknown'")
             migrations_needed = True
         
         if not check_column_exists(cursor, 'users', 'xp'):
-            logger.info("  • Добавление колонки xp...")
+            logger.info("Добавление колонки xp...")
             cursor.execute("ALTER TABLE users ADD COLUMN xp INTEGER DEFAULT 0")
             migrations_needed = True
         
         if not check_column_exists(cursor, 'users', 'level'):
-            logger.info("  • Добавление колонки level...")
+            logger.info("Добавление колонки level...")
             cursor.execute("ALTER TABLE users ADD COLUMN level INTEGER DEFAULT 1")
             migrations_needed = True
         
@@ -1893,12 +2109,12 @@ def migrate_database() -> None:
                     
                     # Удаляем старую таблицу
                     cursor.execute("DROP TABLE conversation_history_old")
-                    logger.info("✅ Таблица conversation_history успешно мигрирована")
+                    logger.info(f"Таблица conversation_history успешно мигрирована")
                     migrations_needed = True
                 except Exception as e:
-                    logger.error(f"❌ Ошибка миграции conversation_history: {e}")
+                    logger.error(f"Ошибка миграции conversation_history: {e}")
         except Exception as e:
-            logger.debug(f"⚠️ Не удалось проверить schema conversation_history: {e}")
+            logger.debug(f"Не удалось проверить schema conversation_history: {e}")
         
         # Migration v0.26: Fix conversation_stats schema to match conversation_context.py expectations
         try:
@@ -1922,7 +2138,7 @@ def migrate_database() -> None:
                 """)
                 migrations_needed = True
         except Exception as e:
-            logger.debug(f"⚠️ Не удалось проверить schema conversation_stats: {e}")
+            logger.debug(f"Не удалось проверить schema conversation_stats: {e}")
         
         # NEW v0.37.0: Teaching Module Phase 1 improvements
         try:
@@ -2015,9 +2231,9 @@ def migrate_database() -> None:
             migrations_needed = True
         
         if migrations_needed:
-            logger.info("✅ Миграция успешно завершена (v0.37.0 - Teaching Module Phase 1)")
+            logger.info(f"Миграция успешно завершена (v0.37.0 - Teaching Module Phase 1)")
         else:
-            logger.info("✅ Миграция не требуется, схема актуальна")
+            logger.info(f"Миграция не требуется, схема актуальна")
 
 
 def create_database_indices() -> None:
@@ -2110,7 +2326,64 @@ def create_database_indices() -> None:
             logger.warning(f"  ⚠️ Could not create idx_analytics_date: {e}")
         
         conn.commit()
-        logger.info("✅ Database indices created successfully (v0.38.0 - QUICK WIN #2)")
+        logger.info(f"Database indices created successfully (v0.38.0 - QUICK WIN #2)")
+
+
+def verify_database_schema() -> dict:
+    """
+    Проверить что все необходимые таблицы существуют в БД.
+    
+    Returns:
+        dict: {
+            'valid': bool - все таблицы существуют,
+            'missing_tables': list - отсутствующие таблицы,
+            'existing_tables': list - существующие таблицы
+        }
+    """
+    REQUIRED_TABLES = [
+        'users', 'requests', 'feedback', 'cache', 'analytics',
+        'courses', 'lessons', 'user_progress', 'user_questions', 'faq',
+        'tools', 'user_bookmarks', 'daily_tasks',
+        'user_drop_subscriptions', 'drops_feed',
+        'conversation_history', 'conversation_stats', 
+        'user_badges', 'teaching_lessons', 'learning_paths'
+    ]
+    
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            )
+            existing = {row[0] for row in cursor.fetchall()}
+            
+            missing = [t for t in REQUIRED_TABLES if t not in existing]
+            
+            result = {
+                'valid': len(missing) == 0,
+                'missing_tables': missing,
+                'existing_tables': sorted(list(existing))
+            }
+            
+            if result['valid']:
+                logger.info(f"Database schema verified: {len(existing)} tables present")
+            else:
+                logger.warning(
+                    f"Database schema incomplete: missing {len(missing)} tables"
+                    f"\nMissing: {missing}"
+                    f"\nExisting: {result['existing_tables']}"
+                )
+            
+            return result
+            
+    except Exception as e:
+        logger.error(f"Database schema verification failed: {e}", exc_info=True)
+        return {
+            'valid': False,
+            'missing_tables': [],
+            'existing_tables': [],
+            'error': str(e)
+        }
 
 
 def init_database() -> None:
@@ -2588,11 +2861,11 @@ def init_database() -> None:
                 logger.debug(f"✅ Index {idx_name} created/verified")
             except sqlite3.OperationalError as e:
                 if "no such table" in str(e):
-                    logger.debug(f"⚠️ Index {idx_name} skipped (table may not exist yet)")
+                    logger.debug(f"Index {idx_name} skipped (table may not exist yet)")
                 else:
-                    logger.warning(f"⚠️ Could not create index {idx_name}: {e}")
+                    logger.warning(f"Could not create index {idx_name}: {e}")
             except Exception as e:
-                logger.warning(f"⚠️ Unexpected error creating index {idx_name}: {e}")
+                logger.warning(f"Unexpected error creating index {idx_name}: {e}")
         
         # ============ ТАБЛИЦА ПРОГРЕССА КУРСОВ (КРИТИЧНО) ============
         cursor.execute("""
@@ -2698,7 +2971,7 @@ def init_database() -> None:
             ON user_badges(user_id, earned_at DESC)
         """)
         
-        logger.info("✅ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)")
+        logger.info(f"База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)")
     
     # Инициализируем курсы (загружаем из markdown в БД)
     with get_db() as conn:
@@ -3170,7 +3443,7 @@ def cleanup_old_cache() -> None:
             WHERE (last_used_at < ? AND hit_count < 5) OR (hit_count = 0)
         """, (cutoff_date,))
         deleted = cursor.rowcount
-        logger.info(f"🗑️ Удалено {deleted} старых/неиспользуемых записей из кэша")
+        logger.info(f"Удалено {deleted} старых/неиспользуемых записей из кэша")
         
         # Логируем статистику оставшегося кэша
         cursor.execute("SELECT COUNT(*) FROM cache")
@@ -3214,7 +3487,7 @@ def ensure_conversation_history_columns() -> None:
         # Проверяем существует ли таблица
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='conversation_history'")
         if not cursor.fetchone():
-            logger.info("ℹ️  Таблица conversation_history не существует, будет создана позже")
+            logger.info(f"Таблица conversation_history не существует, будет создана позже")
             conn.close()
             return
         
@@ -3231,27 +3504,27 @@ def ensure_conversation_history_columns() -> None:
             try:
                 cursor.execute("ALTER TABLE conversation_history ADD COLUMN message_type TEXT DEFAULT 'user'")
                 conn.commit()
-                logger.info("✅ Столбец message_type добавлен успешно")
+                logger.info(f"Столбец message_type добавлен успешно")
                 needs_migration = True
             except sqlite3.OperationalError as e:
                 if "duplicate column name" not in str(e).lower():
-                    logger.error(f"❌ Не удалось добавить message_type: {e}")
+                    logger.error(f"Не удалось добавить message_type: {e}")
                 
         if 'intent' not in columns_before:
             logger.info("  ⚡ Добавляем столбец intent в conversation_history...")
             try:
                 cursor.execute("ALTER TABLE conversation_history ADD COLUMN intent TEXT DEFAULT 'general'")
                 conn.commit()
-                logger.info("✅ Столбец intent добавлен успешно")
+                logger.info(f"Столбец intent добавлен успешно")
                 needs_migration = True
             except sqlite3.OperationalError as e:
                 if "duplicate column name" not in str(e).lower():
-                    logger.error(f"❌ Не удалось добавить intent: {e}")
+                    logger.error(f"Не удалось добавить intent: {e}")
         
         # Финальная проверка
         cursor.execute("PRAGMA table_info(conversation_history)")
         columns_after = {col[1] for col in cursor.fetchall()}
-        logger.info(f"✅ Столбцы ПОСЛЕ миграции: {sorted(columns_after)}")
+        logger.info(f"Столбцы ПОСЛЕ миграции: {sorted(columns_after)}")
         
         # Проверяем что все нужные столбцы есть
         required_columns = {'id', 'user_id', 'message_type', 'content', 'intent', 'created_at'}
@@ -3259,13 +3532,13 @@ def ensure_conversation_history_columns() -> None:
         if missing:
             logger.error(f"🚨 КРИТИЧНО: Отсутствуют столбцы: {missing}")
         else:
-            logger.info(f"✅ УСПЕШНО: Все необходимые столбцы присутствуют")
+            logger.info(f"УСПЕШНО: Все необходимые столбцы присутствуют")
         
         conn.execute("PRAGMA foreign_keys=ON")  # Включаем внешние ключи обратно
         conn.close()
         
     except Exception as e:
-        logger.error(f"❌ Критическая ошибка при миграции БД: {e}", exc_info=True)
+        logger.error(f"Критическая ошибка при миграции БД: {e}", exc_info=True)
 
 def save_conversation(user_id: int, message_type: str, content: str, intent: Optional[str] = None) -> None:
     """Сохраняет сообщение в историю диалога с правильным форматом."""
@@ -3288,9 +3561,9 @@ def save_conversation(user_id: int, message_type: str, content: str, intent: Opt
             
             conn.commit()
     except sqlite3.IntegrityError as e:
-        logger.warning(f"⚠️ DB save failed (non-critical): {e}")
+        logger.warning(f"DB save failed (non-critical): {e}")
     except Exception as e:
-        logger.warning(f"⚠️ Could not save conversation: {e}")
+        logger.warning(f"Could not save conversation: {e}")
 
 def get_conversation_history(user_id: int, limit: int = 10) -> List[dict]:
     """Получает последние сообщения из истории диалога для контекста.
@@ -3325,12 +3598,12 @@ def get_conversation_history(user_id: int, limit: int = 10) -> List[dict]:
                         "timestamp": timestamp
                     })
                 except (IndexError, TypeError) as e:
-                    logger.debug(f"⚠️ Skipping malformed conversation row: {e}")
+                    logger.debug(f"Skipping malformed conversation row: {e}")
                     continue
             
             return result
     except Exception as e:
-        logger.warning(f"⚠️ Failed to retrieve conversation history for user {user_id}: {e}")
+        logger.warning(f"Failed to retrieve conversation history for user {user_id}: {e}")
         return []
 
 def get_user_profile(user_id: int) -> Dict[str, str]:
@@ -3874,7 +4147,7 @@ async def audit_log(
             # Возвращаем ID записи
             return cursor.lastrowid
     except Exception as e:
-        logger.error(f"❌ Ошибка при аудит логировании: {str(e)}", exc_info=False)
+        logger.error(f"Ошибка при аудит логировании: {str(e)}", exc_info=False)
         return -1
 
 # =============================================================================
@@ -3915,7 +4188,7 @@ class BotState:
         # Попытки регенерации фидбека
         self.feedback_attempts: Dict[int, int] = {}
         
-        logger.info("✅ BotState инициализирован")
+        logger.info(f"BotState инициализирован")
     
     async def check_flood(self, user_id: int, cooldown: int = FLOOD_COOLDOWN_SECONDS) -> bool:
         """Проверяет flood control для пользователя."""
@@ -4056,7 +4329,7 @@ async def periodic_session_cleanup(context: ContextTypes.DEFAULT_TYPE) -> None:
             operation="periodic_session_cleanup",
             user_id=None
         )
-        logger.error(f"❌ Ошибка в periodic_session_cleanup: {error.message}")
+        logger.error(f"Ошибка в periodic_session_cleanup: {error.message}")
 
 async def periodic_metrics_snapshot(context: ContextTypes.DEFAULT_TYPE) -> None:
     """
@@ -4066,7 +4339,7 @@ async def periodic_metrics_snapshot(context: ContextTypes.DEFAULT_TYPE) -> None:
     try:
         bot_metrics.log_metrics_snapshot(compact=True)  # ← Компактный режим
     except Exception as e:
-        logger.error(f"❌ Ошибка при логировании метрик: {e}")
+        logger.error(f"Ошибка при логировании метрик: {e}")
 
 # =============================================================================
 # MONITORING & METRICS (v0.24.0) - Отслеживание производительности бота
@@ -4113,7 +4386,7 @@ class BotMetrics:
         self.sessions_created: int = 0
         self.sessions_cleaned: int = 0
         
-        logger.info("✅ BotMetrics инициализирован")
+        logger.info(f"BotMetrics инициализирован")
     
     async def record_request(self, user_id: int, success: bool, response_time_ms: float = 0.0) -> None:
         """Records a user request with performance metrics."""
@@ -4245,7 +4518,7 @@ MAX_BACKUP_SIZE_MB: int = 500  # Максимальный размер одно�
 def ensure_backup_dir() -> None:
     """Создает директорию для бэкапов если её нет."""
     os.makedirs(BACKUP_DIR, exist_ok=True)
-    logger.info(f"✅ Директория бэкапов готова: {BACKUP_DIR}")
+    logger.info(f"Директория бэкапов готова: {BACKUP_DIR}")
 
 async def create_database_backup() -> Tuple[bool, str]:
     """
@@ -4271,7 +4544,7 @@ async def create_database_backup() -> Tuple[bool, str]:
             shutil.copy2(db_path, backup_path)
         
         backup_size_mb = os.path.getsize(backup_path) / (1024 * 1024)
-        logger.info(f"✅ Бэкап создан: {backup_path} ({backup_size_mb:.2f} MB)")
+        logger.info(f"Бэкап создан: {backup_path} ({backup_size_mb:.2f} MB)")
         
         # Логируем в аудит
         await audit_log(
@@ -4285,7 +4558,7 @@ async def create_database_backup() -> Tuple[bool, str]:
         return True, backup_path
     except Exception as e:
         error_msg = f"Ошибка при создании бэкапа: {str(e)}"
-        logger.error(f"❌ {error_msg}", exc_info=False)
+        logger.error(f"{error_msg}", exc_info=False)
         
         await audit_log(
             action="database_backup",
@@ -4321,9 +4594,9 @@ async def cleanup_old_backups() -> int:
                 try:
                     os.remove(filepath)
                     deleted_count += 1
-                    logger.info(f"🗑️ Старый бэкап удален: {filename}")
+                    logger.info(f"Старый бэкап удален: {filename}")
                 except Exception as e:
-                    logger.error(f"❌ Ошибка удаления {filename}: {e}")
+                    logger.error(f"Ошибка удаления {filename}: {e}")
         
         if deleted_count > 0:
             logger.info(f"🧹 Очистка завершена: удалено {deleted_count} старых бэкапов")
@@ -4336,7 +4609,7 @@ async def cleanup_old_backups() -> int:
         
         return deleted_count
     except Exception as e:
-        logger.error(f"❌ Ошибка при очистке бэкапов: {e}", exc_info=False)
+        logger.error(f"Ошибка при очистке бэкапов: {e}", exc_info=False)
         return 0
 
 async def restore_from_backup(backup_path: str) -> Tuple[bool, str]:
@@ -4352,7 +4625,7 @@ async def restore_from_backup(backup_path: str) -> Tuple[bool, str]:
     try:
         if not os.path.exists(backup_path):
             msg = f"Бэкап не найден: {backup_path}"
-            logger.error(f"❌ {msg}")
+            logger.error(f"{msg}")
             return False, msg
         
         db_path = DB_PATH
@@ -4366,7 +4639,7 @@ async def restore_from_backup(backup_path: str) -> Tuple[bool, str]:
         shutil.copy2(backup_path, db_path)
         
         msg = f"БД восстановлена из {backup_path}"
-        logger.info(f"✅ {msg}")
+        logger.info(f"{msg}")
         
         await audit_log(
             action="database_restore",
@@ -4379,7 +4652,7 @@ async def restore_from_backup(backup_path: str) -> Tuple[bool, str]:
         return True, msg
     except Exception as e:
         error_msg = f"Ошибка при восстановлении: {str(e)}"
-        logger.error(f"❌ {error_msg}", exc_info=False)
+        logger.error(f"{error_msg}", exc_info=False)
         
         await audit_log(
             action="database_restore",
@@ -4417,7 +4690,7 @@ def list_backups() -> List[Dict[str, Any]]:
                 "age_hours": round((datetime.now() - mtime).total_seconds() / 3600, 1)
             })
     except Exception as e:
-        logger.error(f"❌ Ошибка получения списка бэкапов: {e}")
+        logger.error(f"Ошибка получения списка бэкапов: {e}")
     
     return backups
 
@@ -4439,7 +4712,7 @@ async def check_subscription(user_id: int, context: ContextTypes.DEFAULT_TYPE) -
         
         return is_subscribed
     except TelegramError as e:
-        logger.error(f"❌ Ошибка проверки подписки для {user_id}: {e}")
+        logger.error(f"Ошибка проверки подписки для {user_id}: {e}")
         return True  # В случае ошибки не блокируем пользователя
 
 def validate_api_response(api_response: dict) -> Optional[str]:
@@ -4453,14 +4726,14 @@ def validate_api_response(api_response: dict) -> Optional[str]:
         
         # Проверяем что это dict
         if not isinstance(api_response, dict):
-            logger.warning(f"⚠️ API вернул не dict: {type(api_response)}")
+            logger.warning(f"API вернул не dict: {type(api_response)}")
             return None
         
         # Получаем основной текст ответа
         simplified_text = api_response.get("simplified_text")
         
         if not simplified_text or not isinstance(simplified_text, str):
-            logger.warning(f"⚠️ simplified_text отсутствует или не строка: {api_response}")
+            logger.warning(f"simplified_text отсутствует или не строка: {api_response}")
             return None
         
         simplified_text = simplified_text.strip()
@@ -4471,19 +4744,19 @@ def validate_api_response(api_response: dict) -> Optional[str]:
         simplified_text = simplified_text.replace("~~", "")  # Убираем зачеркивание
         
         if len(simplified_text) < 5:
-            logger.warning(f"⚠️ Слишком короткий ответ: {len(simplified_text)} символов")
+            logger.warning(f"Слишком короткий ответ: {len(simplified_text)} символов")
             return None
         
         # Telegram ограничивает 4096 символов
         if len(simplified_text) > 4096:
-            logger.warning(f"⚠️ Ответ слишком длинный ({len(simplified_text)} символов), обрезаю")
+            logger.warning(f"Ответ слишком длинный ({len(simplified_text)} символов), обрезаю")
             return simplified_text[:4090] + "\n\n..."
         
-        logger.info(f"✅ Ответ от API валиден ({len(simplified_text)} символов)")
+        logger.info(f"Ответ от API валиден ({len(simplified_text)} символов)")
         return simplified_text
     
     except Exception as e:
-        logger.error(f"❌ Ошибка валидации ответа API: {e}")
+        logger.error(f"Ошибка валидации ответа API: {e}")
         return None
 async def call_api_with_retry(news_text: str, user_id: Optional[int] = None) -> Tuple[Optional[str], Optional[float], Optional[str]]:
     """
@@ -4510,10 +4783,10 @@ async def call_api_with_retry(news_text: str, user_id: Optional[int] = None) -> 
         provider = result.get("provider", "unknown")
         
         if not simplified_text:
-            logger.error("❌ Анализатор вернул пустой результат")
+            logger.error(f"Анализатор вернул пустой результат")
             return None, processing_time, "Пустой результат анализа"
         
-        logger.info(f"✅ Анализ завершен за {processing_time}ms ({provider})")
+        logger.info(f"Анализ завершен за {processing_time}ms ({provider})")
         
         # Инкрементируем счетчик запросов
         try:
@@ -4523,13 +4796,13 @@ async def call_api_with_retry(news_text: str, user_id: Optional[int] = None) -> 
                     increment_daily_requests(cursor, user_id)
                     conn.commit()
         except Exception as e:
-            logger.warning(f"⚠️ Ошибка при обновлении счетчика запросов: {e}")
+            logger.warning(f"Ошибка при обновлении счетчика запросов: {e}")
         
         return simplified_text, processing_time, None
         
     except Exception as e:
         error_msg = str(e)[:100]
-        logger.error(f"❌ Ошибка встроенного анализатора: {error_msg}")
+        logger.error(f"Ошибка встроенного анализатора: {error_msg}")
         return None, 0, error_msg
 
 # =============================================================================
@@ -4622,7 +4895,7 @@ async def get_user_intelligent_profile(user_id: int) -> Dict:
                 'created_at': created_at
             }
     except Exception as e:
-        logger.error(f"❌ Ошибка при получении профиля пользователя: {e}")
+        logger.error(f"Ошибка при получении профиля пользователя: {e}")
         return None
 
 
@@ -4678,7 +4951,7 @@ async def send_smart_feedback_message(
             elif update.message:
                 await update.message.reply_text(message_text, parse_mode=parse_mode)
         except Exception as e:
-            logger.warning(f"⚠️ Не удалось отправить умное сообщение: {e}")
+            logger.warning(f"Не удалось отправить умное сообщение: {e}")
 
 
 async def get_smart_next_recommendation(user_id: int) -> Optional[str]:
@@ -4716,7 +4989,7 @@ async def get_smart_next_recommendation(user_id: int) -> Optional[str]:
         
         return recommendation
     except Exception as e:
-        logger.error(f"❌ Ошибка при генерации рекомендации: {e}")
+        logger.error(f"Ошибка при генерации рекомендации: {e}")
         return None
 
 
@@ -4791,7 +5064,7 @@ XP: {user_xp}
             )
             
     except Exception as e:
-        logger.error(f"❌ Ошибка tasks_command: {e}")
+        logger.error(f"Ошибка tasks_command: {e}")
         error_text = "❌ Ошибка. Попробуй позже."
         if is_callback and query:
             await query.edit_message_text(error_text, parse_mode=ParseMode.HTML)
@@ -5234,7 +5507,7 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
         
     except Exception as e:
-        logger.error(f"❌ Ошибка в profile_command: {e}", exc_info=True)
+        logger.error(f"Ошибка в profile_command: {e}", exc_info=True)
         await update.message.reply_text("❌ Ошибка загрузки профиля")
 
 
@@ -5276,7 +5549,7 @@ async def leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
     except Exception as e:
-        logger.error(f"❌ Ошибка leaderboard_command: {e}")
+        logger.error(f"Ошибка leaderboard_command: {e}")
 
 
 # =============================================================================
@@ -5317,7 +5590,7 @@ def add_bookmark(user_id: int, bookmark_type: str, content_title: str,
             logger.info(f"📌 Закладка добавлена: {user_id} | {bookmark_type} | {content_title[:30]}")
             return True
     except Exception as e:
-        logger.error(f"❌ Ошибка добавления закладки: {e}")
+        logger.error(f"Ошибка добавления закладки: {e}")
         return False
 
 
@@ -5341,10 +5614,10 @@ def remove_bookmark(user_id: int, bookmark_id: int) -> bool:
                           (bookmark_id, user_id))
             
             conn.commit()
-            logger.info(f"🗑️ Закладка удалена: {user_id} | ID: {bookmark_id}")
+            logger.info(f"Закладка удалена: {user_id} | ID: {bookmark_id}")
             return True
     except Exception as e:
-        logger.error(f"❌ Ошибка удаления закладки: {e}")
+        logger.error(f"Ошибка удаления закладки: {e}")
         return False
 
 
@@ -5380,7 +5653,7 @@ def get_user_bookmarks(user_id: int, bookmark_type: str = None, limit: int = 10)
             
             return cursor.fetchall()
     except Exception as e:
-        logger.error(f"❌ Ошибка получения закладок: {e}")
+        logger.error(f"Ошибка получения закладок: {e}")
         return []
 
 
@@ -5400,7 +5673,7 @@ def update_bookmark_views(bookmark_id: int, user_id: int) -> bool:
             conn.commit()
             return True
     except Exception as e:
-        logger.error(f"❌ Ошибка обновления просмотров: {e}")
+        logger.error(f"Ошибка обновления просмотров: {e}")
         return False
 
 
@@ -5423,7 +5696,7 @@ def get_bookmark_count(user_id: int, bookmark_type: str = None) -> int:
             
             return cursor.fetchone()[0]
     except Exception as e:
-        logger.error(f"❌ Ошибка подсчёта закладок: {e}")
+        logger.error(f"Ошибка подсчёта закладок: {e}")
         return 0
 
 
@@ -5492,14 +5765,14 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE, p
         await query.answer()
         
     except Exception as e:
-        logger.error(f"❌ Ошибка show_leaderboard: {e}", exc_info=True)
+        logger.error(f"Ошибка show_leaderboard: {e}", exc_info=True)
         try:
             if query:
                 await query.answer("❌ Ошибка загрузки рейтинга", show_alert=True)
             else:
                 await update.message.reply_text("❌ Ошибка загрузки рейтинга")
         except:
-            logger.error(f"❌ Не удалось отправить ошибку пользователю")
+            logger.error(f"Не удалось отправить ошибку пользователю")
 
 
 @log_command
@@ -5577,7 +5850,7 @@ async def bookmarks_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         else:
             await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
     except Exception as e:
-        logger.error(f"❌ Ошибка при выводе закладок: {e}")
+        logger.error(f"Ошибка при выводе закладок: {e}")
         await query.answer("❌ Ошибка", show_alert=True) if is_callback else None
 
 
@@ -5894,7 +6167,7 @@ async def clear_history_command(update: Update, context: ContextTypes.DEFAULT_TY
             "Можешь начать новый разговор! 🚀"
         )
         
-        logger.info(f"✅ История разговора очищена для {user.username or user_id} "
+        logger.info(f"История разговора очищена для {user.username or user_id} "
                    f"(было {stats['total_messages']} сообщений)")
         
         keyboard = [[
@@ -5909,7 +6182,7 @@ async def clear_history_command(update: Update, context: ContextTypes.DEFAULT_TY
         )
         
     except Exception as e:
-        logger.error(f"❌ Ошибка при очистке истории: {e}")
+        logger.error(f"Ошибка при очистке истории: {e}")
         await update.message.reply_text(
             "❌ Произошла ошибка при очистке истории. Попробуй позже.",
             parse_mode=ParseMode.HTML
@@ -5973,7 +6246,7 @@ async def context_stats_command(update: Update, context: ContextTypes.DEFAULT_TY
         )
         
     except Exception as e:
-        logger.error(f"❌ Ошибка при получении статистики: {e}")
+        logger.error(f"Ошибка при получении статистики: {e}")
         await update.message.reply_text(
             "❌ Ошибка при получении статистики контекста.",
             parse_mode=ParseMode.HTML
@@ -6038,10 +6311,10 @@ async def admin_metrics_command(update: Update, context: ContextTypes.DEFAULT_TY
         )
         
         # Логируем
-        logger.info(f"✅ Admin dashboard viewed by {user_id}")
+        logger.info(f"Admin dashboard viewed by {user_id}")
         
     except Exception as e:
-        logger.error(f"❌ Error generating admin dashboard: {e}")
+        logger.error(f"Error generating admin dashboard: {e}")
         await update.message.reply_text(
             f"❌ <b>Ошибка при создании dashboard:</b>\n<i>{str(e)}</i>",
             parse_mode=ParseMode.HTML
@@ -6369,7 +6642,7 @@ async def learn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                     'started': row[2] is not None
                 }
     except Exception as e:
-        logger.debug(f"⚠️ Ошибка при получении прогресса курсов: {e}")
+        logger.debug(f"Ошибка при получении прогресса курсов: {e}")
     
     # Создаем кнопки для каждого курса с улучшенной информацией
     keyboard = []
@@ -7238,7 +7511,7 @@ async def ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             log_analytics_event("question_asked", user_id, {"question": question})
     
     except Exception as e:
-        logger.error(f"❌ Ошибка в /ask: {e}")
+        logger.error(f"Ошибка в /ask: {e}")
         await status_msg.edit_text(
             "❌ Не удалось найти ответ.\n\n"
             "Попробуйте переформулировать вопрос или начните курс `/learn`"
@@ -7310,7 +7583,7 @@ def check_and_award_badges(user_id: int) -> list:
                 earned_badges = set(row[0] for row in cursor.fetchall())
             except sqlite3.OperationalError:
                 # Таблица не существует - пропускаем проверку badges
-                logger.debug("⚠️ Таблица user_badges не существует, пропускаем проверку badges")
+                logger.debug(f"Таблица user_badges не существует, пропускаем проверку badges")
                 return new_badges
         
         # Проверяем каждый badge
@@ -7335,9 +7608,9 @@ def check_and_award_badges(user_id: int) -> list:
                         })
                         logger.info(f"🏅 Новый badge для {user_id}: {badge_id}")
                     except sqlite3.OperationalError:
-                        logger.debug(f"⚠️ Не удалось выдать badge {badge_id} (таблица не готова)")
+                        logger.debug(f"Не удалось выдать badge {badge_id} (таблица не готова)")
     except Exception as e:
-        logger.warning(f"⚠️ Ошибка при проверке badge'ей: {e}")
+        logger.warning(f"Ошибка при проверке badge'ей: {e}")
     
     return new_badges
 
@@ -7357,7 +7630,7 @@ def get_user_badges(user_id: int) -> list:
             for emoji, name, desc, earned_at in cursor.fetchall():
                 badges.append({'emoji': emoji, 'name': name, 'description': desc, 'earned_at': earned_at})
     except Exception as e:
-        logger.warning(f"⚠️ Ошибка при получении badge'ей: {e}")
+        logger.warning(f"Ошибка при получении badge'ей: {e}")
     
     return badges
 
@@ -7387,10 +7660,10 @@ def get_completed_topics(user_id: int) -> dict:
                     completed[topic]['last_completed'] = last_completed
             except sqlite3.OperationalError:
                 # Таблица не существует - просто возвращаем пустой dict
-                logger.debug("⚠️ Таблица teaching_lessons не существует, возвращаю пустой результат")
+                logger.debug(f"Таблица teaching_lessons не существует, возвращаю пустой результат")
                 return completed
     except Exception as e:
-        logger.warning(f"⚠️ Ошибка при получении завершённых уроков: {e}")
+        logger.warning(f"Ошибка при получении завершённых уроков: {e}")
     
     return completed
 
@@ -7482,7 +7755,7 @@ def get_recommended_lesson(user_id: int) -> dict:
         return {}
         
     except Exception as e:
-        logger.warning(f"⚠️ Ошибка при получении рекомендации: {e}")
+        logger.warning(f"Ошибка при получении рекомендации: {e}")
         return {}
 
 async def _launch_teaching_lesson(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, topic: str, difficulty: str, query=None):
@@ -7597,7 +7870,7 @@ async def _launch_teaching_lesson(update: Update, context: ContextTypes.DEFAULT_
                 """, (user_id, topic, difficulty, title, xp_reward, user_id, topic, difficulty))
                 logger.debug(f"✅ Урок отслежен: user_id={user_id}, topic={topic}, difficulty={difficulty}")
             except Exception as e:
-                logger.warning(f"⚠️ Ошибка отслеживания урока: {e}")
+                logger.warning(f"Ошибка отслеживания урока: {e}")
         
         if ENABLE_ANALYTICS:
             log_analytics_event("teaching_lesson", user_id, {
@@ -7605,7 +7878,7 @@ async def _launch_teaching_lesson(update: Update, context: ContextTypes.DEFAULT_
                 "difficulty": difficulty
             })
         
-        logger.info(f"✅ Урок создан для {user_id}: {topic} ({difficulty})")
+        logger.info(f"Урок создан для {user_id}: {topic} ({difficulty})")
         
     except asyncio.TimeoutError:
         try:
@@ -7619,7 +7892,7 @@ async def _launch_teaching_lesson(update: Update, context: ContextTypes.DEFAULT_
             else:
                 await update.message.reply_text("⏱️ Истекло время ожидания.")
     except Exception as e:
-        logger.error(f"❌ Ошибка в _launch_teaching_lesson: {e}")
+        logger.error(f"Ошибка в _launch_teaching_lesson: {e}")
         try:
             await status_msg.edit_text(
                 f"❌ Ошибка при создании урока.\n\nПопробуйте позже или выберите другую тему.",
@@ -7695,10 +7968,10 @@ async def calculator_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         
         elapsed = time.time() - start_time
-        logger.info(f"✅ Меню калькулятора показано за {elapsed:.2f}с")
+        logger.info(f"Меню калькулятора показано за {elapsed:.2f}с")
         
     except Exception as e:
-        logger.error(f"❌ Ошибка при показе меню калькулятора: {e}")
+        logger.error(f"Ошибка при показе меню калькулятора: {e}")
         await update.message.reply_text(
             "❌ Ошибка при открытии калькулятора. Попробуйте позже.",
             parse_mode=ParseMode.HTML
@@ -7783,10 +8056,10 @@ async def learn_progress_command(update: Update, context: ContextTypes.DEFAULT_T
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
         
-        logger.info(f"✅ Прогресс показан для {user_id}")
+        logger.info(f"Прогресс показан для {user_id}")
         
     except Exception as e:
-        logger.error(f"❌ Ошибка в learn_progress_command: {e}", exc_info=True)
+        logger.error(f"Ошибка в learn_progress_command: {e}", exc_info=True)
         await update.message.reply_text(
             "❌ Ошибка при загрузке прогресса. Попробуйте позже.",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Меню", callback_data="menu")]])
@@ -7906,7 +8179,7 @@ async def test_digest_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("✅ Крипто дайджест отправлен в канал!", parse_mode=ParseMode.HTML)
         
     except Exception as e:
-        logger.error(f"❌ Ошибка при тестировании дайджеста: {e}", exc_info=True)
+        logger.error(f"Ошибка при тестировании дайджеста: {e}", exc_info=True)
         await update.message.reply_text(
             f"❌ Ошибка: {str(e)}",
             parse_mode=ParseMode.HTML
@@ -8153,7 +8426,7 @@ async def post_to_channel_command(update: Update, context: ContextTypes.DEFAULT_
             f"📏 Размер: {len(post_text)} символов"
         )
         
-        logger.info(f"📢 Админ {update.effective_user.id} отправил пост в канал")
+        logger.info(f"Админ {update.effective_user.id} отправил пост в канал")
         
         # Логируем событие
         if ENABLE_ANALYTICS:
@@ -8171,12 +8444,12 @@ async def post_to_channel_command(update: Update, context: ContextTypes.DEFAULT_
         await update.message.reply_text(
             f"❌ Ошибка при отправке в канал: {e}"
         )
-        logger.error(f"❌ Ошибка отправки поста в канал: {e}")
+        logger.error(f"Ошибка отправки поста в канал: {e}")
     except Exception as e:
         await update.message.reply_text(
             f"❌ Неожиданная ошибка: {e}"
         )
-        logger.error(f"❌ Неожиданная ошибка при отправке поста: {e}")
+        logger.error(f"Неожиданная ошибка при отправке поста: {e}")
 
 
 async def notify_version_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -8222,11 +8495,11 @@ async def notify_version_command(update: Update, context: ContextTypes.DEFAULT_T
             f"📝 Изменений: {len(changelog_items)}"
         )
         
-        logger.info(f"📢 Админ {update.effective_user.id} отправил уведомление об обновлении v{version}")
+        logger.info(f"Админ {update.effective_user.id} отправил уведомление об обновлении v{version}")
         
     except Exception as e:
         await update.message.reply_text(f"❌ Ошибка: {e}")
-        logger.error(f"❌ Ошибка отправки уведомления: {e}")
+        logger.error(f"Ошибка отправки уведомления: {e}")
 
 
 async def notify_quests_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -8243,11 +8516,11 @@ async def notify_quests_command(update: Update, context: ContextTypes.DEFAULT_TY
             "✅ Уведомление о новых квестах отправлено в канал!"
         )
         
-        logger.info(f"📢 Админ {update.effective_user.id} отправил уведомление о квестах")
+        logger.info(f"Админ {update.effective_user.id} отправил уведомление о квестах")
         
     except Exception as e:
         await update.message.reply_text(f"❌ Ошибка: {e}")
-        logger.error(f"❌ Ошибка отправки уведомления о квестах: {e}")
+        logger.error(f"Ошибка отправки уведомления о квестах: {e}")
 
 
 async def notify_milestone_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -8294,11 +8567,11 @@ async def notify_milestone_command(update: Update, context: ContextTypes.DEFAULT
             f"📊 Количество: {count}"
         )
         
-        logger.info(f"📢 Админ {update.effective_user.id} отправил уведомление о вехе")
+        logger.info(f"Админ {update.effective_user.id} отправил уведомление о вехе")
         
     except Exception as e:
         await update.message.reply_text(f"❌ Ошибка: {e}")
-        logger.error(f"❌ Ошибка отправки уведомления о вехе: {e}")
+        logger.error(f"Ошибка отправки уведомления о вехе: {e}")
 
 
 # =============================================================================
@@ -8320,7 +8593,7 @@ async def drops_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             else:
                 await update.message.reply_text("❌ Превышен лимит запросов на день")
         except Exception as e:
-            logger.error(f"❌ Ошибка при проверке лимита: {e}")
+            logger.error(f"Ошибка при проверке лимита: {e}")
         return
     
     try:
@@ -8379,7 +8652,7 @@ async def drops_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     except httpx.TimeoutException:
         error_msg = "⏱️ Запрос к API занял слишком много времени. Пожалуйста, попробуйте позже."
     except Exception as e:
-        logger.error(f"❌ Ошибка в /drops: {e}")
+        logger.error(f"Ошибка в /drops: {e}")
         error_msg = "❌ Произошла внутренняя ошибка.\n\nПожалуйста, попробуйте позже."
     
     try:
@@ -8390,7 +8663,7 @@ async def drops_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             else:
                 await update.message.reply_text(error_msg, parse_mode=ParseMode.HTML)
     except Exception as e:
-        logger.error(f"❌ Ошибка при отправке ошибки: {e}")
+        logger.error(f"Ошибка при отправке ошибки: {e}")
 
 
 async def activities_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -8408,7 +8681,7 @@ async def activities_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             else:
                 await update.message.reply_text("❌ Превышен лимит запросов на день")
         except Exception as e:
-            logger.error(f"❌ Ошибка при проверке лимита: {e}")
+            logger.error(f"Ошибка при проверке лимита: {e}")
         return
     
     try:
@@ -8486,7 +8759,7 @@ async def activities_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     except httpx.TimeoutException:
         error_msg = "⏱️ Запрос к API занял слишком много времени. Пожалуйста, попробуйте позже."
     except Exception as e:
-        logger.error(f"❌ Ошибка в /activities: {e}")
+        logger.error(f"Ошибка в /activities: {e}")
         error_msg = "❌ Произошла внутренняя ошибка.\n\nПожалуйста, попробуйте позже."
     
     try:
@@ -8497,7 +8770,7 @@ async def activities_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             else:
                 await update.message.reply_text(error_msg, parse_mode=ParseMode.HTML)
     except Exception as e:
-        logger.error(f"❌ Ошибка при отправке ошибки: {e}")
+        logger.error(f"Ошибка при отправке ошибки: {e}")
 
 
 # =============================================================================
@@ -8514,11 +8787,11 @@ async def show_quiz_for_lesson(update: Update, context: ContextTypes.DEFAULT_TYP
         lesson_content = get_lesson_content(course_name, lesson_num, include_tests=True)
         
         if not lesson_content:
-            logger.error(f"❌ Урок не найден: {course_name}, lesson {lesson_num}")
+            logger.error(f"Урок не найден: {course_name}, lesson {lesson_num}")
             await query.answer("❌ Урок не найден", show_alert=True)
             return
         
-        logger.info(f"✅ Контент загружен: {len(lesson_content)} символов")
+        logger.info(f"Контент загружен: {len(lesson_content)} символов")
         
         # Извлекаем вопросы из quiz раздела
         _, quiz_text = split_lesson_content(lesson_content)
@@ -8534,13 +8807,13 @@ async def show_quiz_for_lesson(update: Update, context: ContextTypes.DEFAULT_TYP
                 full_course_content=lesson_content  # передаем полный контент
             )
         else:
-            logger.info(f"✅ Найден quiz текст, извлекаем вопросы")
+            logger.info(f"Найден quiz текст, извлекаем вопросы")
             questions = extract_quiz_from_lesson(quiz_text)
         
-        logger.info(f"✅ Найдено вопросов: {len(questions)}")
+        logger.info(f"Найдено вопросов: {len(questions)}")
         
         if not questions:
-            logger.error(f"❌ Вопросы не найдены для урока {lesson_num}")
+            logger.error(f"Вопросы не найдены для урока {lesson_num}")
             await query.answer("❌ Вопросы не найдены", show_alert=True)
             return
         
@@ -8554,13 +8827,13 @@ async def show_quiz_for_lesson(update: Update, context: ContextTypes.DEFAULT_TYP
             'correct_count': 0
         }
         
-        logger.info(f"✅ Сессия квиза создана, переходим к первому вопросу")
+        logger.info(f"Сессия квиза создана, переходим к первому вопросу")
         
         # Показываем первый вопрос
         await show_quiz_question(update, context)
     
     except Exception as e:
-        logger.error(f"❌ Ошибка в show_quiz_for_lesson: {e}", exc_info=True)
+        logger.error(f"Ошибка в show_quiz_for_lesson: {e}", exc_info=True)
         await query.answer(f"❌ Ошибка: {str(e)}", show_alert=True)
 
 
@@ -8573,7 +8846,7 @@ async def show_quiz_question(update: Update, context: ContextTypes.DEFAULT_TYPE)
         quiz_session = context.user_data.get('quiz_session')
         
         if not quiz_session:
-            logger.error("❌ Сессия квиза потеряна")
+            logger.error(f"Сессия квиза потеряна")
             await query.answer("❌ Сессия квиза потеряна", show_alert=True)
             return
         
@@ -8585,7 +8858,7 @@ async def show_quiz_question(update: Update, context: ContextTypes.DEFAULT_TYPE)
         
         if current_q_idx >= total_questions:
             # Квиз завершен
-            logger.info(f"✅ Квиз завершен, переходим к результатам")
+            logger.info(f"Квиз завершен, переходим к результатам")
             await show_quiz_results(update, context)
             return
         
@@ -8612,7 +8885,7 @@ async def show_quiz_question(update: Update, context: ContextTypes.DEFAULT_TYPE)
         # Кнопка выхода из квиза
         keyboard.append([InlineKeyboardButton("❌ Выход из теста", callback_data=f"quiz_exit_{quiz_session['course']}_{lesson_id}")])
         
-        logger.info(f"✅ Отправляем вопрос с {len(keyboard)} кнопками")
+        logger.info(f"Отправляем вопрос с {len(keyboard)} кнопками")
         
         await query.edit_message_text(
             message,
@@ -8620,10 +8893,10 @@ async def show_quiz_question(update: Update, context: ContextTypes.DEFAULT_TYPE)
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
         
-        logger.info(f"✅ Вопрос успешно отправлен")
+        logger.info(f"Вопрос успешно отправлен")
     
     except Exception as e:
-        logger.error(f"❌ Ошибка в show_quiz_question: {e}", exc_info=True)
+        logger.error(f"Ошибка в show_quiz_question: {e}", exc_info=True)
         try:
             await query.answer(f"❌ Ошибка: {str(e)}", show_alert=True)
         except:
@@ -8805,7 +9078,7 @@ async def show_quiz_results(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             else:
                 # Первое прохождение - начисляем XP
                 actual_xp_earned = xp_earned
-                logger.info(f"✅ Первое прохождение теста {lesson_num} пользователем {user.id} - начисляем {xp_earned} XP")
+                logger.info(f"Первое прохождение теста {lesson_num} пользователем {user.id} - начисляем {xp_earned} XP")
             
             # Сохраняем каждый ответ
             for resp in quiz_session['responses']:
@@ -8829,7 +9102,7 @@ async def show_quiz_results(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             conn.commit()
             
     except Exception as e:
-        logger.warning(f"⚠️ Ошибка при сохранении результатов квиза: {e}")
+        logger.warning(f"Ошибка при сохранении результатов квиза: {e}")
         message_suffix = ""
         already_completed = False
     
@@ -8913,7 +9186,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             )
             
         except Exception as e:
-            logger.error(f"❌ Ошибка в profile callback: {e}", exc_info=True)
+            logger.error(f"Ошибка в profile callback: {e}", exc_info=True)
             await query.edit_message_text("❌ Ошибка загрузки профиля")
         return
     
@@ -8958,7 +9231,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             )
             
         except Exception as e:
-            logger.error(f"❌ Ошибка в profile_all_badges: {e}", exc_info=True)
+            logger.error(f"Ошибка в profile_all_badges: {e}", exc_info=True)
             await query.answer("❌ Ошибка загрузки", show_alert=True)
         return
     
@@ -9009,7 +9282,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             )
             
         except Exception as e:
-            logger.error(f"❌ Ошибка в profile_stats: {e}", exc_info=True)
+            logger.error(f"Ошибка в profile_stats: {e}", exc_info=True)
             await query.answer("❌ Ошибка загрузки", show_alert=True)
         return
     
@@ -9039,7 +9312,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 )
                 
                 if response.status_code != 200:
-                    logger.error(f"❌ API ошибка при retry: {response.status_code}")
+                    logger.error(f"API ошибка при retry: {response.status_code}")
                     await query.answer("❌ Ошибка при повторном анализе. Попробуйте позже.", show_alert=True)
                     return
                 
@@ -9099,13 +9372,13 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 
                 await query.message.reply_text(reply_text, parse_mode=ParseMode.HTML, reply_markup=keyboard)
                 
-                logger.info(f"✅ Переанализ завершен для {user.id} - уверенность: {confidence:.0f}%")
+                logger.info(f"Переанализ завершен для {user.id} - уверенность: {confidence:.0f}%")
                 
             except httpx.TimeoutException:
-                logger.error(f"❌ Timeout при retry анализе")
+                logger.error(f"Timeout при retry анализе")
                 await query.answer("⏱️ Timeout. Попробуйте позже.", show_alert=True)
             except Exception as e:
-                logger.error(f"❌ Ошибка при retry анализе: {e}")
+                logger.error(f"Ошибка при retry анализе: {e}")
                 await query.answer("❌ Ошибка при анализе.", show_alert=True)
         
         return
@@ -9224,7 +9497,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 await handle_answer(update, context, quest_id, question_num, answer_idx)
             return
         except (ValueError, IndexError) as e:
-            logger.error(f"❌ Ошибка парсинга ответа: {e}")
+            logger.error(f"Ошибка парсинга ответа: {e}")
             await query.answer("❌ Ошибка", show_alert=True)
             return
     
@@ -9239,7 +9512,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 await show_question(update, context, quest_id, question_num)
             return
         except (ValueError, IndexError) as e:
-            logger.error(f"❌ Ошибка парсинга next_q: {e}")
+            logger.error(f"Ошибка парсинга next_q: {e}")
             await query.answer("❌ Ошибка", show_alert=True)
             return
     
@@ -9411,7 +9684,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                         row = cursor.fetchone()
                         completed_lessons = row[0] if row else 0
                 except Exception as e:
-                    logger.warning(f"⚠️ Не удалось получить прогресс из БД: {e}")
+                    logger.warning(f"Не удалось получить прогресс из БД: {e}")
                     completed_lessons = 0
                 
                 # Форматируем урок красиво с ограничением размера
@@ -9450,7 +9723,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 )
             
             except (ValueError, IndexError) as e:
-                logger.error(f"❌ Ошибка при выборе урока: {e}")
+                logger.error(f"Ошибка при выборе урока: {e}")
                 await query.answer("❌ Ошибка", show_alert=True)
         return
     
@@ -9464,7 +9737,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 lesson_num = int(all_parts[-1])
                 course_name = "_".join(all_parts[:-1])
                 
-                logger.info(f"✅ Парсинг complete_lesson callback: data={data}, course={course_name}, lesson={lesson_num}")
+                logger.info(f"Парсинг complete_lesson callback: data={data}, course={course_name}, lesson={lesson_num}")
                 
                 # Проверяем курс
                 if course_name not in COURSES_DATA:
@@ -9527,7 +9800,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                         else:
                             message = "ℹ️ Этот урок уже был завершен"
                 except Exception as db_err:
-                    logger.warning(f"⚠️ Не удалось сохранить прогресс в БД: {db_err}")
+                    logger.warning(f"Не удалось сохранить прогресс в БД: {db_err}")
                     xp_reward = course_data['total_xp'] // course_data['total_lessons']
                     message = f"✅ <b>Урок завершен!</b>\n+{xp_reward} XP (локально)"
                 
@@ -9558,7 +9831,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     )
             
             except (ValueError, IndexError) as e:
-                logger.error(f"❌ Ошибка при завершении урока: {e}")
+                logger.error(f"Ошибка при завершении урока: {e}")
                 await query.answer("❌ Ошибка", show_alert=True)
         return
     
@@ -9577,7 +9850,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 await show_quiz_for_lesson(update, context, course_name, lesson_num)
             
             except (ValueError, IndexError) as e:
-                logger.error(f"❌ Ошибка при запуске квиза: {e}")
+                logger.error(f"Ошибка при запуске квиза: {e}")
                 await query.answer("❌ Ошибка", show_alert=True)
         return
     
@@ -9595,7 +9868,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             await handle_quiz_answer(update, context, course_name, lesson_id, q_idx, answer_idx)
         
         except (ValueError, IndexError) as e:
-            logger.error(f"❌ Ошибка при обработке ответа на квиз: {e}")
+            logger.error(f"Ошибка при обработке ответа на квиз: {e}")
             await query.answer("❌ Ошибка", show_alert=True)
         return
     
@@ -9611,7 +9884,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             await show_quiz_question(update, context)
         
         except (ValueError, IndexError) as e:
-            logger.error(f"❌ Ошибка при переходе к следующему вопросу: {e}")
+            logger.error(f"Ошибка при переходе к следующему вопросу: {e}")
             await query.answer("❌ Ошибка", show_alert=True)
         return
     
@@ -9636,7 +9909,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             )
         
         except (ValueError, IndexError) as e:
-            logger.error(f"❌ Ошибка при выходе из квиза: {e}")
+            logger.error(f"Ошибка при выходе из квиза: {e}")
             await query.answer("❌ Ошибка", show_alert=True)
         return
     
@@ -9704,7 +9977,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 conn.commit()
         
         except (ValueError, IndexError) as e:
-            logger.error(f"❌ Ошибка при просмотре закладки: {e}")
+            logger.error(f"Ошибка при просмотре закладки: {e}")
             await query.answer("❌ Ошибка", show_alert=True)
         return
     
@@ -9727,7 +10000,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 await query.answer("❌ Не удалось удалить закладку", show_alert=True)
         
         except ValueError:
-            logger.error(f"❌ Ошибка при удалении закладки")
+            logger.error(f"Ошибка при удалении закладки")
             await query.answer("❌ Ошибка", show_alert=True)
         return
     
@@ -9893,7 +10166,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 with get_db() as conn:
                     cursor = conn.cursor()
                     add_xp_to_user(cursor, user.id, 5, "viewed_lesson")
-                logger.info(f"✅ Пользователь {user.id} начал урок {course} #{lesson}")
+                logger.info(f"Пользователь {user.id} начал урок {course} #{lesson}")
             else:
                 await query.edit_message_text("❌ <b>Урок не найден</b>", parse_mode=ParseMode.HTML)
         except Exception as e:
@@ -10075,14 +10348,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     reply_markup=InlineKeyboardMarkup(keyboard)
                 )
             except Exception as e:
-                logger.warning(f"⚠️ Не удалось отредактировать сообщение: {e}")
+                logger.warning(f"Не удалось отредактировать сообщение: {e}")
                 await query.message.reply_text(
                     menu_text,
                     parse_mode=ParseMode.HTML,
                     reply_markup=InlineKeyboardMarkup(keyboard)
                 )
         except Exception as e:
-            logger.error(f"❌ Ошибка в start_airdrops: {str(e)}", exc_info=True)
+            logger.error(f"Ошибка в start_airdrops: {str(e)}", exc_info=True)
             try:
                 await query.answer("❌ Ошибка при открытии гайда. Попробуйте позже.", show_alert=True)
             except:
@@ -10710,15 +10983,15 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
             
-            logger.info(f"✅ Меню калькулятора показано для пользователя {user_id}")
+            logger.info(f"Меню калькулятора показано для пользователя {user_id}")
             return
         
         except Exception as e:
-            logger.error(f"❌ Критическая ошибка в start_calculator: {type(e).__name__}: {str(e)}", exc_info=True)
+            logger.error(f"Критическая ошибка в start_calculator: {type(e).__name__}: {str(e)}", exc_info=True)
             try:
                 await query.answer("❌ Ошибка при открытии калькулятора", show_alert=True)
             except Exception as alert_err:
-                logger.error(f"❌ Не удалось отправить alert: {alert_err}")
+                logger.error(f"Не удалось отправить alert: {alert_err}")
             return
     
     # ============ CALCULATOR CALLBACKS (v0.33.0) ============
@@ -10762,7 +11035,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     reply_markup=InlineKeyboardMarkup(keyboard_calc)
                 )
             except Exception as e:
-                logger.warning(f"⚠️ Не удалось отредактировать сообщение: {e}")
+                logger.warning(f"Не удалось отредактировать сообщение: {e}")
                 await query.message.reply_text(
                     text,
                     parse_mode=ParseMode.HTML,
@@ -10771,7 +11044,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             return
         
         except Exception as e:
-            logger.error(f"❌ Ошибка в calc_token callback: {str(e)}", exc_info=True)
+            logger.error(f"Ошибка в calc_token callback: {str(e)}", exc_info=True)
             try:
                 await query.answer("❌ Произошла ошибка. Попробуйте позже.", show_alert=True)
             except:
@@ -10816,7 +11089,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     reply_markup=InlineKeyboardMarkup(keyboard)
                 )
             except Exception as e:
-                logger.warning(f"⚠️ Не удалось отредактировать сообщение в calc_menu: {e}")
+                logger.warning(f"Не удалось отредактировать сообщение в calc_menu: {e}")
                 await query.message.reply_text(
                     get_calculator_menu_text(),
                     parse_mode=ParseMode.HTML,
@@ -10825,7 +11098,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             return
         
         except Exception as e:
-            logger.error(f"❌ Ошибка в calc_menu callback: {str(e)}", exc_info=True)
+            logger.error(f"Ошибка в calc_menu callback: {str(e)}", exc_info=True)
             try:
                 await query.answer("❌ Произошла ошибка. Попробуйте позже.", show_alert=True)
             except:
@@ -10856,7 +11129,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     reply_markup=InlineKeyboardMarkup(keyboard)
                 )
             except Exception as e:
-                logger.warning(f"⚠️ Не удалось отредактировать сообщение в calc_price_table: {e}")
+                logger.warning(f"Не удалось отредактировать сообщение в calc_price_table: {e}")
                 await query.message.reply_text(
                     price_table,
                     parse_mode=ParseMode.HTML,
@@ -10867,7 +11140,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             return
         
         except Exception as e:
-            logger.error(f"❌ Ошибка в calc_price_table callback: {str(e)}", exc_info=True)
+            logger.error(f"Ошибка в calc_price_table callback: {str(e)}", exc_info=True)
             try:
                 await query.answer("❌ Произошла ошибка. Попробуйте позже.", show_alert=True)
             except:
@@ -11210,7 +11483,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             request_id = None
             action = None
     except (ValueError, IndexError):
-        logger.error(f"❌ Ошибка парсинга callback: {data}")
+        logger.error(f"Ошибка парсинга callback: {data}")
         await query.message.reply_text("❌ Ошибка обработки кнопки")
         return
     
@@ -11361,10 +11634,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 parse_mode=ParseMode.MARKDOWN
             )
 
-            logger.info(f"✅ Регенерация ({mode_name}) успешна для {user.id} (попытка {attempt})")
+            logger.info(f"Регенерация ({mode_name}) успешна для {user.id} (попытка {attempt})")
 
         except Exception as e:
-            logger.error(f"❌ Ошибка регенерации: {e}")
+            logger.error(f"Ошибка регенерации: {e}")
             await query.edit_message_text(
                 "❌ Не удалось создать новый анализ.\n\n"
                 "Попробуйте отправить новость заново."
@@ -11375,7 +11648,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if data.startswith("feedback_helpful_"):
         user_id = int(data.split("_")[-1])
         await query.answer("👍 Спасибо! Рады, что помогли!", show_alert=False)
-        logger.info(f"✅ Positive feedback на AI диалог от {user_id}")
+        logger.info(f"Positive feedback на AI диалог от {user_id}")
         
     if data.startswith("feedback_not_helpful_"):
         user_id = int(data.split("_")[-1])
@@ -11513,13 +11786,13 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 # Обновляем счетчик
                 context.user_data["clarify_count"] = clarify_count
                 
-                logger.info(f"✅ Новый факт #{clarify_count} для {user_id}: {dive_emoji}")
+                logger.info(f"Новый факт #{clarify_count} для {user_id}: {dive_emoji}")
             else:
                 await query.answer("❌ Не удалось получить информацию", show_alert=True)
-                logger.warning(f"⚠️ Не удалось получить информацию для {user_id}")
+                logger.warning(f"Не удалось получить информацию для {user_id}")
                 
         except Exception as e:
-            logger.error(f"❌ Ошибка при получении информации: {e}", exc_info=True)
+            logger.error(f"Ошибка при получении информации: {e}", exc_info=True)
             await query.answer("❌ Ошибка при получении информации", show_alert=True)
     
     # ============ TELL MORE CALLBACK - Расширенный анализ новостей (v0.32.3) ============
@@ -11536,7 +11809,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             last_original = context.user_data.get("last_news_original", "")
             
             if not last_analysis or not last_question:
-                logger.warning(f"⚠️ Контекст для tell_more не найден для {user.id}")
+                logger.warning(f"Контекст для tell_more не найден для {user.id}")
                 await query.answer("❌ Контекст анализа потерян. Отправьте новость заново.", show_alert=True)
                 return
             
@@ -11592,7 +11865,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             
             # Валидация результата
             if not expanded_analysis or expanded_analysis.strip() == "":
-                logger.error(f"❌ API вернул пустой результат для {user.id}")
+                logger.error(f"API вернул пустой результат для {user.id}")
                 await query.edit_message_text(
                     f"❌ <b>Пустой результат</b>\n\n"
                     f"<i>Сервер вернул пустой ответ. Попробуйте позже.</i>",
@@ -11644,10 +11917,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
             
-            logger.info(f"✅ Расширенный анализ показан для {user.id} по вопросу: {question_text} ({proc_time:.1f}с)")
+            logger.info(f"Расширенный анализ показан для {user.id} по вопросу: {question_text} ({proc_time:.1f}с)")
             
         except Exception as e:
-            logger.error(f"❌ Ошибка в tell_more callback: {e}", exc_info=True)
+            logger.error(f"Ошибка в tell_more callback: {e}", exc_info=True)
             try:
                 await query.edit_message_text(
                     f"❌ <b>Ошибка при подготовке анализа</b>\n\n"
@@ -11859,7 +12132,7 @@ def analyze_message_context(text: str) -> dict:
             "is_finance": has_finance,
             "is_geopolitical": has_geopolitical
         }
-        logger.info(f"✅ News pattern matched → {result}")
+        logger.info(f"News pattern matched → {result}")
         return result
     
     # ВТОРАЯ ПРОВЕРКА: Явный финансовый контекст + действие = АНАЛИЗИРОВАТЬ
@@ -11871,7 +12144,7 @@ def analyze_message_context(text: str) -> dict:
             "is_finance": True,
             "is_geopolitical": has_geopolitical
         }
-        logger.info(f"✅ Finance news (has_finance + has_action) → {result}")
+        logger.info(f"Finance news (has_finance + has_action) → {result}")
         return result
     
     # ВТОРОЙ-Б ПРОВЕРКА: Явный геополитический контекст + действие = АНАЛИЗИРОВАТЬ
@@ -11883,7 +12156,7 @@ def analyze_message_context(text: str) -> dict:
             "is_finance": has_finance,
             "is_geopolitical": True
         }
-        logger.info(f"✅ Geopolitical news (has_geopolitical + has_action) → {result}")
+        logger.info(f"Geopolitical news (has_geopolitical + has_action) → {result}")
         return result
     
     # ТРЕТЬЯ ПРОВЕРКА: Явный крипто/tech контекст + действие = АНАЛИЗИРОВАТЬ
@@ -12178,7 +12451,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                     )
                 
                 if response.status_code != 200:
-                    logger.error(f"❌ API ошибка: {response.status_code}")
+                    logger.error(f"API ошибка: {response.status_code}")
                     await update.message.reply_text("❌ Ошибка при анализе")
                     return
                 
@@ -12187,7 +12460,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 # Обработка в зависимости от типа анализа (текст или изображение)
                 if caption and caption.strip():
                     # Анализ ТЕКСТА (новость)
-                    logger.info(f"✅ Текст проанализирован")
+                    logger.info(f"Текст проанализирован")
                     
                     # Формат для текста: {"summary_text": "...", "impact_points": [...]}
                     summary = result.get("simplified_text") or result.get("summary_text", "")
@@ -12206,7 +12479,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                     
                 else:
                     # Анализ ИЗОБРАЖЕНИЯ
-                    logger.info(f"✅ Изображение проанализировано")
+                    logger.info(f"Изображение проанализировано")
                     
                     # Формат для изображения: {"analysis": "...", "asset_type": "...", "confidence": 0.X, ...}
                     analysis = result.get("analysis", "")
@@ -12269,21 +12542,21 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                         increment_daily_requests(cursor, user.id)
                         conn.commit()
                 except Exception as e:
-                    logger.warning(f"⚠️ Ошибка при обновлении счетчика запросов: {e}")
+                    logger.warning(f"Ошибка при обновлении счетчика запросов: {e}")
                 
                 # Логируем результат
                 mode = "(fallback)" if confidence < 50 else "(AI mode)"
-                logger.info(f"✅ Фото обработано для {user.id} {mode} - уверенность: {confidence:.0f}%")
+                logger.info(f"Фото обработано для {user.id} {mode} - уверенность: {confidence:.0f}%")
                 
             except httpx.TimeoutException:
-                logger.error(f"❌ Timeout при вызове API для фото")
+                logger.error(f"Timeout при вызове API для фото")
                 await update.message.reply_text("⏱️ Timeout при анализе изображения. Попробуйте позже.")
             except Exception as e:
-                logger.error(f"❌ Ошибка при вызове API: {e}")
+                logger.error(f"Ошибка при вызове API: {e}")
                 await update.message.reply_text("❌ Ошибка при анализе изображения")
     
     except Exception as e:
-        logger.error(f"❌ Ошибка обработки фото: {e}", exc_info=True)
+        logger.error(f"Ошибка обработки фото: {e}", exc_info=True)
         await update.message.reply_text("❌ Ошибка при обработке изображения")
 
 
@@ -12318,7 +12591,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     
     # ✅ CRITICAL FIX #2: Валидация входного текста
     if not update.message or not update.message.text:
-        logger.warning(f"⚠️ Empty message from user {user.id}")
+        logger.warning(f"Empty message from user {user.id}")
         return
     
     # ✅ v0.33.0: CALCULATOR PRICE INPUT HANDLER (проверяем ДО валидации основного текста)
@@ -12372,11 +12645,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             # Очищаем флаг ожидания цены
             context.user_data["waiting_for_price"] = False
             
-            logger.info(f"✅ Расчет калькулятора для {user.id}: {token_symbol} @ ${price:,.2f}")
+            logger.info(f"Расчет калькулятора для {user.id}: {token_symbol} @ ${price:,.2f}")
             return
         
         except Exception as e:
-            logger.error(f"❌ Ошибка в калькуляторе: {str(e)}", exc_info=True)
+            logger.error(f"Ошибка в калькуляторе: {str(e)}", exc_info=True)
             context.user_data["waiting_for_price"] = False
             await update.message.reply_text(
                 "❌ Произошла ошибка при расчете. Пожалуйста, попробуйте позже.\n\n"
@@ -12387,7 +12660,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # Валидация и санитизация входа
     is_valid, error_msg = validate_user_input(update.message.text)
     if not is_valid:
-        logger.warning(f"⚠️ Invalid input from {user.id}: {error_msg}")
+        logger.warning(f"Invalid input from {user.id}: {error_msg}")
         await update.message.reply_text(
             f"❌ Ошибка ввода: {error_msg}",
             parse_mode=ParseMode.HTML
@@ -12399,7 +12672,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         input_data = UserMessageInput(text=update.message.text)
         user_text = input_data.text
     except Exception as e:
-        logger.error(f"❌ Parsing error: {e}")
+        logger.error(f"Parsing error: {e}")
+        return
+    
+    # ✅ v0.39.0: IP-BASED RATE LIMITING (DDoS Protection)
+    client_ip = update.effective_user.id  # Use user_id as fallback if IP not available
+    if update.message and update.message.chat:
+        # In real Telegram bot, we'd use update.message.from_user.id as a unique identifier
+        client_ip = str(update.message.from_user.id)
+    
+    if not rate_limiter.check_rate_limit(client_ip):
+        remaining = rate_limiter.get_remaining_requests(client_ip)
+        logger.warning(f"IP rate limit exceeded for {client_ip}: {remaining} requests left")
+        await update.message.reply_text(
+            "⚠️ Слишком много запросов. Пожалуйста, подождите минуту перед следующим запросом.\n\n"
+            "<i>Это ограничение существует для защиты сервиса от злоупотреблений.</i>",
+            parse_mode=ParseMode.HTML
+        )
         return
     
     # ✅ v0.32.0: Проверка пропаганды с ВЫСОКОЙ уверенностью
@@ -12415,7 +12704,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             # ТОЛЬКО если уверенность > 70% считаем это серьезной манипуляцией
             if confidence > 0.7:
                 high_confidence_propaganda = True
-                logger.warning(f"⚠️ ВЫСОКАЯ УВЕРЕННОСТЬ пропаганда от {user.id}: {confidence*100:.0f}%")
+                logger.warning(f"ВЫСОКАЯ УВЕРЕННОСТЬ пропаганда от {user.id}: {confidence*100:.0f}%")
                 
                 # Показываем предупреждение но ПРОДОЛЖАЕМ обработку
                 warning_msg = format_propaganda_analysis(analysis)
@@ -12451,7 +12740,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     try:
         save_conversation(user.id, "user", user_text, intent)
     except Exception as e:
-        logger.warning(f"⚠️ DB save failed (non-critical): {e}")
+        logger.warning(f"DB save failed (non-critical): {e}")
     # ===================================================================
     
     # Анализируем контекст сообщения
@@ -12568,12 +12857,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 try:
                     save_conversation(user.id, "bot", ai_response, intent)
                 except Exception as e:
-                    logger.warning(f"⚠️ DB save failed (non-critical): {e}")
-                logger.info(f"✅ AI Dialogue для {user.id}: '{user_text[:40]}...' → ИИ ответ ({len(ai_response)} символов)")
+                    logger.warning(f"DB save failed (non-critical): {e}")
+                logger.info(f"AI Dialogue для {user.id}: '{user_text[:40]}...' → ИИ ответ ({len(ai_response)} символов)")
                 return
             else:
                 # Fallback - если ИИ не ответил
-                logger.warning(f"⚠️ AI dialogue failed for {user.id}, falling back")
+                logger.warning(f"AI dialogue failed for {user.id}, falling back")
                 await update.message.reply_text(
                     "Извини, сейчас я не могу ответить. Попробуй позже! 🤔",
                     parse_mode=ParseMode.HTML
@@ -12581,7 +12870,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 return
                 
         except Exception as e:
-            logger.error(f"❌ Error in AI dialogue: {type(e).__name__}: {str(e)}", exc_info=True)
+            logger.error(f"Error in AI dialogue: {type(e).__name__}: {str(e)}", exc_info=True)
             
             # Пытаемся дать простой ответ вместо ошибки
             try:
@@ -12733,7 +13022,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         
         # Проверяем успех: есть ответ И нет ошибки
         if simplified_text and not error:
-            logger.info(f"✅ API успех: {len(simplified_text)} символов за {proc_time:.0f}ms")
+            logger.info(f"API успех: {len(simplified_text)} символов за {proc_time:.0f}ms")
             
             # ⚡ LIMIT RESPONSE TO 1500 CHARS MAX - достаточно для полного анализа
             MAX_CHARS = 1500
@@ -12824,12 +13113,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 parse_mode=ParseMode.HTML
             )
             
-            logger.info(f"✅ Запрос успешно обработан для {user.id} за {proc_time:.0f}ms")
+            logger.info(f"Запрос успешно обработан для {user.id} за {proc_time:.0f}ms")
         
         else:
             # API вернул ошибку
             error_msg = error or "Неизвестная ошибка"
-            logger.error(f"❌ API ошибка для {user.id}: {error_msg}")
+            logger.error(f"API ошибка для {user.id}: {error_msg}")
             
             # Сохраняем неудачный запрос
             save_request(
@@ -12871,7 +13160,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 pass
     
     except httpx.HTTPStatusError as e:
-        logger.error(f"❌ HTTP ошибка для {user.id}: {e}")
+        logger.error(f"HTTP ошибка для {user.id}: {e}")
         await status_msg.edit_text(
             f"❌ <b>Ошибка API (HTTP {e.response.status_code})</b>\n\n"
             "AI сервис временно недоступен.\n"
@@ -12880,7 +13169,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
     
     except Exception as e:
-        logger.error(f"❌ Неожиданная ошибка для {user.id}: {e}", exc_info=True)
+        logger.error(f"Неожиданная ошибка для {user.id}: {e}", exc_info=True)
         await status_msg.edit_text(
             "❌ <b>Произошла ошибка</b>\n\n"
             "Попробуйте отправить новость заново.\n"
@@ -12903,7 +13192,7 @@ async def send_crypto_digest(context: ContextTypes.DEFAULT_TYPE):
     Отправляет в канал красивый пост с данными о крипте
     """
     if not CRYPTO_DIGEST_ENABLED:
-        logger.warning("⚠️ Crypto digest disabled - modules not available")
+        logger.warning(f"Crypto digest disabled - modules not available")
         return
     
     # ✅ v0.28.0: Используем канал из конфига или дефолт
@@ -12933,10 +13222,10 @@ async def send_crypto_digest(context: ContextTypes.DEFAULT_TYPE):
             disable_web_page_preview=True
         )
         
-        logger.info(f"✅ Крипто дайджест успешно отправлен в {CHANNEL_ID}")
+        logger.info(f"Крипто дайджест успешно отправлен в {CHANNEL_ID}")
         
     except Exception as e:
-        logger.error(f"❌ Ошибка при отправке дайджеста: {e}", exc_info=True)
+        logger.error(f"Ошибка при отправке дайджеста: {e}", exc_info=True)
 
 async def periodic_cache_cleanup(context: ContextTypes.DEFAULT_TYPE):
     """Периодическая очистка старого кэша."""
@@ -12945,7 +13234,7 @@ async def periodic_cache_cleanup(context: ContextTypes.DEFAULT_TYPE):
         try:
             cleanup_old_cache()
         except Exception as e:
-            logger.error(f"❌ Ошибка очистки кэша: {e}")
+            logger.error(f"Ошибка очистки кэша: {e}")
 
 # =============================================================================
 # BACKGROUND JOBS (v0.17.0)
@@ -12960,7 +13249,7 @@ async def update_leaderboard_cache(context: ContextTypes.DEFAULT_TYPE):
             leaderboard_data, total_users = get_leaderboard_data(period, limit=50)
             logger.info(f"   ✅ Период '{period}': {len(leaderboard_data)} пользователей")
     except Exception as e:
-        logger.error(f"❌ Ошибка обновления кэша рейтингов: {e}")
+        logger.error(f"Ошибка обновления кэша рейтингов: {e}")
 
 # =============================================================================
 # ОБРАБОТКА ОШИБОК
@@ -12971,11 +13260,11 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
     error = context.error
     
     # Логируем ошибку
-    logger.error(f"❌ Необработанная ошибка: {error}", exc_info=error)
+    logger.error(f"Необработанная ошибка: {error}", exc_info=error)
     
     # Не отправляем сообщение об ошибке для сетевых проблем
     if isinstance(error, (TelegramError, TimedOut, NetworkError)):
-        logger.warning(f"⚠️ Сетевая ошибка Telegram: {type(error).__name__}")
+        logger.warning(f"Сетевая ошибка Telegram: {type(error).__name__}")
         return  # Пропускаем отправку уведомления при сетевых ошибках
     
     # Для других ошибок пытаемся отправить уведомление
@@ -12986,7 +13275,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
                 "Пожалуйста, попробуйте позже."
             )
         except (TelegramError, TimedOut, NetworkError) as e:
-            logger.warning(f"⚠️ Не удалось отправить ошибку: {e}")
+            logger.warning(f"Не удалось отправить ошибку: {e}")
             pass  # Не можем отправить сообщение
 # =============================================================================
 # ГЛАВНАЯ ФУНКЦИЯ
@@ -13134,10 +13423,10 @@ async def bot_health_check(context: ContextTypes.DEFAULT_TYPE) -> None:
         
         # Предупреждение если высокая ошибка
         if error_rate > 20:
-            logger.warning(f"⚠️ HIGH ERROR RATE: {error_rate:.1f}%")
+            logger.warning(f"HIGH ERROR RATE: {error_rate:.1f}%")
         
     except Exception as e:
-        logger.error(f"❌ Health check failed: {e}")
+        logger.error(f"Health check failed: {e}")
 
 async def graceful_shutdown(application) -> None:
     """Graceful shutdown с закрытием всех ресурсов."""
@@ -13150,7 +13439,7 @@ async def graceful_shutdown(application) -> None:
         
         # Сохраняем финальную метрику
         bot_metrics.log_metrics_snapshot(compact=True)
-        logger.info("✅ Финальные метрики сохранены")
+        logger.info(f"Финальные метрики сохранены")
         
         # Очищаем сессии
         cleaned = await bot_state.cleanup_expired_sessions(timeout_seconds=0)
@@ -13162,12 +13451,12 @@ async def graceful_shutdown(application) -> None:
             if success:
                 logger.info(f"💾 Финальный бэкап: {msg}")
         except Exception as e:
-            logger.warning(f"⚠️ Не удалось создать финальный бэкап: {e}")
+            logger.warning(f"Не удалось создать финальный бэкап: {e}")
         
-        logger.info("✅ Graceful shutdown завершен успешно")
+        logger.info(f"Graceful shutdown завершен успешно")
         
     except Exception as e:
-        logger.error(f"❌ Ошибка во время graceful shutdown: {e}")
+        logger.error(f"Ошибка во время graceful shutdown: {e}")
 
 def main():
     """Запуск бота."""
@@ -13180,7 +13469,7 @@ def main():
     # If on Railway, warn if not in worker dyno
     if is_railway and dyno_type:
         if dyno_type != "worker":
-            logger.warning(f"⚠️ Running on {dyno_type} dyno (should be 'worker')")
+            logger.warning(f"Running on {dyno_type} dyno (should be 'worker')")
             logger.warning(f"   If you see 'Conflict: terminated by other getUpdates', check Procfile")
             logger.warning(f"   Required: web: python api_server.py")
             logger.warning(f"   Required: worker: python bot.py")
@@ -13198,11 +13487,11 @@ def main():
     
     # Проверка обязательных переменных
     if not TELEGRAM_BOT_TOKEN:
-        logger.critical("❌ TELEGRAM_BOT_TOKEN не найден в .env!")
+        logger.critical(f"TELEGRAM_BOT_TOKEN не найден в .env!")
         return
     
     if not API_URL_NEWS:
-        logger.critical("❌ API_URL_NEWS не найден в .env!")
+        logger.critical(f"API_URL_NEWS не найден в .env!")
         return
     
     # ✅ v0.25.0: Initialize core systems
@@ -13231,6 +13520,21 @@ def main():
     # Затем применяем миграции (после того как таблицы существуют)
     migrate_database()  # ✅ v0.37.0: Миграция новых таблиц
     
+    # ✅ v0.39.0: Verify database schema integrity
+    schema_check = verify_database_schema()
+    if not schema_check['valid']:
+        logger.warning(
+            f"Database schema incomplete. Missing tables: {schema_check['missing_tables']}"
+            f"\nAttempting to reinitialize..."
+        )
+        init_database()
+        schema_check = verify_database_schema()
+        if not schema_check['valid']:
+            logger.error(
+                f"Critical: Database schema still invalid after reinitialization!"
+                f"\nMissing: {schema_check['missing_tables']}"
+            )
+    
     # � Создаем критические индексы (QUICK WIN v0.38.0)
     create_database_indices()  # ✅ v0.38.0: Database indices for performance
     
@@ -13243,7 +13547,7 @@ def main():
         asyncio.run(create_database_backup())
         asyncio.run(cleanup_old_backups())
     except Exception as e:
-        logger.warning(f"⚠️ Не удалось создать бэкап при старте: {e}")
+        logger.warning(f"Не удалось создать бэкап при старте: {e}")
     
     logger.info("=" * 70)
     logger.info("🚀 RVX Telegram Bot v0.7.0 запускается...")
@@ -13318,7 +13622,7 @@ def main():
                     conn.commit()
                         
         except Exception as e:
-            logger.error(f"❌ Ошибка при получении дропов: {e}")
+            logger.error(f"Ошибка при получении дропов: {e}")
             await status_msg.edit_text(f"❌ Ошибка при загрузке дропов: {str(e)[:100]}")
     
     async def activities_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -13372,7 +13676,7 @@ def main():
                 await status_msg.edit_text(text, parse_mode=ParseMode.HTML)
                 
         except Exception as e:
-            logger.error(f"❌ Ошибка при получении активностей: {e}")
+            logger.error(f"Ошибка при получении активностей: {e}")
             await status_msg.edit_text(f"❌ Ошибка: {str(e)[:100]}")
     
     async def trending_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -13409,7 +13713,7 @@ def main():
                 await status_msg.edit_text(text, parse_mode=ParseMode.HTML)
                 
         except Exception as e:
-            logger.error(f"❌ Ошибка при получении трендов: {e}")
+            logger.error(f"Ошибка при получении трендов: {e}")
             await status_msg.edit_text(f"❌ Ошибка: {str(e)[:100]}")
     
     async def subscribe_drops_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -13474,7 +13778,7 @@ def main():
             await update.message.reply_text(text, parse_mode=ParseMode.HTML)
             
         except Exception as e:
-            logger.error(f"❌ Ошибка при получении подписок: {e}")
+            logger.error(f"Ошибка при получении подписок: {e}")
             await update.message.reply_text("❌ Ошибка при получении подписок")
     
     # ================================================================
@@ -13543,9 +13847,9 @@ def main():
                 BotCommand("clear_history", "🗑️ Очистить контекст разговора"),
                 BotCommand("context_stats", "📊 Статистика контекста"),
             ])
-            logger.info("✅ Список команд установлен в Telegram")
+            logger.info(f"Список команд установлен в Telegram")
         except Exception as e:
-            logger.error(f"❌ Ошибка при установке команд: {e}")
+            logger.error(f"Ошибка при установке команд: {e}")
     
     # ═══════════════════════════════════════════════════════════════════════════════
     # КОМАНДЫ АНАЛИЗА МАНИПУЛЯЦИЙ И ПРОПАГАНДЫ (v0.32.0)
@@ -13726,7 +14030,7 @@ def main():
             interval=21600,  # 6 часов
             first=10  # Первый запуск через 10 секунд
         )
-        logger.info("✅ Автоматическая очистка кэша настроена (каждые 6ч)")
+        logger.info(f"Автоматическая очистка кэша настроена (каждые 6ч)")
     
     # Периодическая очистка истекших сессий каждый час (v0.24.0)
     job_queue.run_repeating(
@@ -13734,7 +14038,7 @@ def main():
         interval=3600,  # 1 час
         first=60  # Первый запуск через 60 секунд
     )
-    logger.info("✅ Периодическая очистка сессий настроена (каждый час)")
+    logger.info(f"Периодическая очистка сессий настроена (каждый час)")
     
     # Периодический снимок метрик каждые 6 часов (v0.24.0)
     job_queue.run_repeating(
@@ -13742,7 +14046,7 @@ def main():
         interval=21600,  # 6 часов
         first=120  # Первый запуск через 2 минуты
     )
-    logger.info("✅ Периодическое логирование метрик настроено (каждые 6 часов)")
+    logger.info(f"Периодическое логирование метрик настроено (каждые 6 часов)")
     
     # Обновление кэша рейтингов каждый час (v0.17.0)
     job_queue.run_repeating(
@@ -13750,7 +14054,7 @@ def main():
         interval=3600,  # 1 час
         first=30  # Первый запуск через 30 секунд
     )
-    logger.info("✅ Обновление рейтингов настроено (каждый час)")
+    logger.info(f"Обновление рейтингов настроено (каждый час)")
     
     # Health check каждые 5 минут (v0.21.0 - Production Ready)
     job_queue.run_repeating(
@@ -13833,20 +14137,20 @@ def main():
             try:
                 loop.run_until_complete(application.stop())
             except Exception as stop_error:
-                logger.warning(f"⚠️ Error during graceful stop: {stop_error}")
+                logger.warning(f"Error during graceful stop: {stop_error}")
             # Kill current process to restart fresh (Railway will restart)
             print("💥 Terminating process...")
             os.kill(os.getpid(), 9)
         except RuntimeError as e:
             if "Event loop" in str(e):
                 # Event loop crashed - restart needed
-                logger.error(f"❌ Event loop crashed: {e}")
+                logger.error(f"Event loop crashed: {e}")
                 logger.error("💥 Restarting process...")
                 os.kill(os.getpid(), 9)
             else:
                 raise
         except Exception as e:
-            logger.error(f"❌ Polling error: {e}", exc_info=True)
+            logger.error(f"Polling error: {e}", exc_info=True)
             raise
         finally:
             # ✅ v0.28.0: Stop daily digest scheduler
@@ -13855,9 +14159,9 @@ def main():
                     async def shutdown_scheduler():
                         await stop_digest_scheduler()
                     loop.run_until_complete(shutdown_scheduler())
-                    logger.info("✅ Daily digest scheduler stopped")
+                    logger.info(f"Daily digest scheduler stopped")
             except Exception as e:
-                logger.debug(f"⚠️ Error stopping digest scheduler: {e}")
+                logger.debug(f"Error stopping digest scheduler: {e}")
             
             # Clean shutdown - don't close loop to prevent "Event loop is closed" error
             try:
@@ -13869,12 +14173,12 @@ def main():
                     # Give time for cancellation
                     loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
             except Exception as e:
-                logger.debug(f"⚠️ Error during task cleanup: {e}")
+                logger.debug(f"Error during task cleanup: {e}")
             # Don't close the loop - let Python handle it
     except KeyboardInterrupt:
         logger.info("👋 Бот остановлен пользователем")
     except Exception as e:
-        logger.critical(f"❌ КРИТИЧЕСКАЯ ОШИБКА: {e}", exc_info=True)
+        logger.critical(f"КРИТИЧЕСКАЯ ОШИБКА: {e}", exc_info=True)
 
 if __name__ == "__main__":
     main()
