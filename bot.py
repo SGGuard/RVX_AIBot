@@ -8609,8 +8609,33 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     # Запуск теста (показать первый вопрос)
     if data.startswith("start_test_"):
-        quest_id = data.replace("start_test_", "")
-        if quest_id in DAILY_QUESTS:
+        topic = data.replace("start_test_", "")
+        # Проверяем что это валидная тема обучения
+        if topic in TEACHING_TOPICS:
+            # Ищем тест по этой теме в DAILY_QUESTS или запускаем генерацию теста
+            matching_quests = [qid for qid in DAILY_QUESTS if topic in qid.lower()]
+            if matching_quests:
+                # Есть готовый тест для этой темы
+                await start_test(update, context, matching_quests[0])
+            else:
+                # Генерируем рекомендацию пройти тест позже или через меню
+                try:
+                    await query.edit_message_text(
+                        f"📝 <b>Тесты по теме '{TEACHING_TOPICS.get(topic, {}).get('name', topic)}'</b>\n\n"
+                        "Тесты генерируются автоматически на основе ежедневных заданий.\n"
+                        "Используй кнопку '🎯 Ежедневные задачи' в главном меню для прохождения тестов!",
+                        parse_mode=ParseMode.HTML,
+                        reply_markup=InlineKeyboardMarkup([
+                            [InlineKeyboardButton("🎯 Ежедневные задачи", callback_data="start_quests")],
+                            [InlineKeyboardButton("⬅️ Назад", callback_data=f"teach_question_{topic}")]
+                        ])
+                    )
+                except:
+                    pass
+            return
+        # Fallback: ищем как quest_id (для совместимости)
+        elif data.replace("start_test_", "") in DAILY_QUESTS:
+            quest_id = data.replace("start_test_", "")
             await start_test(update, context, quest_id)
             return
     
