@@ -10447,10 +10447,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await query.answer("✅ Отлично! Вы получили +50 XP!", show_alert=False)
         
         # 🆕 v0.37.0: Проверяем и выдаём новые badge'и
-        new_badges = check_and_award_badges(user_id)
+        new_badges = check_and_award_badges(user.id)
         
         # 🆕 v0.37.0: Показываем рекомендацию следующего урока
-        recommended = get_recommended_lesson(user_id)
+        recommended = get_recommended_lesson(user.id)
         
         if recommended:
             recommendation_text = (
