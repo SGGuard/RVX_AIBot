@@ -6880,8 +6880,13 @@ def check_and_award_badges(user_id: int) -> list:
         # Получаем уже выданные badge'и пользователю
         with get_db() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT badge_id FROM user_badges WHERE user_id = ?", (user_id,))
-            earned_badges = set(row[0] for row in cursor.fetchall())
+            try:
+                cursor.execute("SELECT badge_id FROM user_badges WHERE user_id = ?", (user_id,))
+                earned_badges = set(row[0] for row in cursor.fetchall())
+            except sqlite3.OperationalError:
+                # Таблица не существует - пропускаем проверку badges
+                logger.debug("⚠️ Таблица user_badges не существует, пропускаем проверку badges")
+                return new_badges
         
         # Проверяем каждый badge
         for badge_id, badge_info in ACHIEVEMENT_BADGES.items():
@@ -6889,20 +6894,23 @@ def check_and_award_badges(user_id: int) -> list:
                 # Проверяем условие badge'а
                 if badge_info['condition'](completed, user_xp):
                     # Выдаём новый badge
-                    with get_db() as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("""
-                            INSERT INTO user_badges (user_id, badge_id, badge_name, badge_emoji, badge_description, condition_met)
-                            VALUES (?, ?, ?, ?, ?, ?)
-                        """, (user_id, badge_id, badge_info['name'], badge_info['emoji'], badge_info['description'], 'auto_detected'))
-                    
-                    new_badges.append({
-                        'badge_id': badge_id,
-                        'name': badge_info['name'],
-                        'emoji': badge_info['emoji'],
-                        'description': badge_info['description']
-                    })
-                    logger.info(f"🏅 Новый badge для {user_id}: {badge_id}")
+                    try:
+                        with get_db() as conn:
+                            cursor = conn.cursor()
+                            cursor.execute("""
+                                INSERT INTO user_badges (user_id, badge_id, badge_name, badge_emoji, badge_description, condition_met)
+                                VALUES (?, ?, ?, ?, ?, ?)
+                            """, (user_id, badge_id, badge_info['name'], badge_info['emoji'], badge_info['description'], 'auto_detected'))
+                        
+                        new_badges.append({
+                            'badge_id': badge_id,
+                            'name': badge_info['name'],
+                            'emoji': badge_info['emoji'],
+                            'description': badge_info['description']
+                        })
+                        logger.info(f"🏅 Новый badge для {user_id}: {badge_id}")
+                    except sqlite3.OperationalError:
+                        logger.debug(f"⚠️ Не удалось выдать badge {badge_id} (таблица не готова)")
     except Exception as e:
         logger.warning(f"⚠️ Ошибка при проверке badge'ей: {e}")
     
@@ -6938,19 +6946,24 @@ def get_completed_topics(user_id: int) -> dict:
     try:
         with get_db() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT topic, difficulty, COUNT(*) as count, MAX(completed_at) as last_completed
-                FROM teaching_lessons
-                WHERE user_id = ? AND quiz_passed = 1
-                GROUP BY topic, difficulty
-            """, (user_id,))
-            
-            for topic, difficulty, count, last_completed in cursor.fetchall():
-                if topic not in completed:
-                    completed[topic] = {'difficulties': [], 'completed_count': 0, 'last_completed': None}
-                completed[topic]['difficulties'].append(difficulty)
-                completed[topic]['completed_count'] += count
-                completed[topic]['last_completed'] = last_completed
+            try:
+                cursor.execute("""
+                    SELECT topic, difficulty, COUNT(*) as count, MAX(completed_at) as last_completed
+                    FROM teaching_lessons
+                    WHERE user_id = ? AND quiz_passed = 1
+                    GROUP BY topic, difficulty
+                """, (user_id,))
+                
+                for topic, difficulty, count, last_completed in cursor.fetchall():
+                    if topic not in completed:
+                        completed[topic] = {'difficulties': [], 'completed_count': 0, 'last_completed': None}
+                    completed[topic]['difficulties'].append(difficulty)
+                    completed[topic]['completed_count'] += count
+                    completed[topic]['last_completed'] = last_completed
+            except sqlite3.OperationalError:
+                # Таблица не существует - просто возвращаем пустой dict
+                logger.debug("⚠️ Таблица teaching_lessons не существует, возвращаю пустой результат")
+                return completed
     except Exception as e:
         logger.warning(f"⚠️ Ошибка при получении завершённых уроков: {e}")
     
@@ -12523,6 +12536,7 @@ def main():
     
     # 🔧 Применяем миграции ПЕРЕД инициализацией БД (это критично!)
     ensure_conversation_history_columns()
+    migrate_database()  # ✅ v0.37.0: Миграция новых таблиц
     
     # Инициализация БД
     init_database()
