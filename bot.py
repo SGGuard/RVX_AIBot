@@ -8380,10 +8380,9 @@ async def show_quiz_results(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (user.id, lesson_num, total_questions, correct_count, score_percentage, xp_earned, is_perfect))
             
-            conn.commit()
-            
             # Добавляем XP пользователю
             add_xp_to_user(cursor, user.id, xp_earned)
+            
             conn.commit()
             
     except Exception as e:
