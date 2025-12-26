@@ -6264,10 +6264,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     
     # Получаем информацию о лимитах
     can_request, remaining = check_daily_limit(user_id)
+    
+    # Определяем настоящее значение remaining для admin
     if user_id in ADMIN_USERS:
-        limits_text = f"⚡ <b>Твой лимит:</b> <i>БЕЗЛИМИТНЫЙ (Admin)</i>"
-    else:
-        limits_text = f"⚡ <b>Твой лимит:</b> <i>{remaining}/{MAX_REQUESTS_PER_DAY} запросов</i>"
+        remaining = MAX_REQUESTS_PER_DAY  # Admin имеет полный лимит
     
     # Получаем ежедневные задачи для уровня пользователя (NEW v0.21.0)
     user_quest_level = get_user_level(user_xp)
@@ -6297,47 +6297,79 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             quests_preview += "\n💡 Начни с первой задачи!"
         quests_preview += "\n"
     
+    welcome_text = ""
+    
+    # Получаем все текстовые строки с локализацией
+    title = await get_text("start.title", user_id)
+    subtitle = await get_text("start.subtitle", user_id)
+    greeting = await get_text("start.greeting", user_id, greeting=adaptive_greeting)
+    path_header = await get_text("start.path_header", user_id)
+    feature_analyze = await get_text("start.feature_analyze", user_id)
+    feature_learn = await get_text("start.feature_learn", user_id)
+    feature_tasks = await get_text("start.feature_tasks", user_id)
+    feature_leaderboard = await get_text("start.feature_leaderboard", user_id)
+    profile_header = await get_text("start.profile_header", user_id)
+    limits_text = await get_text("start.limits", user_id, remaining=remaining, max_requests=MAX_REQUESTS_PER_DAY)
+    level_text = await get_text("start.level", user_id, level=level_name, xp=user_xp)
+    progress_text = await get_text("start.progress", user_id, courses=courses_completed, tests=tests_passed)
+    benefits_header = await get_text("start.benefits_header", user_id)
+    benefit_1 = await get_text("start.benefit_1", user_id)
+    benefit_2 = await get_text("start.benefit_2", user_id)
+    benefit_3 = await get_text("start.benefit_3", user_id)
+    benefit_4 = await get_text("start.benefit_4", user_id)
+    benefit_5 = await get_text("start.benefit_5", user_id)
+    cta_header = await get_text("start.cta_header", user_id)
+    cta_text = await get_text("start.cta_text", user_id)
+    cta_help = await get_text("start.cta_help", user_id)
+    bonus = await get_text("start.bonus", user_id, channel_link=MANDATORY_CHANNEL_LINK) if MANDATORY_CHANNEL_ID else None
+    
+    # Формируем основной текст приветствия
     welcome_text = (
-        f"🚀 <b>RVX AI - Твой эксперт в крипто и Web3</b>\n"
-        f"<i>Анализ • Обучение • Стратегия</i>\n\n"
-        
-        f"👋 {adaptive_greeting}\n\n"
-        
-        f"<b>✨ Твой путь начинается здесь:</b>\n\n"
-        
-        f"🧠 <b>Анализ новостей</b>\n"
-        f"   Получай умный анализ крипто новостей за 10 сек\n\n"
-        
-        f"📚 <b>Обучение (50+ уроков)</b>\n"
-        f"   От новичка до эксперта • Все о блокчейне и Web3\n\n"
-        
-        f"🎯 <b>Ежедневные задачи</b>\n"
-        f"   Заработай до 200 XP/день и поднимайся в лидерборде\n\n"
-        
-        f"🏆 <b>Лидерборд и награды</b>\n"
-        f"   Топ пользователи получают эксклюзивные бенефиты\n\n"
-        
+        f"{title}\n"
+        f"{subtitle}\n\n"
+        f"{greeting}\n\n"
+        f"{path_header}\n\n"
+        f"{feature_analyze}\n\n"
+        f"{feature_learn}\n\n"
+        f"{feature_tasks}\n\n"
+        f"{feature_leaderboard}\n\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"<b>📊 Твой профиль:</b>\n"
-        f"{limits_text}"
-        f"📈 Уровень: <code>{level_name}</code> | XP: <code>{user_xp}</code>\n"
-        f"🎓 Прогресс: <code>{courses_completed}/3 курсов</code> | <code>{tests_passed} тестов</code>\n"
+        f"{profile_header}\n"
+        f"{limits_text}\n"
+        f"{level_text}\n"
+        f"{progress_text}\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        
-        f"<b>🎁 Что тебя ждёт:</b>\n"
-        f"✅ Бесплатное обучение от А до Я\n"
-        f"✅ Интерактивные задачи с наградами\n"
-        f"✅ Рейтинговая система с топ-10 лидерборде\n"
-        f"✅ Анализ любых крипто новостей за секунды\n"
-        f"✅ Защита от манипуляций и фейков\n\n"
-        
-        f"<b>⚡ Начни прямо сейчас!</b>\n"
-        f"Выбери действие ниже и погрузись в мир крипто 👇\n\n"
-        f"<i>Или просто отправь мне вопрос или новость, которую хочешь обсудить — я помогу! 💬</i>\n"
+        f"{benefits_header}\n"
+        f"{benefit_1}\n"
+        f"{benefit_2}\n"
+        f"{benefit_3}\n"
+        f"{benefit_4}\n"
+        f"{benefit_5}\n\n"
+        f"{cta_header}\n"
+        f"{cta_text}\n\n"
+        f"{cta_help}\n"
     )
     
-    if MANDATORY_CHANNEL_ID:
-        welcome_text += f"\n📢 <b>Бонус:</b> Подпишись на канал для эксклюзивного контента → {MANDATORY_CHANNEL_LINK}\n"
+    # Добавляем квесты если есть
+    if daily_quests:
+        completed_count = len(completed_quests)
+        quests_header = await get_text("start.quests_header", user_id, completed=completed_count, total=5)
+        welcome_text += f"\n{quests_header}\n"
+        for idx, quest in enumerate(daily_quests[:3], 1):
+            quest_completed = "✅" if str(quest.get('id', '')) in completed_quests else "⭕"
+            welcome_text += f"{quest_completed} {idx}. {quest['title']} <b>({quest['xp']} XP)</b>\n"
+        
+        if completed_count > 0:
+            earnings = await get_text("start.quest_earnings", user_id, xp=daily_xp_earned)
+            welcome_text += f"\n{earnings}"
+        else:
+            hint = await get_text("start.quest_start_hint", user_id)
+            welcome_text += f"\n{hint}"
+        welcome_text += "\n"
+    
+    # Добавляем бонус если канал настроен
+    if bonus:
+        welcome_text += f"\n{bonus}\n"
     
     # Интерактивные кнопки основных функций (v0.26.0 красивый дизайн)
     teach_btn = await get_text("menu.teach", user_id)
@@ -13426,11 +13458,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     ai_response = ai_response + "\n\n👤 Администратор проекта: @SV4096"
                 
                 # Добавляем структурированное форматирование с HTML разметкой
+                header = await get_text("ai_response.header", user_id)
+                divider = await get_text("ai_response.divider", user_id)
+                footer = await get_text("ai_response.footer", user_id)
+                
                 formatted_response = (
-                    "<b>🤖 RVX ОТВЕТ</b>\n"
-                    "━━━━━━━━━━━━━━━━━━━━━\n\n"
+                    f"{header}\n"
+                    f"{divider}\n\n"
                     f"{ai_response}\n\n"
-                    "<i>✨ Просто и без воды • Нажми 'Что еще?' для деталей</i>"
+                    f"{footer}"
                 )
                 
                 # Сохраняем последний вопрос для кнопки "Уточнить"
@@ -13457,7 +13493,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 
                 if honesty_analysis["confidence"] < 0.6:
                     # Low confidence - add warning AT THE BEGINNING
-                    final_response = f"⚠️ <i>Уверенность ИИ в этом ответе средняя. Пожалуйста, проверьте информацию самостоятельно.</i>\n\n{formatted_response}"
+                    low_conf_msg = await get_text("ai_response.low_confidence", user_id)
+                    final_response = f"{low_conf_msg}\n\n{formatted_response}"
                 
                 # ✅ CRITICAL FIX: Split long responses to stay under 4096 char limit
                 response_chunks = split_message(final_response, chunk_size=4090)
@@ -13680,7 +13717,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             follow_up = random.choice(follow_up_questions)
             
             # Просто отправляем ответ от API как есть (он уже полностью отформатирован)
-            full_response = f"<b>📰 RVX АНАЛИЗ</b>\n\n{simplified_text}\n\n<i>{follow_up}</i>"
+            analysis_header = await get_text("ai_response.analysis_header", user_id)
+            footer_text = await get_text("ai_response.follow_up_footer", user_id, follow_up=follow_up)
+            full_response = f"{analysis_header}\n\n{simplified_text}\n\n{footer_text}"
             
             # Сохраняем в контекст для закладок
             context.user_data["last_content"] = {
