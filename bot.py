@@ -346,7 +346,7 @@ def require_auth(required_level: AuthLevel) -> Callable:
 
 # Обязательная подписка на канал
 MANDATORY_CHANNEL_ID = -1001228919683  # Канал для обязательной подписки (преобразовано из 3228919683)
-MANDATORY_CHANNEL_LINK = os.getenv("MANDATORY_CHANNEL_LINK", "https://t.me/+Hq8Fp0TnJQE0NWEy")  # Ссылка на канал для подписки
+MANDATORY_CHANNEL_LINK = os.getenv("MANDATORY_CHANNEL_LINK", "https://t.me/RVX_AI")  # Ссылка на канал для подписки
 
 # =============================================================================
 # CHANNEL SUBSCRIPTION CHECK (v0.42.1 Mandatory Subscription)
