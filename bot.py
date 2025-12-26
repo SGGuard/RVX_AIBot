@@ -10803,6 +10803,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     # Меню выбора тем обучения
     if data == "teach_menu":
+        user_id = query.from_user.id
         keyboard = []
         topics_list = list(TEACHING_TOPICS.keys())
         
@@ -10818,13 +10819,17 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 keyboard.append(row)
         
         # Добавляем персонализированную кнопку "Рекомендованное обучение"
-        keyboard.insert(0, [InlineKeyboardButton("✨ Рекомендованное для вас", callback_data="teach_recommended")])
-        keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")])
+        recommended_text = await get_text("teach.recommended", user_id)
+        back_text = await get_text("teach.back", user_id)
+        menu_header = await get_text("teach.menu_header", user_id)
+        menu_prompt = await get_text("teach.menu_prompt", user_id)
+        
+        keyboard.insert(0, [InlineKeyboardButton(recommended_text, callback_data="teach_recommended")])
+        keyboard.append([InlineKeyboardButton(back_text, callback_data="back_to_start")])
         
         try:
             await query.edit_message_text(
-                "🎓 <b>ИНТЕРАКТИВНЫЙ УЧИТЕЛЬ</b>\n\n"
-                "Выберите тему для обучения:",
+                f"{menu_header}\n\n{menu_prompt}",
                 parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
@@ -10837,21 +10842,28 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # Начало обучения аирдропам
     if data == "start_airdrops":
         try:
+            user_id = query.from_user.id
+            
+            # Получаем все тексты кнопок и заголовка
+            lesson1_btn = await get_text("airdrops.lesson1_button", user_id)
+            lesson2_btn = await get_text("airdrops.lesson2_button", user_id)
+            lesson3_btn = await get_text("airdrops.lesson3_button", user_id)
+            lesson4_btn = await get_text("airdrops.lesson4_button", user_id)
+            back_btn = await get_text("teach.back", user_id)
+            
             keyboard = [
-                [InlineKeyboardButton("📖 Что такое аирдроп?", callback_data="airdrops_lesson_1")],
-                [InlineKeyboardButton("🎯 Как участвовать?", callback_data="airdrops_lesson_2")],
-                [InlineKeyboardButton("📋 Что нужно знать?", callback_data="airdrops_lesson_3")],
-                [InlineKeyboardButton("⚠️ Риски и безопасность", callback_data="airdrops_lesson_4")],
-                [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
+                [InlineKeyboardButton(lesson1_btn, callback_data="airdrops_lesson_1")],
+                [InlineKeyboardButton(lesson2_btn, callback_data="airdrops_lesson_2")],
+                [InlineKeyboardButton(lesson3_btn, callback_data="airdrops_lesson_3")],
+                [InlineKeyboardButton(lesson4_btn, callback_data="airdrops_lesson_4")],
+                [InlineKeyboardButton(back_btn, callback_data="back_to_start")]
             ]
             
-            menu_text = (
-                "🎯 <b>ПОЛНЫЙ ГАЙД ПО АИРДРОПХАНТИНГУ</b>\n\n"
-                "Хочешь понять что такое аирдроп и как получить бесплатные крипто?\n\n"
-                "Выбери тему для изучения:\n\n"
-                "🚀 Этот гайд проведет тебя от нуля до профессионала за 5 минут!\n"
-                "Каждый урок содержит реальные примеры и полезные советы."
-            )
+            menu_title = await get_text("airdrops.menu_title", user_id)
+            menu_intro = await get_text("airdrops.menu_intro", user_id)
+            menu_footer = await get_text("airdrops.menu_footer", user_id)
+            
+            menu_text = f"{menu_title}\n\n{menu_intro}{menu_footer}"
             
             try:
                 await query.edit_message_text(
@@ -10869,40 +10881,30 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         except Exception as e:
             logger.error(f"Ошибка в start_airdrops: {str(e)}", exc_info=True)
             try:
-                await query.answer("❌ Ошибка при открытии гайда. Попробуйте позже.", show_alert=True)
+                error_msg = await get_text("error.guide_open", query.from_user.id)
+                await query.answer(error_msg, show_alert=True)
             except:
                 pass
         return
     
     # Урок 1: Что такое аирдроп
     if data == "airdrops_lesson_1":
+        user_id = query.from_user.id
+        
+        next_btn = await get_text("airdrops.lesson1_next", user_id)
+        back_btn = await get_text("teach.back", user_id)
+        
         keyboard = [
-            [InlineKeyboardButton("✅ Понял!", callback_data="airdrops_lesson_2")],
-            [InlineKeyboardButton("⬅️ Назад", callback_data="start_airdrops")]
+            [InlineKeyboardButton(next_btn, callback_data="airdrops_lesson_2")],
+            [InlineKeyboardButton(back_btn, callback_data="start_airdrops")]
         ]
         
         try:
+            title = await get_text("airdrops.lesson1_title", user_id)
+            content = await get_text("airdrops.lesson1_content", user_id)
+            
             await query.edit_message_text(
-                "📦 <b>УРОК 1: ЧТО ТАКОЕ АИРДРОП?</b>\n\n"
-                "<b>Определение:</b>\n"
-                "Аирдроп - это бесплатное распределение криптовалютных токенов проектом для популяризации.\n\n"
-                
-                "<b>🤔 Простым языком:</b>\n"
-                "Представь, что компания выпускает новую монету и раздает образцы людям, чтобы они ее попробовали. "
-                "Так же работают аирдропы - проекты дарят токены бесплатно!\n\n"
-                
-                "<b>💰 Почему они это делают?</b>\n"
-                "• Привлечение внимания к проекту\n"
-                "• Увеличение числа пользователей\n"
-                "• Создание сообщества\n"
-                "• Распределение токенов справедливо\n\n"
-                
-                "<b>📊 Реальный пример:</b>\n"
-                "Проект Uniswap раздал 400 токенов каждому пользователю, кто использовал платформу до определенной даты. "
-                "Это стоило компании миллионы, но привлекло миллионы людей!\n\n"
-                
-                "<b>⚡ Ключевой момент:</b>\n"
-                "Не все аирдропы одинаковые. Некоторые стоят много, некоторые мало, а некоторые - это мошенничество!",
+                f"{title}\n\n{content}",
                 parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
@@ -10912,43 +10914,22 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     # Урок 2: Как участвовать
     if data == "airdrops_lesson_2":
+        user_id = query.from_user.id
+        
+        next_btn = await get_text("airdrops.lesson2_next", user_id)
+        back_btn = await get_text("teach.back", user_id)
+        
         keyboard = [
-            [InlineKeyboardButton("✅ Готово!", callback_data="airdrops_lesson_3")],
-            [InlineKeyboardButton("⬅️ Назад", callback_data="start_airdrops")]
+            [InlineKeyboardButton(next_btn, callback_data="airdrops_lesson_3")],
+            [InlineKeyboardButton(back_btn, callback_data="start_airdrops")]
         ]
         
         try:
+            title = await get_text("airdrops.lesson2_title", user_id)
+            content = await get_text("airdrops.lesson2_content", user_id)
+            
             await query.edit_message_text(
-                "🎯 <b>УРОК 2: КАК УЧАСТВОВАТЬ В АИРДРОПЕ?</b>\n\n"
-                "<b>Типичные шаги:</b>\n\n"
-                
-                "<b>1️⃣ Узнай о аирдропе</b>\n"
-                "• Подпишись на крипто-комьюнити\n"
-                "• Следи за аирдроп-сайтами (CoinMarketCap, DefiLlama)\n"
-                "• Читай криптовалютные новости\n\n"
-                
-                "<b>2️⃣ Прочитай условия</b>\n"
-                "⚠️ ВАЖНО! Перед участием:\n"
-                "• Какие действия нужно выполнить?\n"
-                "• Когда закрывается возможность участвовать?\n"
-                "• Сколько в среднем стоит аирдроп?\n\n"
-                
-                "<b>3️⃣ Выполни условия</b>\n"
-                "Обычно нужно:\n"
-                "📱 Подписаться на социальные сети (Twitter, Discord)\n"
-                "💬 Поделиться постом\n"
-                "⭐ Нравится посты\n"
-                "📝 Оставить комментарий\n"
-                "👥 Пригласить друзей\n\n"
-                
-                "<b>4️⃣ Получи токены</b>\n"
-                "• Проверь свой кошелек через несколько дней\n"
-                "• Токены появятся автоматически\n"
-                "• Продай их если хочешь получить деньги\n\n"
-                
-                "<b>💡 Совет:</b>\n"
-                "Лучше участвовать в проектах которым ты доверяешь. "
-                "Неизвестные аирдропы часто требуют приватный ключ - это ОПАСНО!",
+                f"{title}\n\n{content}",
                 parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
@@ -10958,42 +10939,22 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     # Урок 3: Что нужно знать
     if data == "airdrops_lesson_3":
+        user_id = query.from_user.id
+        
+        next_btn = await get_text("airdrops.lesson3_next", user_id)
+        back_btn = await get_text("teach.back", user_id)
+        
         keyboard = [
-            [InlineKeyboardButton("✅ Ясно!", callback_data="airdrops_lesson_4")],
-            [InlineKeyboardButton("⬅️ Назад", callback_data="start_airdrops")]
+            [InlineKeyboardButton(next_btn, callback_data="airdrops_lesson_4")],
+            [InlineKeyboardButton(back_btn, callback_data="start_airdrops")]
         ]
         
         try:
+            title = await get_text("airdrops.lesson3_title", user_id)
+            content = await get_text("airdrops.lesson3_content", user_id)
+            
             await query.edit_message_text(
-                "📋 <b>УРОК 3: ЧТО НУЖНО ИМЕТЬ?</b>\n\n"
-                "<b>🛠️ Минимальный набор:</b>\n\n"
-                
-                "<b>1. Крипто-кошелек</b>\n"
-                "Это как банковский счет в крипто.\n"
-                "Лучший для новичков: MetaMask\n"
-                "• Скачай расширение для браузера\n"
-                "• Создай аккаунт (запиши фразу из 12 слов!)\n"
-                "• Готово! Теперь ты готов получать токены\n\n"
-                
-                "<b>2. Кошелек с адресом</b>\n"
-                "Это как номер счета. Копируешь и даешь проекту.\n"
-                "Адрес выглядит так: 0x742d35Cc6634C0532925a3b844Bc924e6... 🔒\n\n"
-                
-                "<b>3. Социальные аккаунты</b>\n"
-                "📱 Twitter - ГЛАВНЫЙ (почти всегда нужен)\n"
-                "💬 Discord - помощь и обновления\n"
-                "📺 Telegram - новости проекта\n\n"
-                
-                "<b>4. Основные знания</b>\n"
-                "✅ Не давай никому приватный ключ\n"
-                "✅ Не переводи деньги на незнакомые адреса\n"
-                "✅ Проверяй официальные ссылки\n"
-                "✅ Если звучит слишком хорошо - это мошенничество\n\n"
-                
-                "<b>💎 Бонус информация:</b>\n"
-                "Некоторые аирдропы действительно стоят МНОГО денег! "
-                "Например, аирдроп Optimism стоил для некоторых $3000+!\n"
-                "Но это редко. Обычно $5-50.",
+                f"{title}\n\n{content}",
                 parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
@@ -11003,49 +10964,22 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     # Урок 4: Риски и безопасность
     if data == "airdrops_lesson_4":
+        user_id = query.from_user.id
+        
+        next_btn = await get_text("airdrops.lesson4_next", user_id)
+        back_btn = await get_text("teach.back", user_id)
+        
         keyboard = [
-            [InlineKeyboardButton("🎓 Финальный тест", callback_data="airdrops_quiz")],
-            [InlineKeyboardButton("⬅️ Назад", callback_data="start_airdrops")]
+            [InlineKeyboardButton(next_btn, callback_data="airdrops_quiz")],
+            [InlineKeyboardButton(back_btn, callback_data="start_airdrops")]
         ]
         
         try:
+            title = await get_text("airdrops.lesson4_title", user_id)
+            content = await get_text("airdrops.lesson4_content", user_id)
+            
             await query.edit_message_text(
-                "⚠️ <b>УРОК 4: РИСКИ И БЕЗОПАСНОСТЬ</b>\n\n"
-                "<b>🚨 ГЛАВНОЕ ПРАВИЛО:</b>\n"
-                "Если просят приватный ключ = ЭТО МОШЕННИЧЕСТВО!\n\n"
-                
-                "<b>❌ Не делай эти ошибки:</b>\n\n"
-                
-                "<b>1. Фишинг (подделанные сайты)</b>\n"
-                "❌ Переходишь по ссылке из спама\n"
-                "❌ Вводишь приватный ключ\n"
-                "❌ Теряешь все деньги\n\n"
-                
-                "✅ Правильно:\n"
-                "✓ Проверяй что ссылка официальная\n"
-                "✓ Вводи пароль только на VERIFIED аккаунтах\n"
-                "✓ Используй 2FA (двухфакторная аутентификация)\n\n"
-                
-                "<b>2. Скам аирдропы</b>\n"
-                "❌ Обещают 1000 токенов за 2 минуты работы\n"
-                "❌ Просят платеж за участие\n"
-                "❌ Требуют инвестировать деньги\n\n"
-                
-                "<b>3. Поддельные токены</b>\n"
-                "Получил аирдроп - но это не оригинальный токен!\n"
-                "Проверяй адрес контракта токена перед тем как его продавать.\n\n"
-                
-                "<b>✅ КАК ЗАЩИТИТЬ СЕБЯ:</b>\n"
-                "🔒 Используй только официальные каналы проекта\n"
-                "🔐 Никогда не давай приватный ключ\n"
-                "📋 Проверяй адреса контрактов на Etherscan\n"
-                "🛡️ Используй холодный кошелек для больших сумм\n"
-                "👥 Сообщи о мошенниках в модераторы\n\n"
-                
-                "<b>💪 Самые безопасные аирдропы:</b>\n"
-                "• Известные проекты (Uniswap, Optimism, Arbitrum)\n"
-                "• Аирдропы на крупных биржах (Coinbase, Kraken)\n"
-                "• Аирдропы где просто нужно использовать сервис",
+                f"{title}\n\n{content}",
                 parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
