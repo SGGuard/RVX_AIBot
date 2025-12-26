@@ -6094,15 +6094,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     user = update.effective_user
     user_id = user.id
     
-    print(f"\n=== START_COMMAND DEBUG ===")
-    print(f"User ID: {user_id}")
-    print(f"Username: {user.username}")
-    
     logger.info(f"🚀 START_COMMAND called by user {user_id} (@{user.username})")
     
     # ✅ v0.43.0: Проверяем язык пользователя - если не установлен, показываем выбор
     user_language = get_user_lang(user_id, default=None)
-    print(f"DEBUG: User language from DB: {user_language}")
     
     if user_language is None:
         logger.info(f"📢 User {user_id} doesn't have language selected, showing language selection menu")
@@ -9505,46 +9500,32 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     # ============ SUBSCRIPTION CHECK CALLBACK ============
     if data.startswith("check_subscription_"):
-        print(f"\n{'='*60}")
-        print(f"SUBSCRIPTION CHECK HANDLER STARTED")
-        print(f"User ID: {user.id}")
-        print(f"Callback data: {data}")
-        print(f"{'='*60}")
-        
         try:
             # Очищаем кэш подписки для этого пользователя
             user_id = user.id
             logger.info(f"Processing check_subscription button for user {user_id}")
-            print(f"DEBUG: Clearing cache for user {user_id}")
             
             if user_id in _subscription_cache:
                 del _subscription_cache[user_id]
                 logger.debug(f"Cleared subscription cache for user {user_id}")
-                print(f"DEBUG: Cache cleared")
             
             # Проверяем подписку еще раз
             logger.info(f"Re-checking subscription for user {user_id}...")
-            print(f"DEBUG: Calling check_channel_subscription...")
             is_subscribed = await check_channel_subscription(user_id, context)
-            print(f"DEBUG: is_subscribed = {is_subscribed}")
             logger.info(f"Subscription check result for user {user_id}: {is_subscribed}")
             
             if is_subscribed:
-                print(f"DEBUG: User IS subscribed, showing language selection")
                 logger.info(f"✅ User {user_id} is now subscribed!")
                 
                 # ✅ v0.43.0: Проверяем язык пользователя
                 user_language = get_user_lang(user_id, default=None)
-                print(f"DEBUG: User language: {user_language}")
                 logger.info(f"User {user_id} language: {user_language}")
                 
                 if user_language is None:
                     # Если язык не выбран, показываем выбор языка
-                    print(f"DEBUG: Language is None, showing selection menu")
                     logger.info(f"📢 User {user_id} subscribed successfully, showing language selection")
                     
                     selection_prompt = await get_text("language.select_prompt", language="ru")
-                    print(f"DEBUG: Got selection prompt: {selection_prompt}")
                     
                     keyboard = [
                         [
@@ -9554,7 +9535,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     ]
                     reply_markup = InlineKeyboardMarkup(keyboard)
                     
-                    print(f"DEBUG: Calling edit_message_text...")
                     await query.edit_message_text(
                         f"✅ <b>Спасибо за подписку!</b>\n\n"
                         f"Теперь выберите язык для использования бота:\n\n"
@@ -9562,11 +9542,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                         reply_markup=reply_markup,
                         parse_mode=ParseMode.HTML
                     )
-                    print(f"DEBUG: Message edited successfully!")
                     logger.info(f"✅ Language selection shown to user {user_id}")
                 else:
                     # Если язык уже выбран, просто показываем сообщение и предлагаем начать
-                    print(f"DEBUG: Language already set, showing success message")
                     logger.info(f"User {user_id} already has language {user_language}, showing success message")
                     
                     await query.edit_message_text(
@@ -9577,7 +9555,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     )
                     logger.info(f"✅ Success message shown to user {user_id}")
             else:
-                print(f"DEBUG: User is NOT subscribed")
                 logger.warning(f"❌ User {user_id} is still NOT subscribed after check")
                 
                 # Пользователь еще не подписался
