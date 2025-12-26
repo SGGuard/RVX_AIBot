@@ -347,7 +347,8 @@ def require_auth(required_level: AuthLevel) -> Callable:
             
             if user_level.value < required_level.value:
                 logger.warning(f"Access denied for user {user_id} (level={user_level.name}, required={required_level.name})")
-                await update.message.reply_text(f"❌ Недостаточно прав для этой команды")
+                text = await get_text("error.access_denied", user_id)
+                await update.message.reply_text(f"❌ {text}")
                 return
             
             return await func(update, context, *args, **kwargs)
@@ -4996,7 +4997,8 @@ def admin_only(func: Callable) -> Callable:
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         user_id = update.effective_user.id
         if user_id not in ADMIN_USERS:
-            await update.message.reply_text("⛔ Только для администраторов")
+            text = await get_text("admin.access_denied", user_id)
+            await update.message.reply_text(f"⛔ {text}")
             return
         return await func(update, context)
     return wrapper
@@ -6689,7 +6691,8 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
     except Exception:
         #fallback
-        await update.message.reply_text("📋 Главное меню RVX")
+        text = await get_text("menu.main_title", update.effective_user.id)
+        await update.message.reply_text(f"📋 {text}")
 
 @log_command
 async def admin_metrics_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
