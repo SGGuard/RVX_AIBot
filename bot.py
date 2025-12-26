@@ -356,6 +356,17 @@ MANDATORY_CHANNEL_LINK = os.getenv("MANDATORY_CHANNEL_LINK", "https://t.me/RVX_A
 _subscription_cache = {}
 _SUBSCRIPTION_CACHE_TTL = 300  # 5 минут
 
+async def clear_subscription_cache(user_id: int = None) -> None:
+    """Очищает кэш подписки для пользователя или всех пользователей"""
+    global _subscription_cache
+    if user_id is None:
+        _subscription_cache.clear()
+        logger.info("🗑️  Cleared subscription cache for ALL users")
+    else:
+        if user_id in _subscription_cache:
+            del _subscription_cache[user_id]
+            logger.info(f"🗑️  Cleared subscription cache for user {user_id}")
+
 async def check_channel_subscription(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """
     Проверяет подписан ли пользователь на обязательный канал.
@@ -6038,10 +6049,18 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     user = update.effective_user
     user_id = user.id
     
+    logger.info(f"🚀 START_COMMAND called by user {user_id} (@{user.username})")
+    
+    # Очищаем кэш для этого пользователя при каждом /start (чтобы всегда проверять актуальный статус)
+    await clear_subscription_cache(user_id)
+    
     # ✅ v0.42.1: Проверяем подписку на обязательный канал
+    logger.info(f"📋 Checking mandatory channel subscription for user {user_id}...")
     is_subscribed = await check_channel_subscription(user_id, context)
+    logger.info(f"✅ Subscription check result for user {user_id}: {is_subscribed}")
+    
     if not is_subscribed:
-        logger.info(f"User {user_id} started bot without channel subscription")
+        logger.warning(f"🚫 User {user_id} is NOT subscribed, showing subscription prompt")
         
         # Отправляем сообщение с кнопкой для подписки
         keyboard = [
@@ -6050,19 +6069,31 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                     "📢 Подписаться на канал",
                     url=MANDATORY_CHANNEL_LINK
                 )
+            ],
+            [
+                InlineKeyboardButton(
+                    "✅ Я подписался, проверить еще раз",
+                    callback_data=f"check_subscription_{user_id}"
+                )
             ]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await update.message.reply_text(
+        subscription_prompt = (
             "<b>📢 Требуется подписка</b>\n\n"
             "Добро пожаловать! Для использования этого бота необходимо подписаться на наш канал. "
             "После подписки вы получите доступ ко всем функциям.\n\n"
-            "👇 Подпишитесь по ссылке ниже:",
+            "👇 Подпишитесь по ссылке ниже:"
+        )
+        
+        await update.message.reply_text(
+            subscription_prompt,
             reply_markup=reply_markup,
             parse_mode=ParseMode.HTML
         )
         return
+    
+    logger.info(f"✅ User {user_id} is subscribed, proceeding with start_command")
     
     # ✅ v0.25.0: Track user_start event
     tracker = get_tracker()
