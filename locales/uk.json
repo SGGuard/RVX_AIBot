@@ -38,6 +38,12 @@
   "subscription.button": "📢 Підписатися на канал",
   "subscription.check_button": "✅ Я підписався, перевірити знову",
   
+  "menu.main_greeting": "🎉 Ласкаво просимо в RVX AI!\n\nОберіть дію нижче і почніть навчання:",
+  "menu.teach_button": "🎓 Навчання",
+  "menu.ask_button": "💬 Запитати у бота",
+  "menu.profile_button": "📊 Мій профіль",
+  "menu.settings_button": "⚙️ Налаштування",
+  
   "menu.teach": "🎓 Навчатися",
   "menu.learn": "📚 Курси",
   "menu.stats": "📊 Статистика",
