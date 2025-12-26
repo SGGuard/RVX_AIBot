@@ -381,7 +381,11 @@ async def check_channel_subscription(user_id: int, context: ContextTypes.DEFAULT
     Returns:
         True если пользователь подписан, False если нет
     """
+    print(f"DEBUG: check_channel_subscription called for user {user_id}")
+    print(f"DEBUG: MANDATORY_CHANNEL_ID = {MANDATORY_CHANNEL_ID}")
+    
     if not MANDATORY_CHANNEL_ID:
+        print(f"DEBUG: MANDATORY_CHANNEL_ID not set, returning True")
         return True  # Если канал не задан, всем разрешено
     
     # Проверяем кэш
@@ -389,14 +393,17 @@ async def check_channel_subscription(user_id: int, context: ContextTypes.DEFAULT
     if user_id in _subscription_cache:
         is_subscribed, cache_time = _subscription_cache[user_id]
         if current_time - cache_time < _SUBSCRIPTION_CACHE_TTL:
+            print(f"DEBUG: Cache hit for user {user_id}: {is_subscribed}")
             logger.debug(f"🔄 Cache hit for user {user_id}: {is_subscribed}")
             return is_subscribed  # Возвращаем закэшированный результат
     
     try:
+        print(f"DEBUG: Checking API for user {user_id} in channel {MANDATORY_CHANNEL_ID}")
         logger.debug(f"🔍 Checking subscription for user {user_id} in channel {MANDATORY_CHANNEL_ID}")
         
         # Проверяем статус члена в канале
         member = await context.bot.get_chat_member(MANDATORY_CHANNEL_ID, user_id)
+        print(f"DEBUG: Member status: {member.status}")
         logger.debug(f"Member info: status={member.status}, user_id={user_id}")
         
         # Пользователь является членом если статус: member, administrator, creator
@@ -404,26 +411,32 @@ async def check_channel_subscription(user_id: int, context: ContextTypes.DEFAULT
         
         # Кэшируем результат
         _subscription_cache[user_id] = (is_subscribed, current_time)
+        print(f"DEBUG: Subscription result cached: {is_subscribed}")
         logger.debug(f"✅ Cached result for user {user_id}: {is_subscribed}")
         
         if is_subscribed:
+            print(f"DEBUG: User {user_id} IS subscribed")
             logger.info(f"✅ User {user_id} is subscribed to mandatory channel (status: {member.status})")
         else:
+            print(f"DEBUG: User {user_id} is NOT subscribed")
             logger.info(f"❌ User {user_id} is NOT subscribed to mandatory channel (status: {member.status})")
         
         return is_subscribed
         
     except Exception as e:
         error_msg = str(e)
+        print(f"DEBUG: Exception in check_channel_subscription: {error_msg}")
         logger.error(f"❌ Error checking subscription for user {user_id}: {error_msg}")
         
         # Если ошибка 400 или "user not a member" - пользователь не подписан
         if "user is not a member" in error_msg.lower() or "not found" in error_msg.lower() or "400" in error_msg:
+            print(f"DEBUG: User not a member, returning False")
             logger.info(f"⚠️ User {user_id} is not a member of the channel (API confirmed)")
             _subscription_cache[user_id] = (False, current_time)  # Кэшируем что не подписан
             return False
         
         # При других ошибках - требуем подписку (лучше требовать по ошибке чем разрешать)
+        print(f"DEBUG: API error, blocking access, returning False")
         logger.warning(f"⚠️ Subscription check API error for user {user_id}, blocking access until retry: {error_msg}")
         # Не кэшируем ошибки - пусть пользователь сможет попробовать еще раз
         return False  # Блокируем доступ при ошибке API
@@ -6049,6 +6062,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     user = update.effective_user
     user_id = user.id
     
+    print(f"\n=== START_COMMAND DEBUG ===")
+    print(f"User ID: {user_id}")
+    print(f"Username: {user.username}")
+    
     logger.info(f"🚀 START_COMMAND called by user {user_id} (@{user.username})")
     
     # Очищаем кэш для этого пользователя при каждом /start (чтобы всегда проверять актуальный статус)
@@ -6056,11 +6073,15 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     
     # ✅ v0.42.1: Проверяем подписку на обязательный канал
     logger.info(f"📋 Checking mandatory channel subscription for user {user_id}...")
+    print(f"DEBUG: About to call check_channel_subscription")
     is_subscribed = await check_channel_subscription(user_id, context)
+    print(f"DEBUG: check_channel_subscription returned: {is_subscribed}")
     logger.info(f"✅ Subscription check result for user {user_id}: {is_subscribed}")
     
+    print(f"DEBUG: Checking if not is_subscribed: {not is_subscribed}")
+    
     if not is_subscribed:
-        logger.warning(f"🚫 User {user_id} is NOT subscribed, showing subscription prompt")
+        print(f"DEBUG: User is NOT subscribed, showing subscription prompt")
         
         # Отправляем сообщение с кнопкой для подписки
         keyboard = [
