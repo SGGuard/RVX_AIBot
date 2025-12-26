@@ -5210,7 +5210,10 @@ async def tasks_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         quests = get_daily_quests_for_level(user_level)
         
         # Формируем текст
-        text = f"""📋 <b>ЕЖЕДНЕВНЫЕ ЗАДАНИЯ</b>
+        title = await get_text("quests.main_title", user_id)
+        back_btn = await get_text("menu.back_button", user_id)
+        
+        text = f"""{title}
 
 {level_name}
 XP: {user_xp}
@@ -5228,7 +5231,7 @@ XP: {user_xp}
             )])
         
         # Добавляем кнопку назад
-        keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")])
+        keyboard.append([InlineKeyboardButton(back_btn, callback_data="back_to_start")])
         
         if is_callback and query:
             await query.edit_message_text(
@@ -5246,7 +5249,7 @@ XP: {user_xp}
             
     except Exception as e:
         logger.error(f"Ошибка tasks_command: {e}")
-        error_text = "❌ Ошибка. Попробуй позже."
+        error_text = await get_text("error.unknown", user_id)
         if is_callback and query:
             await query.edit_message_text(error_text, parse_mode=ParseMode.HTML)
         else:
@@ -5704,16 +5707,23 @@ async def leaderboard_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     query = update.callback_query if update.callback_query else None
     is_callback = query is not None
     
+    # Получаем переводы
+    week_btn = await get_text("leaderboard.week_btn", user_id)
+    month_btn = await get_text("leaderboard.month_btn", user_id)
+    all_btn = await get_text("leaderboard.all_btn", user_id)
+    header = await get_text("leaderboard.header", user_id)
+    choose = await get_text("leaderboard.choose", user_id)
+    
     # Кнопки для выбора периода
     keyboard = [
         [
-            InlineKeyboardButton("📅 Неделя", callback_data="leaderboard_week"),
-            InlineKeyboardButton("📆 Месяц", callback_data="leaderboard_month"),
-            InlineKeyboardButton("⏳ Всё время", callback_data="leaderboard_all")
+            InlineKeyboardButton(week_btn, callback_data="leaderboard_week"),
+            InlineKeyboardButton(month_btn, callback_data="leaderboard_month"),
+            InlineKeyboardButton(all_btn, callback_data="leaderboard_all")
         ]
     ]
     
-    text = "🏆 <b>ТАБЛИЦА ЛИДЕРОВ</b>\n\nВыбери период:"
+    text = f"🏆 <b>{header}</b>\n\n{choose}"
     
     try:
         if is_callback:
@@ -5896,11 +5906,17 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE, p
         leaderboard, total_users = get_leaderboard_data(period, limit=10)
         
         # Заголовок
-        period_names = {"week": "за неделю", "month": "за месяц", "all": "за всё время"}
+        period_keys = {"week": "leaderboard.period_week", "month": "leaderboard.period_month", "all": "leaderboard.period_all"}
         period_emoji = {"week": "📅", "month": "📆", "all": "⏳"}
         
-        text = f"🏆 <b>ТАБЛИЦА ЛИДЕРОВ</b> {period_emoji[period]} ({period_names[period]})\n"
-        text += f"<i>Всего пользователей: {total_users}</i>\n\n"
+        period_name = await get_text(period_keys[period], user_id)
+        header = await get_text("leaderboard.header", user_id)
+        total_users_text = await get_text("leaderboard.total_users", user_id)
+        level_text = await get_text("leaderboard.level", user_id)
+        requests_text = await get_text("leaderboard.requests", user_id)
+        
+        text = f"🏆 <b>{header}</b> {period_emoji[period]} ({period_name})\n"
+        text += f"<i>{total_users_text} {total_users}</i>\n\n"
         
         medals = ["🥇", "🥈", "🥉"]
         
@@ -5911,31 +5927,39 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE, p
             # Выделяем текущего пользователя
             if uid == user_id:
                 text += f"{medal} <b>#{rank}. {username_display}</b>\n"
-                text += f"   💫 {xp} XP | Уровень {level} | Запросов: {requests}\n\n"
+                text += f"   💫 {xp} XP | {level_text} {level} | {requests_text} {requests}\n\n"
             else:
                 text += f"{medal} #{rank}. {username_display}\n"
-                text += f"   💫 {xp} XP | Уровень {level} | Запросов: {requests}\n"
+                text += f"   💫 {xp} XP | {level_text} {level} | {requests_text} {requests}\n"
         
         # Добавляем позицию текущего пользователя, если его нет в топ-10
         user_rank_data = get_user_rank(user_id, period)
         if user_rank_data and user_rank_data[0] > 10:
             rank, xp, level, requests = user_rank_data
+            your_position = await get_text("leaderboard.your_position", user_id)
             text += f"\n{'─' * 45}\n"
-            text += f"👤 <b>Твоя позиция:</b>\n"
-            text += f"   #{rank} | 💫 {xp} XP | Уровень {level}\n"
+            text += f"👤 <b>{your_position}</b>\n"
+            text += f"   #{rank} | 💫 {xp} XP | {level_text} {level}\n"
         elif not user_rank_data:
+            not_in_rating = await get_text("leaderboard.not_in_rating", user_id)
+            start_earning = await get_text("leaderboard.start_earning", user_id)
             text += f"\n{'─' * 45}\n"
-            text += f"👤 <b>Ты пока не в рейтинге</b>\n"
-            text += f"   Начни зарабатывать XP через команды /news, /teach, /quest\n"
+            text += f"👤 <b>{not_in_rating}</b>\n"
+            text += f"   {start_earning}\n"
         
         # Кнопки для переключения периода
+        week_btn = await get_text("leaderboard.week_btn", user_id)
+        month_btn = await get_text("leaderboard.month_btn", user_id)
+        all_btn = await get_text("leaderboard.all_btn", user_id)
+        back_btn = await get_text("leaderboard.back", user_id)
+        
         keyboard = [
             [
-                InlineKeyboardButton("📅 Неделя", callback_data="leaderboard_week"),
-                InlineKeyboardButton("📆 Месяц", callback_data="leaderboard_month"),
-                InlineKeyboardButton("⏳ Всё время", callback_data="leaderboard_all")
+                InlineKeyboardButton(week_btn, callback_data="leaderboard_week"),
+                InlineKeyboardButton(month_btn, callback_data="leaderboard_month"),
+                InlineKeyboardButton(all_btn, callback_data="leaderboard_all")
             ],
-            [InlineKeyboardButton("« Назад", callback_data="main_menu")]
+            [InlineKeyboardButton(back_btn, callback_data="main_menu")]
         ]
         
         await query.edit_message_text(
@@ -5948,10 +5972,11 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE, p
     except Exception as e:
         logger.error(f"Ошибка show_leaderboard: {e}", exc_info=True)
         try:
+            error_text = await get_text("leaderboard.error", user_id)
             if query:
-                await query.answer("❌ Ошибка загрузки рейтинга", show_alert=True)
+                await query.answer(f"❌ {error_text}", show_alert=True)
             else:
-                await update.message.reply_text("❌ Ошибка загрузки рейтинга")
+                await update.message.reply_text(f"❌ {error_text}")
         except:
             logger.error(f"Не удалось отправить ошибку пользователю")
 
@@ -5966,26 +5991,37 @@ async def bookmarks_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     bookmarks = get_user_bookmarks(user_id, limit=100)
     
     if not bookmarks:
+        back_menu_btn = await get_text("bookmarks.back_menu", user_id)
+        empty_title = await get_text("bookmarks.empty_title", user_id)
+        how_to_use = await get_text("bookmarks.how_to_use", user_id)
+        step1 = await get_text("bookmarks.step1", user_id)
+        step2 = await get_text("bookmarks.step2", user_id)
+        step3 = await get_text("bookmarks.step3", user_id)
+        step4 = await get_text("bookmarks.step4", user_id)
+        help_text = await get_text("bookmarks.help", user_id)
+        
         keyboard = [
-            [InlineKeyboardButton("« Назад в меню", callback_data="back_to_start")]
+            [InlineKeyboardButton(back_menu_btn, callback_data="back_to_start")]
         ]
-        text = "📌 <b>Твои закладки пусты</b>\n\n" \
-               "💡 <b>Как использовать закладки:</b>\n" \
-               "  1️⃣ Отправь текст новости или вопроса\n" \
-               "  2️⃣ Получи анализ от ИИ\n" \
-               "  3️⃣ Нажми кнопку 📌 чтобы сохранить\n" \
-               "  4️⃣ Вернись сюда позже через /bookmarks\n\n" \
-               "📚 <i>Закладки помогают отслеживать интересные анализы и материалы для обучения!</i>"
+        text = f"📌 <b>{empty_title}</b>\n\n" \
+               f"💡 <b>{how_to_use}</b>\n" \
+               f"  {step1}\n" \
+               f"  {step2}\n" \
+               f"  {step3}\n" \
+               f"  {step4}\n\n" \
+               f"📚 <i>{help_text}</i>"
     else:
         # Группируем по типам
         bookmark_types = {
-            "news": ("📰", "Новости"),
-            "lesson": ("🎓", "Уроки"),
-            "tool": ("🧰", "Инструменты"),
-            "resource": ("📚", "Ресурсы")
+            "news": ("📰", "bookmarks.news"),
+            "lesson": ("🎓", "bookmarks.lesson"),
+            "tool": ("🧰", "bookmarks.tool"),
+            "resource": ("📚", "bookmarks.resource")
         }
         
-        text = f"📚 <b>ТВИ ЗАКЛАДКИ</b> (Всего: {len(bookmarks)})\n\n"
+        title = await get_text("bookmarks.title", user_id)
+        total = await get_text("bookmarks.total", user_id)
+        text = f"📚 <b>{title}</b> ({total} {len(bookmarks)})\n\n"
         
         # Группируем закладки
         grouped = {}
@@ -6000,9 +6036,10 @@ async def bookmarks_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         
         # Выводим по категориям кнопками
         for bm_type, items in sorted(grouped.items()):
-            emoji, name = bookmark_types.get(bm_type, ("📌", bm_type))
+            emoji, key = bookmark_types.get(bm_type, ("📌", "bookmarks.resource"))
             count = len(items)
-            button_label = f"{emoji} {name} ({count})"
+            category_name = await get_text(key, user_id)
+            button_label = f"{emoji} {category_name} ({count})"
             
             row.append(InlineKeyboardButton(button_label, callback_data=f"show_bookmarks_{bm_type}"))
             
@@ -6014,14 +6051,18 @@ async def bookmarks_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             keyboard.append(row)
         
         # Добавляем кнопку "Назад"
-        keyboard.append([InlineKeyboardButton("« Назад в меню", callback_data="back_to_start")])
+        back_menu_btn = await get_text("bookmarks.back_menu", user_id)
+        keyboard.append([InlineKeyboardButton(back_menu_btn, callback_data="back_to_start")])
         
         # Показываем краткую статистику
+        saved_text = await get_text("bookmarks.saved", user_id)
         for bm_type, items in sorted(grouped.items()):
-            emoji, name = bookmark_types.get(bm_type, ("📌", bm_type))
-            text += f"{emoji} <b>{name}</b>: {len(items)} сохранено\n"
+            emoji, key = bookmark_types.get(bm_type, ("📌", "bookmarks.resource"))
+            category_name = await get_text(key, user_id)
+            text += f"{emoji} <b>{category_name}</b>: {len(items)} {saved_text}\n"
         
-        text += "\n👆 Нажми на категорию для просмотра закладок"
+        view_categories = await get_text("bookmarks.view_categories", user_id)
+        text += f"\n{view_categories}"
     
     reply_markup = InlineKeyboardMarkup(keyboard)
     
@@ -6299,33 +6340,47 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         welcome_text += f"\n📢 <b>Бонус:</b> Подпишись на канал для эксклюзивного контента → {MANDATORY_CHANNEL_LINK}\n"
     
     # Интерактивные кнопки основных функций (v0.26.0 красивый дизайн)
+    teach_btn = await get_text("menu.teach", user_id)
+    learn_btn = await get_text("menu.learn", user_id)
+    stats_btn = await get_text("menu.stats", user_id)
+    leaderboard_btn = await get_text("menu.leaderboard", user_id)
+    profile_btn = await get_text("menu.profile", user_id)
+    quests_btn = await get_text("menu.quests", user_id)
+    resources_btn = await get_text("menu.resources", user_id)
+    bookmarks_btn = await get_text("menu.bookmarks", user_id)
+    calculator_btn = await get_text("menu.calculator", user_id)
+    airdrops_btn = await get_text("menu.airdrops", user_id)
+    activities_btn = await get_text("menu.activities", user_id)
+    history_btn = await get_text("menu.history", user_id)
+    settings_btn = await get_text("menu.settings", user_id)
+    
     keyboard = [
         [
-            InlineKeyboardButton("🎓 Учиться", callback_data="start_teach"),
-            InlineKeyboardButton("📚 Курсы", callback_data="start_learn")
+            InlineKeyboardButton(teach_btn, callback_data="start_teach"),
+            InlineKeyboardButton(learn_btn, callback_data="start_learn")
         ],
         [
-            InlineKeyboardButton("📊 Статистика", callback_data="start_stats"),
-            InlineKeyboardButton("🏆 Лидерборд", callback_data="start_leaderboard")
+            InlineKeyboardButton(stats_btn, callback_data="start_stats"),
+            InlineKeyboardButton(leaderboard_btn, callback_data="start_leaderboard")
         ],
         [
-            InlineKeyboardButton("👤 Мой профиль", callback_data="start_profile"),
-            InlineKeyboardButton("🎯 Ежедневные", callback_data="start_quests")
+            InlineKeyboardButton(profile_btn, callback_data="start_profile"),
+            InlineKeyboardButton(quests_btn, callback_data="start_quests")
         ],
         [
-            InlineKeyboardButton("📚 Ресурсы", callback_data="start_resources"),
-            InlineKeyboardButton("📌 Закладки", callback_data="start_bookmarks")
+            InlineKeyboardButton(resources_btn, callback_data="start_resources"),
+            InlineKeyboardButton(bookmarks_btn, callback_data="start_bookmarks")
         ],
         [
-            InlineKeyboardButton("🧮 Калькулятор", callback_data="start_calculator"),
-            InlineKeyboardButton("📦 Дропы", callback_data="start_airdrops")
+            InlineKeyboardButton(calculator_btn, callback_data="start_calculator"),
+            InlineKeyboardButton(airdrops_btn, callback_data="start_airdrops")
         ],
         [
-            InlineKeyboardButton("🔥 Активности", callback_data="start_activities"),
-            InlineKeyboardButton("📜 История", callback_data="start_history")
+            InlineKeyboardButton(activities_btn, callback_data="start_activities"),
+            InlineKeyboardButton(history_btn, callback_data="start_history")
         ],
         [
-            InlineKeyboardButton("⚙️ Меню", callback_data="start_menu")
+            InlineKeyboardButton(settings_btn, callback_data="start_menu")
         ]
     ]
     
@@ -6877,8 +6932,12 @@ async def learn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         knowledge_level = get_user_knowledge_level(cursor, user_id)
         level, xp = calculate_user_level_and_xp(cursor, user_id)
     
+    # Получаем переводы
+    learn_title = await get_text("learn.title", user_id)
+    back_btn = await get_text("learn.back", user_id)
+    
     learn_text = (
-        "🎓 <b>КРИПТОВАЛЮТНАЯ АКАДЕМИЯ RVX v0.5.1</b>\n"
+        f"🎓 <b>{learn_title} RVX v0.5.1</b>\n"
         f"───────────────────────────────────\n"
         f"👤 <b>Ваш статус:</b> Level {level} ({xp} XP)\n"
         f"📈 <b>Знание:</b> {knowledge_level}\n\n"
@@ -6947,7 +7006,7 @@ async def learn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         )
     
     # Добавляем кнопку "Назад"
-    keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")])
+    keyboard.append([InlineKeyboardButton(back_btn, callback_data="back_to_start")])
     
     try:
         if is_callback and query:
@@ -6959,7 +7018,7 @@ async def learn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         # Fallback
         try:
             fallback_text = (
-                f"🎓 КРИПТОВАЛЮТНАЯ АКАДЕМИЯ\n\n"
+                f"🎓 {learn_title}\n\n"
                 f"Level {level} ({xp} XP)\n"
                 f"Знание: {knowledge_level}"
             )
@@ -7688,9 +7747,10 @@ async def ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     user_id = update.effective_user.id
     
     if not context.args:
+        prompt = await get_text("question.prompt", user_id)
+        example = await get_text("question.example", user_id)
         await update.message.reply_text(
-            "❓ Задайте вопрос про крипто!\n\n"
-            "Пример: `/ask Что такое smart contract?`"
+            f"❓ {prompt}\n\n{example}"
         )
         return
     
@@ -7703,11 +7763,14 @@ async def ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     
     if faq_result:
         faq_question, faq_answer, faq_id = faq_result
+        found_faq = await get_text("question.found_in_faq", user_id)
+        q_label = await get_text("question.q_label", user_id)
+        a_label = await get_text("question.a_label", user_id)
         
         await update.message.reply_text(
-            f"📖 **Найдено в FAQ:**\n\n"
-            f"**Q:** {faq_question}\n\n"
-            f"**A:** {faq_answer}",
+            f"{found_faq}\n\n"
+            f"**{q_label}** {faq_question}\n\n"
+            f"**{a_label}** {faq_answer}",
             parse_mode=ParseMode.MARKDOWN
         )
         
@@ -7719,7 +7782,8 @@ async def ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return
     
     # Если нет в FAQ - используем Gemini для ответа
-    status_msg = await update.message.reply_text("🤖 Думаю над вашим вопросом...")
+    thinking_msg = await get_text("question.thinking", user_id)
+    status_msg = await update.message.reply_text(thinking_msg)
     
     try:
         # Специальный промпт для Q&A
@@ -7755,9 +7819,12 @@ async def ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             except Exception as e:
                 logger.warning(f"Failed to add question to FAQ: {e}")
         
+        your_question = await get_text("question.your_question", user_id)
+        answer_label = await get_text("question.answer_label", user_id)
+        
         await status_msg.edit_text(
-            f"❓ **Ваш вопрос:** {question}\n\n"
-            f"📚 **Ответ:**\n\n{simplified_text}",
+            f"{your_question} {question}\n\n"
+            f"{answer_label}\n\n{simplified_text}",
             parse_mode=ParseMode.MARKDOWN
         )
         
@@ -8188,6 +8255,10 @@ async def calculator_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # Получаем список доступных токенов
     tokens = get_token_list()
     
+    # Получаем переводы
+    title = await get_text("calculator.title", user_id)
+    back_btn = await get_text("calculator.back", user_id)
+    
     # Создаем кнопки для выбора токена
     keyboard = []
     for i in range(0, len(tokens), 2):
@@ -8216,12 +8287,20 @@ async def calculator_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             keyboard.append(row)
     
     # Добавляем кнопку "Назад"
-    keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")])
+    keyboard.append([InlineKeyboardButton(back_btn, callback_data="back_to_start")])
     
     # Показываем меню калькулятора
     try:
+        menu_text = f"🧮 <b>{title}</b>\n\n" \
+                    "Выбери токен для расчета Market Cap и цены:\n\n" \
+                    "💡 Калькулятор показывает:\n" \
+                    "• Текущую цену токена\n" \
+                    "• Market Cap (общую стоимость)\n" \
+                    "• Разбор по категориям (unlocked vs vesting)\n\n" \
+                    "Нажми на токен чтобы начать расчет:"
+        
         await update.message.reply_text(
-            get_calculator_menu_text(),
+            menu_text,
             parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
@@ -8231,8 +8310,9 @@ async def calculator_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         
     except Exception as e:
         logger.error(f"Ошибка при показе меню калькулятора: {e}")
+        error_msg = await get_text("calculator.error", user_id)
         await update.message.reply_text(
-            "❌ Ошибка при открытии калькулятора. Попробуйте позже.",
+            error_msg,
             parse_mode=ParseMode.HTML
         )
 
@@ -9673,22 +9753,29 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # ============ PROFILE CALLBACKS v0.37.15 ============
     if data == "start_profile":
         try:
-            # Создаём fake update для передачи в profile_command
-            profile_data = get_user_profile_data(user.id)
+            user_id = user.id
+            # Получаем данные профиля
+            profile_data = get_user_profile_data(user_id)
             
             if not profile_data:
-                await query.edit_message_text("❌ Ошибка загрузки профиля")
+                error_msg = await get_text("profile.load_error", user_id)
+                await query.edit_message_text(error_msg)
                 return
             
             # Форматируем сообщение
             text = format_user_profile(profile_data)
             
-            # Кнопки
+            # Кнопки с переводом
+            all_badges_btn = await get_text("profile.all_achievements", user_id)
+            stats_btn = await get_text("quests.status_completed", user_id) + " Статистика"  # TODO: добавить в JSON
+            start_lesson_btn = await get_text("button.start", user_id) + " 🎓"
+            back_btn = await get_text("teach.back", user_id)
+            
             keyboard = [
-                [InlineKeyboardButton("🏅 Все достижения", callback_data="profile_all_badges")],
-                [InlineKeyboardButton("📊 Статистика", callback_data="profile_stats")],
-                [InlineKeyboardButton("🚀 Начать урок", callback_data="teach_menu")],
-                [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
+                [InlineKeyboardButton(all_badges_btn, callback_data="profile_all_badges")],
+                [InlineKeyboardButton("📊 Статистика", callback_data="profile_stats")],  # TODO: перевести
+                [InlineKeyboardButton(start_lesson_btn, callback_data="teach_menu")],
+                [InlineKeyboardButton(back_btn, callback_data="back_to_start")]
             ]
             
             await query.edit_message_text(
@@ -9699,42 +9786,80 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             
         except Exception as e:
             logger.error(f"Ошибка в profile callback: {e}", exc_info=True)
-            await query.edit_message_text("❌ Ошибка загрузки профиля")
+            error_msg = await get_text("profile.load_error", user.id)
+            await query.edit_message_text(error_msg)
         return
     
     if data == "profile_all_badges":
         try:
-            profile_data = get_user_profile_data(user.id)
+            user_id = user.id
+            profile_data = get_user_profile_data(user_id)
             
             if not profile_data:
-                await query.answer("❌ Ошибка загрузки", show_alert=True)
+                await query.answer("❌ Ошибка загрузки", show_alert=True)  # TODO: перевести
                 return
             
-            # Описания бейджей
-            badge_info = {
-                'first_lesson': ('🎓', 'Первый урок', 'Ты начал своё обучение!'),
-                'first_test': ('✅', 'Первый тест', 'Ты прошел первый тест!'),
-                'first_question': ('💬', 'Первый вопрос', 'Ты задал первый вопрос ИИ!'),
-                'level_5': ('⭐', 'Уровень 5', 'Достигнут уровень 5'),
-                'level_10': ('🌟', 'Уровень 10', 'Достигнут уровень 10'),
-                'perfect_score': ('🎯', 'Идеальный результат', 'Ты решил тест на 100%!'),
-                'daily_active': ('🔥', 'Ежедневный активист', 'Ты активен 7 дней подряд'),
-                'helper': ('👐', 'Помощник', 'Ты помогал другим пользователям')
+            # Получаем переведенные названия бейджей
+            badges_dict = {
+                'first_lesson': (
+                    '🎓',
+                    await get_text("badge.first_lesson", user_id),
+                    await get_text("badge.first_lesson_desc", user_id)
+                ),
+                'first_test': (
+                    '✅',
+                    await get_text("badge.first_test", user_id),
+                    await get_text("badge.first_test_desc", user_id)
+                ),
+                'first_question': (
+                    '💬',
+                    await get_text("badge.first_question", user_id),
+                    await get_text("badge.first_question_desc", user_id)
+                ),
+                'level_5': (
+                    '⭐',
+                    await get_text("badge.level_5", user_id),
+                    await get_text("badge.level_5_desc", user_id)
+                ),
+                'level_10': (
+                    '🌟',
+                    await get_text("badge.level_10", user_id),
+                    await get_text("badge.level_10_desc", user_id)
+                ),
+                'perfect_score': (
+                    '🎯',
+                    await get_text("badge.perfect_score", user_id),
+                    await get_text("badge.perfect_score_desc", user_id)
+                ),
+                'daily_active': (
+                    '🔥',
+                    await get_text("badge.daily_active", user_id),
+                    await get_text("badge.daily_active_desc", user_id)
+                ),
+                'helper': (
+                    '👐',
+                    await get_text("badge.helper", user_id),
+                    await get_text("badge.helper_desc", user_id)
+                )
             }
             
-            text = "<b>🏅 ВСЕ ТОИ ДОСТИЖЕНИЯ\n</b>═════════════════\n\n"
+            header = await get_text("profile.all_achievements", user_id)
+            text = f"<b>{header}</b>\n═════════════════\n\n"
             
             if not profile_data['badges']:
-                text += "Здесь пока нет достижений 😢\n\nНачни обучение чтобы разблокировать первые награды!"
+                no_badges = await get_text("profile.no_achievements", user_id)
+                text += no_badges
             else:
                 for badge in profile_data['badges']:
-                    emoji, name, desc = badge_info.get(badge, ('🎖️', badge, 'Награда'))
+                    emoji, name, desc = badges_dict.get(badge, ('🎖️', badge, 'Награда'))
                     text += f"{emoji} <b>{name}</b>\n"
                     text += f"   <i>{desc}</i>\n\n"
                 
-                text += f"\n<b>Всего достижений:</b> {len(profile_data['badges'])}/8"
+                total_text = await get_text("profile.total", user_id, count=len(profile_data['badges']))
+                text += f"\n{total_text}"
             
-            keyboard = [[InlineKeyboardButton("⬅️ Назад к профилю", callback_data="start_profile")]]
+            back_profile = await get_text("profile.back", user_id)
+            keyboard = [[InlineKeyboardButton(back_profile, callback_data="start_profile")]]
             
             await query.edit_message_text(
                 text,
@@ -9744,7 +9869,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             
         except Exception as e:
             logger.error(f"Ошибка в profile_all_badges: {e}", exc_info=True)
-            await query.answer("❌ Ошибка загрузки", show_alert=True)
+            await query.answer("❌ Ошибка загрузки", show_alert=True)  # TODO: перевести
         return
     
     if data == "profile_stats":
@@ -11067,24 +11192,43 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # Начало обучения активностям
     if data == "start_activities":
         try:
+            user_id = query.from_user.id
+            
+            # Получаем переводы
+            lesson1_btn = await get_text("activities.lesson1_btn", user_id)
+            lesson2_btn = await get_text("activities.lesson2_btn", user_id)
+            lesson3_btn = await get_text("activities.lesson3_btn", user_id)
+            lesson4_btn = await get_text("activities.lesson4_btn", user_id)
+            back_btn = await get_text("activities.back", user_id)
+            
+            menu_title = await get_text("activities.menu_title", user_id)
+            menu_intro = await get_text("activities.menu_intro", user_id)
+            what_learn = await get_text("activities.what_learn", user_id)
+            what_is = await get_text("activities.what_is", user_id)
+            how_participate = await get_text("activities.how_participate", user_id)
+            ways_earn = await get_text("activities.ways_earn", user_id)
+            protect = await get_text("activities.protect", user_id)
+            time_text = await get_text("activities.time", user_id)
+            difficulty = await get_text("activities.difficulty", user_id)
+            
             keyboard = [
-                [InlineKeyboardButton("💡 Что такое активности?", callback_data="activities_lesson_1")],
-                [InlineKeyboardButton("🎯 Как участвовать?", callback_data="activities_lesson_2")],
-                [InlineKeyboardButton("💰 Как заработать?", callback_data="activities_lesson_3")],
-                [InlineKeyboardButton("⚠️ Риски и советы", callback_data="activities_lesson_4")],
-                [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
+                [InlineKeyboardButton(lesson1_btn, callback_data="activities_lesson_1")],
+                [InlineKeyboardButton(lesson2_btn, callback_data="activities_lesson_2")],
+                [InlineKeyboardButton(lesson3_btn, callback_data="activities_lesson_3")],
+                [InlineKeyboardButton(lesson4_btn, callback_data="activities_lesson_4")],
+                [InlineKeyboardButton(back_btn, callback_data="back_to_start")]
             ]
             
             menu_text = (
-                "🔥 <b>ПОЛНЫЙ ГАЙД ПО КРИПТО-АКТИВНОСТЯМ</b>\n\n"
-                "Хочешь понять как участвовать в активностях и зарабатывать?\n\n"
-                "<b>Что ты научишься:</b>\n"
-                "✅ Что такое активности в крипто\n"
-                "✅ Как правильно участвовать\n"
-                "✅ Способы заработка\n"
-                "✅ Как защитить себя\n\n"
-                "<b>⏱️ Время учебы:</b> ~5 минут\n"
-                "<b>📊 Сложность:</b> Для новичков"
+                f"🔥 <b>{menu_title}</b>\n\n"
+                f"{menu_intro}\n\n"
+                f"<b>{what_learn}:</b>\n"
+                f"✅ {what_is}\n"
+                f"✅ {how_participate}\n"
+                f"✅ {ways_earn}\n"
+                f"✅ {protect}\n\n"
+                f"<b>⏱️ Время учебы:</b> {time_text}\n"
+                f"<b>📊 Сложность:</b> {difficulty}"
             )
             
             await query.edit_message_text(
