@@ -9405,35 +9405,52 @@ async def handle_language_selection(update: Update, context: ContextTypes.DEFAUL
         user_id = query.from_user.id
         selected_language = query.data.replace("lang_", "")
         
-        logger.info(f"Processing language selection for user {user_id}: {selected_language}")
+        logger.info(f"🌐 LANGUAGE SELECTION: User {user_id} selected {selected_language}")
+        print(f"DEBUG: Language selection for user {user_id}: {selected_language}")
+        
+        # Подтверждаем нажатие кнопки
+        await query.answer()
+        print(f"DEBUG: Confirmed button click")
         
         # Валидируем язык
         if selected_language not in ["ru", "uk"]:
-            logger.warning(f"Invalid language selected by user {user_id}: {selected_language}")
+            logger.warning(f"❌ Invalid language by user {user_id}: {selected_language}")
+            print(f"DEBUG: Invalid language!")
             await query.answer("❌ Неизвестный язык", show_alert=False)
             return
         
+        print(f"DEBUG: Language valid, setting in DB...")
+        
         # Сохраняем выбор в БД
-        logger.info(f"Setting language {selected_language} for user {user_id}...")
+        logger.info(f"💾 Saving language {selected_language} for user {user_id}...")
         success = await set_user_language(user_id, selected_language)
+        print(f"DEBUG: set_user_language returned: {success}")
         
         if success:
-            logger.info(f"✅ User {user_id} language set to {selected_language}")
+            logger.info(f"✅ User {user_id} language saved: {selected_language}")
+            print(f"DEBUG: Language saved successfully!")
+            
             await query.answer(f"✅ Язык установлен!", show_alert=False)
+            print(f"DEBUG: Sent confirmation to user")
             
             # Теперь показываем главное меню
-            logger.info(f"Calling start_command for user {user_id} with language {selected_language}")
+            logger.info(f"🚀 Calling start_command for user {user_id}")
+            print(f"DEBUG: Calling start_command...")
             await start_command(update, context)
+            print(f"DEBUG: start_command completed")
         else:
             logger.error(f"❌ Failed to set language for user {user_id}")
+            print(f"DEBUG: set_user_language FAILED!")
             await query.answer("❌ Ошибка при установке языка", show_alert=True)
     
     except Exception as e:
-        logger.error(f"❌ ERROR in handle_language_selection: {e}", exc_info=True)
+        logger.error(f"❌ ERROR in handle_language_selection: {type(e).__name__}: {e}", exc_info=True)
+        print(f"DEBUG: Exception: {type(e).__name__}: {e}")
         try:
             await query.answer(f"❌ Ошибка: {str(e)[:50]}", show_alert=True)
-        except:
-            logger.error("Could not send error message to user")
+        except Exception as answer_error:
+            logger.error(f"Could not send error alert: {answer_error}")
+            print(f"DEBUG: Could not send alert: {answer_error}")
 
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
