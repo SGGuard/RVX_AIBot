@@ -2004,7 +2004,7 @@ def migrate_database() -> None:
             'user_id', 'username', 'first_name', 'created_at', 'total_requests',
             'last_request_at', 'is_banned', 'ban_reason', 'daily_requests',
             'daily_reset_at', 'knowledge_level', 'xp', 'level', 'badges',
-            'requests_today', 'last_request_date'
+            'requests_today', 'last_request_date', 'language'
         }
         
         cursor.execute("PRAGMA table_info(users)")
@@ -2044,7 +2044,8 @@ def migrate_database() -> None:
                         level INTEGER DEFAULT 1,
                         badges TEXT DEFAULT '[]',
                         requests_today INTEGER DEFAULT 0,
-                        last_request_date TEXT
+                        last_request_date TEXT,
+                        language TEXT DEFAULT 'ru'
                     )
                 """)
                 
@@ -2150,6 +2151,12 @@ def migrate_database() -> None:
         if not check_column_exists(cursor, 'users', 'last_request_date'):
             logger.info("  • Добавление колонки last_request_date...")
             cursor.execute("ALTER TABLE users ADD COLUMN last_request_date TEXT")
+            migrations_needed = True
+        
+        # NEW v0.43.0: i18n support - Language column
+        if not check_column_exists(cursor, 'users', 'language'):
+            logger.info("  • Добавление колонки language для i18n поддержки...")
+            cursor.execute("ALTER TABLE users ADD COLUMN language TEXT DEFAULT 'ru'")
             migrations_needed = True
         
         # NEW v0.19.0: Таблицы для Quiz System
@@ -2602,7 +2609,8 @@ def init_database() -> None:
                 level INTEGER DEFAULT 1,
                 badges TEXT DEFAULT '[]',
                 requests_today INTEGER DEFAULT 0,
-                last_request_date TEXT
+                last_request_date TEXT,
+                language TEXT DEFAULT 'ru'
             )
         """)
         
