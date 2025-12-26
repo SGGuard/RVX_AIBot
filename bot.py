@@ -9434,26 +9434,34 @@ async def handle_language_selection(update: Update, context: ContextTypes.DEFAUL
             logger.info(f"🎯 Showing main menu to user {user_id} in language {selected_language}")
             print(f"DEBUG: Editing message with main menu...")
             
-            # Получаем главное меню
+            # Получаем главное меню и тексты кнопок на выбранном языке
             main_menu_text = await get_text("menu.main_greeting", user_id, language=selected_language)
+            teach_text = await get_text("menu.teach_button", user_id, language=selected_language)
+            ask_text = await get_text("menu.ask_button", user_id, language=selected_language)
+            profile_text = await get_text("menu.profile_button", user_id, language=selected_language)
+            settings_text = await get_text("menu.settings_button", user_id, language=selected_language)
+            thanks_text = await get_text("subscription.check_button", user_id, language=selected_language)
             
-            # Создаем кнопки меню
+            # Получаем приветствие на выбранном языке
+            thanks = "✅ Спасибо за подписку!" if selected_language == "ru" else "✅ Дякуємо за підписку!"
+            
+            # Создаем кнопки меню с переводами
             keyboard = [
-                [InlineKeyboardButton("🎓 Обучение", callback_data="teach_menu")],
-                [InlineKeyboardButton("💬 Спросить у бота", callback_data="ask_question")],
-                [InlineKeyboardButton("📊 Мой профиль", callback_data="start_profile")],
-                [InlineKeyboardButton("⚙️ Настройки", callback_data="settings_menu")]
+                [InlineKeyboardButton(teach_text, callback_data="teach_menu")],
+                [InlineKeyboardButton(ask_text, callback_data="ask_question")],
+                [InlineKeyboardButton(profile_text, callback_data="start_profile")],
+                [InlineKeyboardButton(settings_text, callback_data="settings_menu")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             # Редактируем текущее сообщение
             await query.edit_message_text(
-                f"✅ <b>Спасибо за подписку!</b>\n\n{main_menu_text}",
+                f"<b>{thanks}</b>\n\n{main_menu_text}",
                 reply_markup=reply_markup,
                 parse_mode=ParseMode.HTML
             )
             print(f"DEBUG: Menu sent successfully!")
-            logger.info(f"✅ Main menu shown to user {user_id}")
+            logger.info(f"✅ Main menu shown to user {user_id} in language {selected_language}")
         else:
             logger.error(f"❌ Failed to set language for user {user_id}")
             print(f"DEBUG: set_user_language FAILED!")
