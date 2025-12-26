@@ -13706,15 +13706,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             ]]
             
             # Генерируем наводящий вопрос для погружения в тему
-            follow_up_questions = [
-                "💭 Как это влияет на цену?",
-                "🤔 Кто выиграет от этого?",
-                "❓ Когда это произойдёт?",
-                "📊 Какой масштаб влияния?",
-                "🎯 Что это значит для инвесторов?"
+            follow_up_questions_keys = [
+                "follow_up.price_impact",
+                "follow_up.winners",
+                "follow_up.timing",
+                "follow_up.scale",
+                "follow_up.investors"
             ]
             import random
-            follow_up = random.choice(follow_up_questions)
+            selected_key = random.choice(follow_up_questions_keys)
+            follow_up = await get_text(selected_key, user_id)
             
             # Просто отправляем ответ от API как есть (он уже полностью отформатирован)
             analysis_header = await get_text("ai_response.analysis_header", user_id)
