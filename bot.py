@@ -13182,22 +13182,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if not is_subscribed:
         logger.info(f"User {user_id} sent message without channel subscription")
         
+        # Получаем переводы
+        req_title = await get_text("error.subscription_required", user_id)
+        req_prompt = await get_text("error.subscription_prompt", user_id)
+        sub_btn = await get_text("error.subscribe_btn", user_id)
+        
         # Отправляем сообщение с кнопкой для подписки
         keyboard = [
             [
-                InlineKeyboardButton(
-                    "📢 Подписаться на канал",
-                    url=MANDATORY_CHANNEL_LINK
-                )
+                InlineKeyboardButton(sub_btn, url=MANDATORY_CHANNEL_LINK)
             ]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.message.reply_text(
-            "<b>📢 Требуется подписка на канал</b>\n\n"
-            "Для использования этого бота необходимо подписаться на наш канал. "
-            "После подписки вы сможете пользоваться всеми функциями.\n\n"
-            "👇 Подпишитесь по ссылке ниже:",
+            f"<b>{req_title}</b>\n\n{req_prompt}\n\n👇 {await get_text('button.subscribe', user_id)}:",
             reply_markup=reply_markup,
             parse_mode=ParseMode.HTML
         )
@@ -13279,8 +13278,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     is_valid, error_msg = validate_user_input(update.message.text)
     if not is_valid:
         logger.warning(f"Invalid input from {user.id}: {error_msg}")
+        error_text = await get_text("error.invalid_input", user_id, error=error_msg)
         await update.message.reply_text(
-            f"❌ Ошибка ввода: {error_msg}",
+            error_text,
             parse_mode=ParseMode.HTML
         )
         return
@@ -13302,9 +13302,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if not rate_limiter.check_rate_limit(client_ip):
         remaining = rate_limiter.get_remaining_requests(client_ip)
         logger.warning(f"IP rate limit exceeded for {client_ip}: {remaining} requests left")
+        limit_msg = await get_text("error.rate_limit", user_id)
+        limit_info = await get_text("error.rate_limit_info", user_id)
         await update.message.reply_text(
-            "⚠️ Слишком много запросов. Пожалуйста, подождите минуту перед следующим запросом.\n\n"
-            "<i>Это ограничение существует для защиты сервиса от злоупотреблений.</i>",
+            f"{limit_msg}\n\n<i>{limit_info}</i>",
             parse_mode=ParseMode.HTML
         )
         return
@@ -13511,19 +13512,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # Проверка бана
     is_banned, ban_reason = check_user_banned(user.id)
     if is_banned:
+        banned_msg = await get_text("error.banned", user_id)
+        reason_msg = await get_text("error.banned_reason", user_id, reason=ban_reason or "Not specified")
         await update.message.reply_text(
-            f"⛔ **Вы заблокированы**\n\n"
-            f"Причина: {ban_reason or 'Не указана'}\n\n"
-            f"Для разблокировки свяжитесь с администратором.",
+            f"{banned_msg}\n\n{reason_msg}",
             parse_mode=ParseMode.MARKDOWN
         )
         return
     
     # Проверка whitelist (если настроен)
     if ALLOWED_USERS and user.id not in ALLOWED_USERS and user.id not in ADMIN_USERS:
-        await update.message.reply_text(
-            "⛔ Доступ ограничен.\n\nБот работает в закрытом режиме."
-        )
+        access_denied = await get_text("error.access_denied", user_id)
+        await update.message.reply_text(access_denied)
         return
     
     # Проверка подписки на канал
@@ -13542,37 +13542,29 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # Проверка дневного лимита
     can_request, remaining = check_daily_limit(user.id)
     if not can_request:
+        limit_msg = await get_text("error.daily_limit", user_id)
         await update.message.reply_text(
-            f"⛔ **Дневной лимит исчерпан**\n\n"
-            f"Вы использовали все {MAX_REQUESTS_PER_DAY} запросов.\n"
-            f"Попробуйте завтра!\n\n"
-            f"Посмотреть лимиты: /limits",
+            limit_msg,
             parse_mode=ParseMode.MARKDOWN
         )
         return
     
     # Flood control
     if not await bot_state.check_flood(user.id):
-        await update.message.reply_text(
-            f"⏱️ Подождите {FLOOD_COOLDOWN_SECONDS} секунд между запросами"
-        )
+        flood_msg = await get_text("error.flood_control", user_id, seconds=FLOOD_COOLDOWN_SECONDS)
+        await update.message.reply_text(flood_msg)
         return
     
     # Валидация длины текста (ТОЛЬКО для крипто-новостей!)
     if len(user_text) > MAX_INPUT_LENGTH:
-        await update.message.reply_text(
-            f"❌ Текст слишком длинный\n\n"
-            f"Максимум: {MAX_INPUT_LENGTH} символов\n"
-            f"У вас: {len(user_text)} символов"
-        )
+        text_too_long = await get_text("error.text_too_long", user_id, max=MAX_INPUT_LENGTH, actual=len(user_text))
+        await update.message.reply_text(text_too_long)
         return
     
     # Минимум 10 символов - ТОЛЬКО для крипто-новостей
     if len(user_text.strip()) < 10:
-        await update.message.reply_text(
-            "❌ Для анализа новостей нужен текст минимум 10 символов.\n\n"
-            "Или задай вопрос коротко - я пойму! 💬"
-        )
+        text_too_short = await get_text("error.text_too_short", user_id, min_chars=10)
+        await update.message.reply_text(text_too_short)
         return
     
 
@@ -13624,15 +13616,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         
         # Уведомление об оставшихся запросах
         if remaining <= 5:
-            await update.message.reply_text(
-                f"💡 Осталось запросов сегодня: {remaining - 1}",
-                parse_mode=ParseMode.MARKDOWN
-            )
+            remaining_msg = await get_text("status.remaining_requests", user_id, count=remaining - 1)
+            await update.message.reply_text(remaining_msg)
         
         return
     
     # Запрос к API
-    status_msg = await update.message.reply_text("🧠 Шуршу мозгами...")
+    status_text = await get_text("status.analyzing", user_id)
+    status_msg = await update.message.reply_text(status_text)
     
     try:
         # Вызов API с retry логикой
@@ -13749,21 +13740,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             )
             
             # Отправляем сообщение об ошибке
+            error_text = await get_text("error.analysis_error", user_id, error=error_msg)
             await status_msg.edit_text(
-                f"❌ <b>Ошибка при анализе</b>\n\n"
-                f"Статус: {error_msg}\n\n"
-                f"🔄 Попробуйте еще раз или свяжитесь с администратором.",
+                error_text,
                 parse_mode=ParseMode.HTML
             )
     
     except (httpx.TimeoutException, asyncio.TimeoutError) as e:
         logger.error(f"⏱️ ТАЙМАУТ API для {user.id}: {type(e).__name__} (ИСПРАВЛЕНИЕ КРИТИЧЕСКОЙ ОШИБКИ #2)")
         try:
+            timeout_msg = await get_text("error.timeout", user_id)
             await status_msg.edit_text(
-                "❌ <b>Превышено время ожидания</b>\n\n"
-                "AI сервис не ответил за 30 секунд.\n"
-                "🔄 Попробуйте через минуту.\n\n"
-                "<i>Если проблема повторяется часто, сообщите администратору.</i>",
+                timeout_msg,
                 parse_mode=ParseMode.HTML
             )
         except Exception as edit_err:
@@ -13779,19 +13767,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     
     except httpx.HTTPStatusError as e:
         logger.error(f"HTTP ошибка для {user.id}: {e}")
+        http_error_msg = await get_text("error.http_error", user_id, code=e.response.status_code)
         await status_msg.edit_text(
-            f"❌ <b>Ошибка API (HTTP {e.response.status_code})</b>\n\n"
-            "AI сервис временно недоступен.\n"
-            "Попробуйте позже.",
+            http_error_msg,
             parse_mode=ParseMode.HTML
         )
     
     except Exception as e:
         logger.error(f"Неожиданная ошибка для {user.id}: {e}", exc_info=True)
+        unexpected_error = await get_text("error.unexpected", user_id)
         await status_msg.edit_text(
-            "❌ <b>Произошла ошибка</b>\n\n"
-            "Попробуйте отправить новость заново.\n"
-            "Если проблема повторяется, свяжитесь с администратором.",
+            unexpected_error,
             parse_mode=ParseMode.HTML
         )
 
