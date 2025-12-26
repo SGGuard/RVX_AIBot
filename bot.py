@@ -5683,11 +5683,16 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         text = format_user_profile(profile_data)
         
         # Кнопки
+        all_achievements_btn = await get_text("button.all_achievements", user_id)
+        detailed_stats_btn = await get_text("button.detailed_stats", user_id)
+        start_lesson_btn = await get_text("button.start_lesson", user_id)
+        back_btn = await get_text("button.back", user_id)
+        
         keyboard = [
-            [InlineKeyboardButton("📚 Все достижения", callback_data="profile_all_badges")],
-            [InlineKeyboardButton("📊 Детальная статистика", callback_data="profile_stats")],
-            [InlineKeyboardButton("🚀 Начать урок", callback_data="teach_recommended")],
-            [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
+            [InlineKeyboardButton(all_achievements_btn, callback_data="profile_all_badges")],
+            [InlineKeyboardButton(detailed_stats_btn, callback_data="profile_stats")],
+            [InlineKeyboardButton(start_lesson_btn, callback_data="teach_recommended")],
+            [InlineKeyboardButton(back_btn, callback_data="back_to_start")]
         ]
         
         await update.message.reply_text(
@@ -6457,14 +6462,19 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     if MANDATORY_CHANNEL_ID:
         help_text += f"\n\n📢 <b>Официальный канал:</b>\n{MANDATORY_CHANNEL_LINK}"
     
+    start_learning_btn = await get_text("button.start_learning", user_id)
+    quests_btn = await get_text("button.quests", user_id)
+    stats_btn = await get_text("button.statistics", user_id)
+    back_btn = await get_text("button.back", user_id)
+    
     keyboard = [
         [
-            InlineKeyboardButton("📚 Начать обучение", callback_data="start_teach"),
-            InlineKeyboardButton("🎮 Квесты", callback_data="start_tasks")
+            InlineKeyboardButton(start_learning_btn, callback_data="start_teach"),
+            InlineKeyboardButton(quests_btn, callback_data="start_tasks")
         ],
         [
-            InlineKeyboardButton("📊 Статистика", callback_data="show_stats"),
-            InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")
+            InlineKeyboardButton(stats_btn, callback_data="show_stats"),
+            InlineKeyboardButton(back_btn, callback_data="back_to_start")
         ]
     ]
     
@@ -6643,21 +6653,31 @@ async def context_stats_command(update: Update, context: ContextTypes.DEFAULT_TY
 @log_command
 async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показывает главное меню с быстрыми действиями (команда /menu)."""
+    user_id = update.effective_user.id
+    
+    courses_btn = await get_text("button.courses", user_id)
+    tools_btn = await get_text("button.tools", user_id)
+    ask_btn = await get_text("button.ask_question", user_id)
+    history_btn = await get_text("button.history_btn", user_id)
+    help_btn = await get_text("button.help_btn", user_id)
+    status_btn = await get_text("button.status_btn", user_id)
+    back_btn = await get_text("button.back", user_id)
+    
     keyboard = [
         [
-            InlineKeyboardButton("📚 Курсы", callback_data="menu_learn"),
-            InlineKeyboardButton("🧰 Инструменты", callback_data="menu_tools")
+            InlineKeyboardButton(courses_btn, callback_data="menu_learn"),
+            InlineKeyboardButton(tools_btn, callback_data="menu_tools")
         ],
         [
-            InlineKeyboardButton("💬 Задать вопрос", callback_data="menu_ask"),
-            InlineKeyboardButton("📜 История", callback_data="menu_history")
+            InlineKeyboardButton(ask_btn, callback_data="menu_ask"),
+            InlineKeyboardButton(history_btn, callback_data="menu_history")
         ],
         [
-            InlineKeyboardButton("❓ Помощь", callback_data="menu_help"),
-            InlineKeyboardButton("⚙️ Статус", callback_data="menu_stats")
+            InlineKeyboardButton(help_btn, callback_data="menu_help"),
+            InlineKeyboardButton(status_btn, callback_data="menu_stats")
         ],
         [
-            InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")
+            InlineKeyboardButton(back_btn, callback_data="back_to_start")
         ]
     ]
 
@@ -7218,16 +7238,19 @@ async def lesson_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     
     # Создаем кнопку для старта quiz (если есть questions)
     keyboard = []
+    start_test_btn = await get_text("button.start_test", user_id)
+    next_lesson_btn = await get_text("button.next_lesson", user_id)
+    
     if quiz_section:
         keyboard.append([
-            InlineKeyboardButton("🎯 Начать тест", callback_data=f"start_quiz_{course_name}_{lesson_num}")
+            InlineKeyboardButton(start_test_btn, callback_data=f"start_quiz_{course_name}_{lesson_num}")
         ])
     
     # Проверяем и добавляем кнопку "Следующий урок"
     next_lesson_info = get_next_lesson_info(course_name, lesson_num)
     if next_lesson_info:
         keyboard.append([
-            InlineKeyboardButton("▶️ Следующий урок", callback_data=f"next_lesson_{course_name}_{lesson_num + 1}")
+            InlineKeyboardButton(next_lesson_btn, callback_data=f"next_lesson_{course_name}_{lesson_num + 1}")
         ])
     
     reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
@@ -7368,20 +7391,24 @@ async def handle_start_course_callback(update: Update, context: ContextTypes.DEF
         row.append(InlineKeyboardButton(button_text, callback_data=f"lesson_{course_name}_{i}"))
     
     # Добавляем кнопки навигации
+    continue_btn = await get_text("button.continue", user_id)
+    retake_course_btn = await get_text("button.retake_course", user_id)
+    back_to_courses_btn = await get_text("button.back_to_courses", user_id)
+    
     nav_row = []
     if completed_lessons < course_data['total_lessons']:
         # Кнопка для начала со следующего урока
         next_lesson = min(completed_lessons + 1, course_data['total_lessons'])
-        nav_row.append(InlineKeyboardButton("▶️ Продолжить", callback_data=f"lesson_{course_name}_{next_lesson}"))
+        nav_row.append(InlineKeyboardButton(continue_btn, callback_data=f"lesson_{course_name}_{next_lesson}"))
     
     if completed_lessons == course_data['total_lessons']:
-        nav_row.append(InlineKeyboardButton("🏆 Пересдать курс", callback_data=f"lesson_{course_name}_1"))
+        nav_row.append(InlineKeyboardButton(retake_course_btn, callback_data=f"lesson_{course_name}_1"))
     
     if nav_row:
         keyboard.append(nav_row)
     
     # Кнопка "Назад" 
-    keyboard.append([InlineKeyboardButton("⬅️ К курсам", callback_data="start_learn")])
+    keyboard.append([InlineKeyboardButton(back_to_courses_btn, callback_data="start_learn")])
     
     await query.edit_message_text(
         response,
@@ -9417,17 +9444,27 @@ async def handle_quiz_answer(update: Update, context: ContextTypes.DEFAULT_TYPE,
     result_emoji = "✅" if is_correct else "❌"
     correct_answer_text = current_question['answers'][correct_idx]
     
+    user_id = user.id
+    if is_correct:
+        result_text = await get_text("quiz.complete", user_id)
+    else:
+        result_text = await get_text("quiz.failed", user_id)
+    
+    your_answer = await get_text("quiz.answer", user_id)
+    correct_answer = "Правильный ответ:"
+    next_btn = "➡️ Далее"
+    
     message = (
-        f"{result_emoji} <b>Ответ {'ПРАВИЛЬНЫЙ' if is_correct else 'НЕПРАВИЛЬНЫЙ'}</b>\n\n"
-        f"Ваш ответ: {current_question['answers'][answer_idx]}\n"
-        f"Правильный ответ: {correct_answer_text}\n\n"
+        f"{result_emoji} <b>{result_text}</b>\n\n"
+        f"{your_answer}: {current_question['answers'][answer_idx]}\n"
+        f"{correct_answer}: {correct_answer_text}\n\n"
         f"Нажмите кнопку ниже для следующего вопроса..."
     )
     
     # Переходим к следующему вопросу
     quiz_session['current_q'] += 1
     
-    keyboard = [[InlineKeyboardButton("➡️ Далее", callback_data=f"quiz_next_{course_name}_{lesson_id}")]]
+    keyboard = [[InlineKeyboardButton(next_btn, callback_data=f"quiz_next_{course_name}_{lesson_id}")]]
     
     await query.edit_message_text(
         message,
