@@ -9493,12 +9493,38 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         is_subscribed = await check_channel_subscription(user_id, context)
         
         if is_subscribed:
-            await query.edit_message_text(
-                "✅ <b>Спасибо за подписку!</b>\n\n"
-                "Вы подписаны на наш канал и теперь имеете полный доступ ко всем функциям бота. "
-                "Напишите /start чтобы начать работу.",
-                parse_mode=ParseMode.HTML
-            )
+            # ✅ v0.43.0: Проверяем язык пользователя
+            user_language = get_user_lang(user_id, default=None)
+            
+            if user_language is None:
+                # Если язык не выбран, показываем выбор языка
+                logger.info(f"📢 User {user_id} subscribed successfully, showing language selection")
+                
+                selection_prompt = await get_text("language.select_prompt", language="ru")
+                
+                keyboard = [
+                    [
+                        InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"),
+                        InlineKeyboardButton("🇺🇦 Українська", callback_data="lang_uk")
+                    ]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                await query.edit_message_text(
+                    f"✅ <b>Спасибо за подписку!</b>\n\n"
+                    f"Теперь выберите язык для использования бота:\n\n"
+                    f"{selection_prompt}",
+                    reply_markup=reply_markup,
+                    parse_mode=ParseMode.HTML
+                )
+            else:
+                # Если язык уже выбран, просто показываем сообщение и предлагаем начать
+                await query.edit_message_text(
+                    "✅ <b>Спасибо за подписку!</b>\n\n"
+                    "Вы подписаны на наш канал и теперь имеете полный доступ ко всем функциям бота. "
+                    "Напишите /start чтобы начать работу.",
+                    parse_mode=ParseMode.HTML
+                )
             return
         else:
             # Пользователь еще не подписался
