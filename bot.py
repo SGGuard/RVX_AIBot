@@ -9554,16 +9554,25 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     )
                     logger.info(f"✅ Language selection menu sent to user {user_id}")
                 else:
-                    # Если язык уже выбран, просто показываем сообщение и предлагаем начать
+                    # Если язык уже выбран, показываем сообщение с кнопками для смены языка
                     logger.info(f"User {user_id} language already set to: {user_language}")
+                    
+                    keyboard = [
+                        [
+                            InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"),
+                            InlineKeyboardButton("🇺🇦 Українська", callback_data="lang_uk")
+                        ]
+                    ]
+                    reply_markup = InlineKeyboardMarkup(keyboard)
                     
                     await query.edit_message_text(
                         "✅ <b>Спасибо за подписку!</b>\n\n"
-                        "Вы подписаны на наш канал и теперь имеете полный доступ ко всем функциям бота. "
-                        "Напишите /start чтобы начать работу.",
+                        "Вы подписаны на наш канал и теперь имеете полный доступ ко всем функциям бота.\n\n"
+                        "Выберите язык (или переключитесь если нужно):",
+                        reply_markup=reply_markup,
                         parse_mode=ParseMode.HTML
                     )
-                    logger.info(f"✅ Success message sent to user {user_id}")
+                    logger.info(f"✅ Success message with language buttons sent to user {user_id}")
             else:
                 logger.warning(f"❌ User {user_id} is STILL NOT SUBSCRIBED - showing retry")
                 
