@@ -397,10 +397,9 @@ async def check_channel_subscription(user_id: int, context: ContextTypes.DEFAULT
         
     except Exception as e:
         logger.error(f"❌ Error checking subscription for user {user_id}: {e}")
-        # При ошибке - пропускаем проверку (разрешаем доступ) чтобы бот работал
-        # Вместо блокировки пользователя при ошибке API
-        logger.warning(f"⚠️ Subscription check failed for user {user_id}, allowing access due to API error")
-        return True  # Разрешаем доступ при ошибке API (лучше разрешить по ошибке чем заблокировать)
+        # При ошибке - требуем подписку (лучше требовать по ошибке чем разрешать)
+        logger.warning(f"⚠️ Subscription check failed for user {user_id}, blocking access due to API error")
+        return False  # Блокируем доступ при ошибке API
 
 def require_channel_subscription(func: Callable) -> Callable:
     """
