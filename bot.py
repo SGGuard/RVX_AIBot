@@ -5210,21 +5210,26 @@ async def tasks_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         quests = get_daily_quests_for_level(user_level)
         
         # Формируем текст
-        title = await get_text("quests.main_title", user_id)
+        title = await get_text("tasks.main_title", user_id)
+        level_header = await get_text("tasks.level_header", user_id)
+        choose_task = await get_text("tasks.choose_task", user_id)
+        separator = await get_text("tasks.separator", user_id)
         back_btn = await get_text("menu.back_button", user_id)
         
         text = f"""{title}
 
+{level_header}
 {level_name}
 XP: {user_xp}
 
-────────────────────
-Выбери задание и пройди тест!"""
+{separator}
+{choose_task}"""
         
         # Строим клавиатуру с кнопками заданий
         keyboard = []
         for quest in quests:
-            button_text = f"▶️ {quest['title']}"
+            button_text_template = await get_text("tasks.quest_button", user_id)
+            button_text = button_text_template.format(title=quest['title'])
             keyboard.append([InlineKeyboardButton(
                 button_text,
                 callback_data=f"start_quest_{quest['id']}"
@@ -6506,21 +6511,30 @@ async def clear_history_command(update: Update, context: ContextTypes.DEFAULT_TY
         # Получаем статистику до очистки (для логирования)
         stats = get_context_stats(user_id)
         
+        cleared_title = await get_text("history.cleared_title", user_id)
+        deleted_header = await get_text("history.deleted_header", user_id)
+        messages_deleted = await get_text("history.messages_deleted", user_id, count=stats['total_messages'])
+        tokens_deleted = await get_text("history.tokens_deleted", user_id, count=stats['total_tokens'])
+        cleared_note = await get_text("history.cleared_note", user_id)
+        start_new = await get_text("history.start_new", user_id)
+        start_dialog_btn = await get_text("history.start_dialog_btn", user_id)
+        menu_btn = await get_text("button.menu", user_id)
+        
         response_text = (
-            "✅ <b>История разговора очищена!</b>\n\n"
-            f"📊 <b>Было удалено:</b>\n"
-            f"• Сообщений: {stats['total_messages']}\n"
-            f"• Токенов: {stats['total_tokens']}\n\n"
-            "<i>ИИ теперь не будет помнить предыдущие разговоры.</i>\n"
-            "Можешь начать новый разговор! 🚀"
+            f"{cleared_title}\n\n"
+            f"{deleted_header}\n"
+            f"{messages_deleted}\n"
+            f"{tokens_deleted}\n\n"
+            f"{cleared_note}\n"
+            f"{start_new}"
         )
         
         logger.info(f"История разговора очищена для {user.username or user_id} "
                    f"(было {stats['total_messages']} сообщений)")
         
         keyboard = [[
-            InlineKeyboardButton("💬 Начать диалог", callback_data="start_dialog"),
-            InlineKeyboardButton("📋 Меню", callback_data="back_to_start")
+            InlineKeyboardButton(start_dialog_btn, callback_data="start_dialog"),
+            InlineKeyboardButton(menu_btn, callback_data="back_to_start")
         ]]
         
         await update.message.reply_text(
@@ -6563,29 +6577,52 @@ async def context_stats_command(update: Update, context: ContextTypes.DEFAULT_TY
     try:
         stats = get_context_stats(user_id)
         
+        title = await get_text("context.title", user_id)
+        memory_info = await get_text("context.memory_info", user_id)
+        recommendations = await get_text("context.recommendations", user_id)
+        clear_if_large = await get_text("context.clear_if_large", user_id)
+        clear_btn = await get_text("button.menu", user_id)
+        
         if stats['total_messages'] == 0:
+            empty_history = await get_text("status.empty_history", user_id)
+            start_dialog_text = await get_text("history.start_dialog_btn", user_id)
             response_text = (
-                "📊 <b>Статистика контекста</b>\n\n"
-                "История разговора пуста.\n"
-                "Начни диалог с ИИ, чтобы заполнить контекст! 💬"
+                f"{title}\n\n"
+                f"{empty_history}\n"
+                f"{start_dialog_text} 💬"
             )
         else:
             last_msg_time = datetime.fromtimestamp(stats['last_message_time']).strftime("%H:%M:%S")
+            
+            token_usage = await get_text("context.token_usage", user_id)
+            total_tokens = await get_text("context.total", user_id, total=stats['total_tokens'])
+            estimated_cost = await get_text("context.estimated_cost", user_id, cost=stats['total_tokens'] * 0.00001)
+            tokens_per_msg = await get_text("context.tokens_per_message", user_id, avg=stats['total_tokens']/max(1, stats['total_messages']))
+            conv_messages = await get_text("context.conversation_messages", user_id, count=stats['total_messages'])
+            conv_tokens = await get_text("context.conversation_tokens", user_id, count=stats['total_tokens'])
+            
             response_text = (
-                "📊 <b>Статистика контекста разговора</b>\n"
-                "═════════════════════════════════════\n\n"
+                f"{title}\n"
+                f"═════════════════════════════════════\n\n"
                 f"💬 <b>Сообщений в памяти:</b> {stats['total_messages']}\n"
-                f"🔤 <b>Всего токенов:</b> {stats['total_tokens']}\n"
-                f"⏰ <b>Последнее сообщение:</b> {last_msg_time}\n"
-                f"📏 <b>Размер контекстного окна:</b> {stats['context_window_size']}\n"
-                f"🧹 <b>Очисток истории:</b> {stats['cleanup_count']}\n\n"
-                "<i>Контекст помогает ИИ помнить о чем ты говоришь.</i>\n"
-                f"<i>Максимум сообщений в памяти: 50</i>"
+                f"🔤 {token_usage}\n"
+                f"{total_tokens}\n"
+                f"💰 {estimated_cost}\n"
+                f"📊 {tokens_per_msg}\n"
+                f"⏰ <b>Последнее сообщение:</b> {last_msg_time}\n\n"
+                f"{memory_info}\n"
+                f"{conv_messages}\n"
+                f"{conv_tokens}\n\n"
+                f"{recommendations}\n"
+                f"{clear_if_large}"
             )
         
+        menu_btn = await get_text("button.menu", user_id)
+        clear_history_btn = await get_text("history.start_dialog_btn", user_id)
+        
         keyboard = [[
-            InlineKeyboardButton("🗑️ Очистить историю", callback_data=f"clear_history_confirm"),
-            InlineKeyboardButton("📋 Меню", callback_data="back_to_start")
+            InlineKeyboardButton(f"🗑️ {clear_history_btn}", callback_data=f"clear_history_confirm"),
+            InlineKeyboardButton(menu_btn, callback_data="back_to_start")
         ]]
         
         await update.message.reply_text(
@@ -6709,12 +6746,22 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     
     stats = get_global_stats()
     
+    # Get localized texts
+    your_stats = await get_text("stats.user_statistics", user_id)
+    total_q = await get_text("stats.total_questions", user_id, count=user_requests)
+    ai_analyses = await get_text("stats.ai_analyses", user_id, count=stats['total_requests'])
+    learned_info = await get_text("stats.learned_info", user_id, info="✓")
+    quiz_att = await get_text("stats.quiz_attempts", user_id, count="0")
+    correct_a = await get_text("stats.correct_answers", user_id, count="0")
+    accuracy = await get_text("stats.accuracy", user_id, percent="100")
+    back_btn = await get_text("button.back", user_id)
+    
     stats_text = (
-        "📊 <b>СТАТИСТИКА RVX v0.14.0</b>\n\n"
-        "<b>👤 ТВОЯ СТАТИСТИКА:</b>\n"
-        f"  • Всего запросов: <b>{user_requests}</b>\n"
+        f"📊 <b>RVX СТАТИСТИКА v0.14.0</b>\n\n"
+        f"<b>👤 {your_stats}:</b>\n"
+        f"  • {total_q}\n"
         f"  • Сегодня: <b>{daily_requests}/{total_limit}</b> (осталось: {remaining})\n"
-        f"  • Уровень: <b>Лvl {user_level}</b> ({tier_name})\n"
+        f"  • Уровень: <b>Lvl {user_level}</b> ({tier_name})\n"
         f"  • XP: <b>{user_xp}</b>\n"
         f"  • Участник с: <b>{member_since[:10]}</b>\n\n"
         "<b>🌐 ГЛОБАЛЬНАЯ СТАТИСТИКА:</b>\n"
@@ -6744,7 +6791,7 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             stats_text += f"  {medal} {name}: <b>{requests}</b> запросов\n"
     
     keyboard = [
-        [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
+        [InlineKeyboardButton(back_btn, callback_data="back_to_start")]
     ]
     
     try:
@@ -6805,9 +6852,11 @@ async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     user_id = update.effective_user.id
     
     if not context.args:
+        enter_query = await get_text("search.enter_query", user_id)
+        example = "биткоин"
         await update.message.reply_text(
-            "❌ <b>Укажите текст для поиска</b>\n\n"
-            "<i>Пример:</i> /search биткоин",
+            f"❌ <b>{enter_query}</b>\n\n"
+            f"<i>Пример:</i> /search {example}",
             parse_mode=ParseMode.HTML
         )
         return
@@ -6816,21 +6865,23 @@ async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     results = search_user_requests(user_id, search_text)
     
     if not results:
+        no_results = await get_text("search.no_results", user_id, query=search_text)
         await update.message.reply_text(
-            f"🔍 <b>Ничего не найдено</b>\n\n"
-            f"По запросу: <i>{search_text}</i>",
+            f"🔍 <b>{no_results}</b>",
             parse_mode=ParseMode.HTML
         )
         return
     
-    response = f"🔍 <b>НАЙДЕНО {len(results)} РЕЗУЛЬТАТОВ</b>\n\n"
+    results_header = await get_text("search.results_header", user_id, query=search_text)
+    response = f"🔍 <b>{results_header}</b>\n\n"
     
     for i, (news, _, created_at) in enumerate(results[:5], 1):
         news_preview = news[:50] + "..."
         response += f"<b>{i}.</b> {news_preview}\n  🕐 {created_at[:16]}\n\n"
     
     if len(results) > 5:
-        response += f"<i>...и ещё {len(results) - 5} результатов</i>"
+        more_text = f"<i>...и ещё {len(results) - 5} результатов</i>"
+        response += more_text
     
     await update.message.reply_text(response, parse_mode=ParseMode.HTML)
 
@@ -6917,12 +6968,18 @@ async def limits_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     empty = 10 - filled
     progress_bar = "█" * filled + "░" * empty
     
+    # Get localized texts
+    limits_title = await get_text("limits.title", user_id)
+    daily_analyses = await get_text("limits.daily_analyses", user_id, used=daily_used, limit=MAX_REQUESTS_PER_DAY)
+    resets_in = await get_text("limits.resets_in", user_id, time=reset_str)
+    premium_upgrade = await get_text("limits.premium_upgrade", user_id)
+    
     limits_text = (
-        f"{status_emoji} <b>ВАШИ ЛИМИТЫ</b>\n\n"
+        f"{status_emoji} <b>{limits_title}</b>\n\n"
         f"<b>📊 ДНЕВНОЙ ЛИМИТ:</b>\n"
         f"  {progress_bar} {daily_used}/{MAX_REQUESTS_PER_DAY}\n"
-        f"  • Осталось: <b>{remaining}</b> запросов\n"
-        f"  • Сброс: <b>{reset_str}</b>\n\n"
+        f"  • {daily_analyses}\n"
+        f"  • {resets_in}\n\n"
         f"<b>⏱️ FLOOD CONTROL:</b>\n"
         f"  • Минимум: <b>{FLOOD_COOLDOWN_SECONDS}с</b> между запросами\n"
         f"  • Защищает сервер от перегрузки\n\n"
@@ -6934,11 +6991,11 @@ async def limits_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         f"  • Изучай /learn курсы - они не требуют запросов\n"
         f"  • Задавай конкретные вопросы - получишь лучше ответы\n"
         f"  • Проверь /teach для интерактивных уроков\n\n"
-        f"📈 <i>Уровень прокачки даёт больше лимитов!</i>"
+        f"{premium_upgrade}"
     )
     
     if not can_request:
-        limits_text += "⚠️ <b>ЛИМИТ ИСЧЕРПАН!</b>\n<i>Попробуйте завтра.</i>"
+        limits_text += "\n\n⚠️ <b>ЛИМИТ ИСЧЕРПАН!</b>\n<i>Попробуйте завтра.</i>"
     
     await update.message.reply_text(limits_text, parse_mode=ParseMode.HTML)
 
