@@ -5670,7 +5670,8 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         profile_data = get_user_profile_data(user_id)
         
         if not profile_data:
-            await update.message.reply_text("❌ Ошибка загрузки профиля")
+            error_msg = await get_text("error.profile_load", user_id)
+            await update.message.reply_text(error_msg)
             return
         
         # Форматируем сообщение
@@ -5692,7 +5693,8 @@ async def profile_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         
     except Exception as e:
         logger.error(f"Ошибка в profile_command: {e}", exc_info=True)
-        await update.message.reply_text("❌ Ошибка загрузки профиля")
+        error_msg = await get_text("error.profile_load", user_id)
+        await update.message.reply_text(error_msg)
 
 
 @log_command
@@ -6529,8 +6531,9 @@ async def clear_history_command(update: Update, context: ContextTypes.DEFAULT_TY
         
     except Exception as e:
         logger.error(f"Ошибка при очистке истории: {e}")
+        error_msg = await get_text("error.history_clear", user_id)
         await update.message.reply_text(
-            "❌ Произошла ошибка при очистке истории. Попробуй позже.",
+            error_msg,
             parse_mode=ParseMode.HTML
         )
 
@@ -6593,8 +6596,9 @@ async def context_stats_command(update: Update, context: ContextTypes.DEFAULT_TY
         
     except Exception as e:
         logger.error(f"Ошибка при получении статистики: {e}")
+        error_msg = await get_text("error.stats_load", user_id)
         await update.message.reply_text(
-            "❌ Ошибка при получении статистики контекста.",
+            error_msg,
             parse_mode=ParseMode.HTML
         )
 
@@ -6837,7 +6841,8 @@ async def export_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     history = get_user_history(user_id, limit=100)
     
     if not history:
-        await update.message.reply_text("📜 История пуста.")
+        empty_msg = await get_text("status.empty_history", user_id)
+        await update.message.reply_text(empty_msg)
         return
     
     export_text = (
@@ -12106,7 +12111,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             action = None
     except (ValueError, IndexError):
         logger.error(f"Ошибка парсинга callback: {data}")
-        await query.message.reply_text("❌ Ошибка обработки кнопки")
+        error_msg = await get_text("error.button_processing", user.id)
+        await query.message.reply_text(error_msg)
         return
     
     # Обработка фидбека "Полезно"
@@ -13179,7 +13185,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     
     except Exception as e:
         logger.error(f"Ошибка обработки фото: {e}", exc_info=True)
-        await update.message.reply_text("❌ Ошибка при обработке изображения")
+        error_msg = await get_text("error.image_processing", user_id)
+        await update.message.reply_text(error_msg)
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -13530,14 +13537,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             
             # Пытаемся дать простой ответ вместо ошибки
             try:
+                thank_you_detail = await get_text("status.thank_you_question_detail", user_id, text=user_text[:50] + "...")
                 await update.message.reply_text(
-                    f"🤖 Сейчас я не могу ответить подробно, но спасибо за вопрос! '{user_text[:50]}...'\n\n"
-                    "Попробуй позже или спроси про крипто! 💰",
+                    thank_you_detail,
                     parse_mode=ParseMode.HTML
                 )
             except:
                 try:
-                    await update.message.reply_text("🤖 Спасибо за вопрос!")
+                    thank_you = await get_text("status.thank_you_question", user_id)
+                    await update.message.reply_text(thank_you)
                 except:
                     pass
             return
