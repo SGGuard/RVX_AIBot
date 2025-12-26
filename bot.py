@@ -9470,7 +9470,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     # ✅ v0.42.1: Проверяем подписку перед обработкой кнопки
     # Пропускаем проверку для кнопок которые относятся к подписке
-    if not data.startswith("skip_"):
+    # ВАЖНО: Не проверяем подписку если это кнопка проверки подписки!
+    if not data.startswith("skip_") and not data.startswith("check_subscription_"):
         is_subscribed = await check_channel_subscription(user_id, context)
         if not is_subscribed:
             logger.info(f"User {user_id} clicked button without channel subscription")
@@ -9481,6 +9482,12 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     InlineKeyboardButton(
                         "📢 Подписаться на канал",
                         url=MANDATORY_CHANNEL_LINK
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        "✅ Я подписался, проверить еще раз",
+                        callback_data=f"check_subscription_{user_id}"
                     )
                 ]
             ]
