@@ -9430,14 +9430,30 @@ async def handle_language_selection(update: Update, context: ContextTypes.DEFAUL
             logger.info(f"✅ User {user_id} language saved: {selected_language}")
             print(f"DEBUG: Language saved successfully!")
             
-            await query.answer(f"✅ Язык установлен!", show_alert=False)
-            print(f"DEBUG: Sent confirmation to user")
+            # Показываем сообщение с главным меню вместо вызова start_command
+            logger.info(f"🎯 Showing main menu to user {user_id} in language {selected_language}")
+            print(f"DEBUG: Editing message with main menu...")
             
-            # Теперь показываем главное меню
-            logger.info(f"🚀 Calling start_command for user {user_id}")
-            print(f"DEBUG: Calling start_command...")
-            await start_command(update, context)
-            print(f"DEBUG: start_command completed")
+            # Получаем главное меню
+            main_menu_text = await get_text("menu.main_greeting", user_id, language=selected_language)
+            
+            # Создаем кнопки меню
+            keyboard = [
+                [InlineKeyboardButton("🎓 Обучение", callback_data="teach_menu")],
+                [InlineKeyboardButton("💬 Спросить у бота", callback_data="ask_question")],
+                [InlineKeyboardButton("📊 Мой профиль", callback_data="start_profile")],
+                [InlineKeyboardButton("⚙️ Настройки", callback_data="settings_menu")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            # Редактируем текущее сообщение
+            await query.edit_message_text(
+                f"✅ <b>Спасибо за подписку!</b>\n\n{main_menu_text}",
+                reply_markup=reply_markup,
+                parse_mode=ParseMode.HTML
+            )
+            print(f"DEBUG: Menu sent successfully!")
+            logger.info(f"✅ Main menu shown to user {user_id}")
         else:
             logger.error(f"❌ Failed to set language for user {user_id}")
             print(f"DEBUG: set_user_language FAILED!")
