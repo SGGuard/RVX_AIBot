@@ -1,0 +1,1000 @@
+2025-12-26T06:11:56.770000801Z [err]  06:11:56 [WARNING ] ⚠️ Database schema incomplete. Missing tables: ['drops_feed']
+2025-12-26T06:11:56.770025450Z [err]  Attempting to reinitialize...
+2025-12-26T06:11:56.770030695Z [err]  06:11:56 [INFO    ] ℹ️ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T06:11:56.770034742Z [err]  06:11:56 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T06:11:56.770038685Z [err]  06:11:56 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T06:11:56.770046948Z [err]  06:11:56 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T06:11:56.770053108Z [err]  06:11:56 [INFO    ] ℹ️ Миграция не требуется, схема актуальна
+2025-12-26T06:11:56.770057962Z [err]  06:11:56 [WARNING ] ⚠️ Database schema incomplete: missing 1 tables
+2025-12-26T06:11:56.770061846Z [err]  Missing: ['drops_feed']
+2025-12-26T06:11:56.770065348Z [err]  Existing: ['activities_cache', 'analytics', 'audit_logs', 'bookmark_history', 'bot_events', 'cache', 'conversation_history', 'conversation_stats', 'courses', 'daily_tasks', 'drops_history', 'faq', 'feedback', 'leaderboard_cache', 'learning_paths', 'lessons', 'requests', 'sqlite_sequence', 'teaching_lessons', 'tools', 'user_badges', 'user_bookmarks', 'user_bookmarks_v2', 'user_courses', 'user_drop_subscriptions', 'user_learning_paths', 'user_profiles', 'user_progress', 'user_questions', 'user_quiz_responses', 'user_quiz_stats', 'users']
+2025-12-26T06:11:56.771759916Z [err]  06:11:56 [ERROR   ] ❌ Critical: Database schema still invalid after reinitialization!
+2025-12-26T06:11:56.771770308Z [err]  Missing: ['drops_feed']
+2025-12-26T06:11:56.771776489Z [err]  06:11:56 [INFO    ] ℹ️   📊 Created: idx_users_leaderboard (leaderboard queries)
+2025-12-26T06:11:56.771782271Z [err]  06:11:56 [INFO    ] ℹ️   📝 Created: idx_requests_user_date (user request history)
+2025-12-26T06:11:56.771787790Z [err]  06:11:56 [WARNING ] ⚠️   ⚠️ Skipping idx_user_progress_lookup (missing columns)
+2025-12-26T06:11:56.771793459Z [err]  06:11:56 [INFO    ] ℹ️   ✅ Created: idx_daily_tasks_user (daily task queries)
+2025-12-26T06:11:56.771799079Z [err]  06:11:56 [INFO    ] ℹ️   🔖 Created: idx_bookmarks_user (bookmark queries)
+2025-12-26T06:11:56.771804465Z [err]  06:11:56 [INFO    ] ℹ️   📈 Created: idx_analytics_date (analytics queries)
+2025-12-26T06:11:56.771812964Z [err]  06:11:56 [INFO    ] ℹ️ Database indices created successfully (v0.38.0 - QUICK WIN #2)
+2025-12-26T06:11:56.771819984Z [err]  06:11:56 [INFO    ] ℹ️ Database pool initialized: {'created': 5, 'total_get': 0, 'total_return': 0, 'errors': 0, 'pool_size': 5, 'available': 5}
+2025-12-26T06:11:56.771825609Z [err]  06:11:56 [INFO    ] ℹ️ Директория бэкапов готова: /app/backups
+2025-12-26T06:11:56.771830941Z [err]  06:11:56 [INFO    ] ℹ️ Бэкап создан: /app/backups/rvx_bot_backup_20251226_061156.db (0.02 MB)
+2025-12-26T06:11:56.771836286Z [err]  06:11:56 [INFO    ] ℹ️ Директория бэкапов готова: /app/backups
+2025-12-26T06:11:56.771845375Z [err]  06:11:56 [INFO    ] ℹ️ ======================================================================
+2025-12-26T06:11:56.771851075Z [err]  06:11:56 [INFO    ] ℹ️ 🚀 RVX Telegram Bot v0.7.0 запускается...
+2025-12-26T06:11:56.771856820Z [err]  06:11:56 [INFO    ] ℹ️ ======================================================================
+2025-12-26T06:11:56.775057146Z [err]  06:11:56 [INFO    ] ℹ️ 📊 Конфигурация:
+2025-12-26T06:11:56.775068967Z [err]  06:11:56 [INFO    ] ℹ️   • API URL: https://web-production-ddd5.up.railway.app/explain_news
+2025-12-26T06:11:56.775075527Z [err]  06:11:56 [INFO    ] ℹ️   • Max input: 4096 символов
+2025-12-26T06:11:56.775081324Z [err]  06:11:56 [INFO    ] ℹ️   • Daily limit: 50 запросов
+2025-12-26T06:11:56.775088047Z [err]  06:11:56 [INFO    ] ℹ️   • Flood control: 3с
+2025-12-26T06:11:56.775093621Z [err]  06:11:56 [INFO    ] ℹ️   • Admin users: 2 (with limits)
+2025-12-26T06:11:56.775545291Z [err]  06:11:56 [INFO    ] ℹ️   • Unlimited admins: 0 (no limits) ⭐
+2025-12-26T06:11:56.775554618Z [err]  06:11:56 [INFO    ] ℹ️   • Mandatory channel: Да
+2025-12-26T06:11:56.775560449Z [err]  06:11:56 [INFO    ] ℹ️   • Update channel: Нет
+2025-12-26T06:11:56.775565518Z [err]  06:11:56 [INFO    ] ℹ️   • Bot version: 0.21.0
+2025-12-26T06:11:56.775578845Z [err]  06:11:56 [INFO    ] ℹ️   • Analytics: Включена
+2025-12-26T06:11:56.775585958Z [err]  06:11:56 [INFO    ] ℹ️ ======================================================================
+2025-12-26T06:11:58.242829489Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:11:58.645449340Z [err]  06:11:58 [INFO    ] ℹ️ 🚀 БОТ ПОЛНОСТЬЮ ЗАПУЩЕН И ГОТОВ К РАБОТЕ
+2025-12-26T06:11:58.646287540Z [err]  06:11:58 [INFO    ] ℹ️ Автоматическая очистка кэша настроена (каждые 6ч)
+2025-12-26T06:11:58.646295659Z [err]  06:11:58 [INFO    ] ℹ️ Периодическая очистка сессий настроена (каждый час)
+2025-12-26T06:11:58.646302599Z [err]  06:11:58 [INFO    ] ℹ️ Периодическое логирование метрик настроено (каждые 6 часов)
+2025-12-26T06:11:58.646309309Z [err]  06:11:58 [INFO    ] ℹ️ Обновление рейтингов настроено (каждый час)
+2025-12-26T06:11:58.646316747Z [err]  06:11:58 [INFO    ] ℹ️ 💊 Health check настроен (каждые 300 сек)
+2025-12-26T06:11:59.685796826Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:12:00.128594964Z [err]  06:12:00 [INFO    ] ℹ️ Список команд установлен в Telegram
+2025-12-26T06:12:01.259838416Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:12:02.554231055Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:12:05.563596602Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:12:07.087333523Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:12:08.587714090Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:12:08.767707680Z [err]  06:12:08 [INFO    ] ℹ️ 🧹 Запуск автоматической очистки кэша...
+2025-12-26T06:12:08.767712055Z [err]  06:12:08 [INFO    ] ℹ️ Удалено 0 старых/неиспользуемых записей из кэша
+2025-12-26T06:12:08.767716427Z [err]  06:12:08 [INFO    ] ℹ️ 💾 Кэш: 0 записей, всего попаданий: 0
+2025-12-26T06:12:12.794534867Z [err]  06:12:12 [INFO    ] ℹ️ 📝 Команда /start от 790245132 (@shunyaa)
+2025-12-26T06:12:13.081918350Z [err]  06:12:13 [ERROR   ] ❌ ❌ Error checking subscription for user 790245132: Chat not found
+2025-12-26T06:12:13.081926861Z [err]  06:12:13 [WARNING ] ⚠️ ⚠️ Subscription check failed for user 790245132, blocking access due to API error
+2025-12-26T06:12:13.081932281Z [err]  06:12:13 [INFO    ] ℹ️ User 790245132 started bot without channel subscription
+2025-12-26T06:12:21.947505464Z [err]  06:12:21 [ERROR   ] ❌ ❌ Error checking subscription for user 790245132: Chat not found
+2025-12-26T06:12:21.947512969Z [err]  06:12:21 [WARNING ] ⚠️ ⚠️ Subscription check failed for user 790245132, blocking access due to API error
+2025-12-26T06:12:21.947518236Z [err]  06:12:21 [INFO    ] ℹ️ User 790245132 sent message without channel subscription
+2025-12-26T06:12:27.115111647Z [err]  06:12:27 [INFO    ] ℹ️ 📝 Команда /start от 790245132 (@shunyaa)
+2025-12-26T06:12:27.713268883Z [err]  06:12:27 [ERROR   ] ❌ ❌ Error checking subscription for user 790245132: Chat not found
+2025-12-26T06:12:27.713275083Z [err]  06:12:27 [WARNING ] ⚠️ ⚠️ Subscription check failed for user 790245132, blocking access due to API error
+2025-12-26T06:12:27.713283998Z [err]  06:12:27 [INFO    ] ℹ️ User 790245132 started bot without channel subscription
+2025-12-26T06:12:28.780040053Z [err]  06:12:28 [INFO    ] ℹ️ 📊 Обновление кэша рейтингов...
+2025-12-26T06:12:28.780045018Z [err]  06:12:28 [INFO    ] ℹ️    ✅ Период 'week': 0 пользователей
+2025-12-26T06:12:28.780049082Z [err]  06:12:28 [INFO    ] ℹ️    ✅ Период 'month': 0 пользователей
+2025-12-26T06:12:28.780053948Z [err]  06:12:28 [INFO    ] ℹ️    ✅ Период 'all': 0 пользователей
+2025-12-26T06:12:28.780058966Z [err]  06:12:28 [INFO    ] ℹ️ 💊 HEALTH CHECK: Users=0 | Uptime=0.0h | ErrorRate=0.0% | CacheHits=0 | AvgResponse=0ms
+2025-12-26T06:13:59.162267467Z [err]  06:13:58 [INFO    ] ℹ️ 📊 Req=0 (0%) | Users=0 | Resp=0.0ms
+2025-12-26T06:14:39.154354991Z [err]  06:14:30 [INFO    ] ℹ️ 📝 Команда /start от 790245132 (@shunyaa)
+2025-12-26T06:14:39.154361658Z [err]  06:14:31 [ERROR   ] ❌ ❌ Error checking subscription for user 790245132: Chat not found
+2025-12-26T06:14:39.154368146Z [err]  06:14:31 [WARNING ] ⚠️ ⚠️ Subscription check failed for user 790245132, blocking access due to API error
+2025-12-26T06:14:39.154374999Z [err]  06:14:31 [INFO    ] ℹ️ User 790245132 started bot without channel subscription
+2025-12-26T06:14:39.154382640Z [err]  06:14:38 [INFO    ] ℹ️ 📝 Команда /start от 790245132 (@shunyaa)
+2025-12-26T06:14:39.154388828Z [err]  06:14:38 [ERROR   ] ❌ ❌ Error checking subscription for user 790245132: Chat not found
+2025-12-26T06:14:39.154395109Z [err]  06:14:38 [WARNING ] ⚠️ ⚠️ Subscription check failed for user 790245132, blocking access due to API error
+2025-12-26T06:14:39.154401182Z [err]  06:14:38 [INFO    ] ℹ️ User 790245132 started bot without channel subscription
+2025-12-26T06:14:41.379356619Z [err]  06:14:41 [INFO    ] ℹ️ 📝 Команда /start от 790245132 (@shunyaa)
+2025-12-26T06:14:41.484627254Z [err]  06:14:41 [ERROR   ] ❌ ❌ Error checking subscription for user 790245132: Chat not found
+2025-12-26T06:14:41.484641184Z [err]  06:14:41 [WARNING ] ⚠️ ⚠️ Subscription check failed for user 790245132, blocking access due to API error
+2025-12-26T06:14:41.484651539Z [err]  06:14:41 [INFO    ] ℹ️ User 790245132 started bot without channel subscription
+2025-12-26T06:17:31.496585586Z [err]  06:17:28 [INFO    ] ℹ️ 💊 HEALTH CHECK: Users=0 | Uptime=0.1h | ErrorRate=0.0% | CacheHits=0 | AvgResponse=0ms
+2025-12-26T06:18:36.000000000Z [inf]  Starting Container
+2025-12-26T06:18:37.942085256Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:18:37.942093458Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:18:38.226076977Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:18:38.934337692Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:18:39.000000000Z [inf]  Stopping Container
+2025-12-26T06:18:39.571115809Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:18:40.327949902Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:18:41.198467350Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:18:42.186013456Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:18:42.968081550Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:18:43.960751309Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:18:44.546795592Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:18:46.000000000Z [inf]  Starting Container
+2025-12-26T06:18:48.434261503Z [err]  06:18:47 [INFO] CLEANUP: Current PID = 2
+2025-12-26T06:18:48.434272483Z [err]  06:18:47 [DEBUG] Waiting 3 seconds for Telegram polling lock to release...
+2025-12-26T06:18:53.000000000Z [inf]  Stopping Container
+2025-12-26T06:18:53.852642363Z [err]  06:18:53 [INFO    ] ℹ️ BotMetrics инициализирован
+2025-12-26T06:18:53.852650723Z [err]  06:18:53 [INFO    ] ℹ️ Таблица conversation_history не существует, будет создана позже
+2025-12-26T06:18:53.852708801Z [err]  /usr/local/lib/python3.12/site-packages/pydantic/_internal/_config.py:345: UserWarning: Valid config keys have changed in V2:
+2025-12-26T06:18:53.852715528Z [err]  * 'max_anystr_length' has been renamed to 'str_max_length'
+2025-12-26T06:18:53.852722512Z [err]    warnings.warn(message, UserWarning)
+2025-12-26T06:18:53.852729384Z [err]  06:18:53 [INFO    ] ℹ️ BotState инициализирован
+2025-12-26T06:18:54.770769387Z [err]  06:18:53 [INFO    ] ℹ️   • Добавление колонки course_name в user_progress...
+2025-12-26T06:18:54.770782809Z [err]  06:18:53 [INFO    ] ℹ️ Миграция успешно завершена (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T06:18:54.770789175Z [err]  06:18:53 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T06:18:54.770793701Z [err]  06:18:53 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T06:18:54.770798336Z [err]  06:18:53 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T06:18:54.770813662Z [err]  06:18:53 [INFO    ] ℹ️ Миграция не требуется, схема актуальна
+2025-12-26T06:18:54.770821017Z [err]  06:18:53 [WARNING ] ⚠️ Database schema incomplete: missing 1 tables
+2025-12-26T06:18:54.770827465Z [err]  Missing: ['drops_feed']
+2025-12-26T06:18:54.770833216Z [err]  Existing: ['activities_cache', 'analytics', 'audit_logs', 'bookmark_history', 'bot_events', 'cache', 'conversation_history', 'conversation_stats', 'courses', 'daily_tasks', 'drops_history', 'faq', 'feedback', 'leaderboard_cache', 'learning_paths', 'lessons', 'requests', 'sqlite_sequence', 'teaching_lessons', 'tools', 'user_badges', 'user_bookmarks', 'user_bookmarks_v2', 'user_courses', 'user_drop_subscriptions', 'user_learning_paths', 'user_profiles', 'user_progress', 'user_questions', 'user_quiz_responses', 'user_quiz_stats', 'users']
+2025-12-26T06:18:54.771090986Z [err]  06:18:53 [INFO    ] ℹ️ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T06:18:54.771097373Z [err]  06:18:53 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T06:18:54.771103487Z [err]  06:18:53 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T06:18:54.771109319Z [err]  06:18:53 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T06:18:54.775509334Z [err]  06:18:54 [INFO    ] ℹ️ 📊 Конфигурация:
+2025-12-26T06:18:54.775523366Z [err]  06:18:54 [INFO    ] ℹ️   • API URL: https://web-production-ddd5.up.railway.app/explain_news
+2025-12-26T06:18:54.775529098Z [err]  06:18:54 [INFO    ] ℹ️ Бэкап создан: /app/backups/rvx_bot_backup_20251226_061854.db (0.02 MB)
+2025-12-26T06:18:54.775533657Z [err]  06:18:54 [INFO    ] ℹ️   • Max input: 4096 символов
+2025-12-26T06:18:54.775540390Z [err]  06:18:53 [WARNING ] ⚠️   ⚠️ Skipping idx_user_progress_lookup (missing columns)
+2025-12-26T06:18:54.775547219Z [err]  06:18:54 [INFO    ] ℹ️   • Daily limit: 50 запросов
+2025-12-26T06:18:54.775550649Z [err]  06:18:54 [INFO    ] ℹ️ Директория бэкапов готова: /app/backups
+2025-12-26T06:18:54.775554375Z [err]  06:18:53 [INFO    ] ℹ️   ✅ Created: idx_daily_tasks_user (daily task queries)
+2025-12-26T06:18:54.775562360Z [err]  06:18:54 [INFO    ] ℹ️ ======================================================================
+2025-12-26T06:18:54.775566010Z [err]  06:18:53 [INFO    ] ℹ️   🔖 Created: idx_bookmarks_user (bookmark queries)
+2025-12-26T06:18:54.775573938Z [err]  06:18:54 [INFO    ] ℹ️ 🚀 RVX Telegram Bot v0.7.0 запускается...
+2025-12-26T06:18:54.775577749Z [err]  06:18:54 [INFO    ] ℹ️   📈 Created: idx_analytics_date (analytics queries)
+2025-12-26T06:18:54.775585228Z [err]  06:18:54 [INFO    ] ℹ️ ======================================================================
+2025-12-26T06:18:54.775588549Z [err]  06:18:54 [INFO    ] ℹ️ Database indices created successfully (v0.38.0 - QUICK WIN #2)
+2025-12-26T06:18:54.775598559Z [err]  06:18:54 [INFO    ] ℹ️ Database pool initialized: {'created': 5, 'total_get': 0, 'total_return': 0, 'errors': 0, 'pool_size': 5, 'available': 5}
+2025-12-26T06:18:54.775608703Z [err]  06:18:54 [INFO    ] ℹ️ Директория бэкапов готова: /app/backups
+2025-12-26T06:18:54.775822101Z [err]  06:18:53 [WARNING ] ⚠️ Database schema incomplete. Missing tables: ['drops_feed']
+2025-12-26T06:18:54.775829081Z [err]  Attempting to reinitialize...
+2025-12-26T06:18:54.775835072Z [err]  06:18:53 [INFO    ] ℹ️ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T06:18:54.775843704Z [err]  06:18:53 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T06:18:54.775850582Z [err]  06:18:53 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T06:18:54.775857030Z [err]  06:18:53 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T06:18:54.775864655Z [err]  06:18:53 [INFO    ] ℹ️ Миграция не требуется, схема актуальна
+2025-12-26T06:18:54.775872178Z [err]  06:18:53 [WARNING ] ⚠️ Database schema incomplete: missing 1 tables
+2025-12-26T06:18:54.775880422Z [err]  Missing: ['drops_feed']
+2025-12-26T06:18:54.775887855Z [err]  Existing: ['activities_cache', 'analytics', 'audit_logs', 'bookmark_history', 'bot_events', 'cache', 'conversation_history', 'conversation_stats', 'courses', 'daily_tasks', 'drops_history', 'faq', 'feedback', 'leaderboard_cache', 'learning_paths', 'lessons', 'requests', 'sqlite_sequence', 'teaching_lessons', 'tools', 'user_badges', 'user_bookmarks', 'user_bookmarks_v2', 'user_courses', 'user_drop_subscriptions', 'user_learning_paths', 'user_profiles', 'user_progress', 'user_questions', 'user_quiz_responses', 'user_quiz_stats', 'users']
+2025-12-26T06:18:54.775895656Z [err]  06:18:53 [ERROR   ] ❌ Critical: Database schema still invalid after reinitialization!
+2025-12-26T06:18:54.775904479Z [err]  Missing: ['drops_feed']
+2025-12-26T06:18:54.775911199Z [err]  06:18:53 [INFO    ] ℹ️   📊 Created: idx_users_leaderboard (leaderboard queries)
+2025-12-26T06:18:54.775918107Z [err]  06:18:53 [INFO    ] ℹ️   📝 Created: idx_requests_user_date (user request history)
+2025-12-26T06:18:54.781012116Z [err]  06:18:54 [INFO    ] ℹ️   • Flood control: 3с
+2025-12-26T06:18:54.781017858Z [err]  06:18:54 [INFO    ] ℹ️   • Admin users: 2 (with limits)
+2025-12-26T06:18:54.781029229Z [err]  06:18:54 [INFO    ] ℹ️   • Unlimited admins: 0 (no limits) ⭐
+2025-12-26T06:18:54.781035645Z [err]  06:18:54 [INFO    ] ℹ️   • Mandatory channel: Да
+2025-12-26T06:18:54.781042243Z [err]  06:18:54 [INFO    ] ℹ️   • Update channel: Нет
+2025-12-26T06:18:54.781047535Z [err]  06:18:54 [INFO    ] ℹ️   • Bot version: 0.21.0
+2025-12-26T06:18:54.781053356Z [err]  06:18:54 [INFO    ] ℹ️   • Analytics: Включена
+2025-12-26T06:18:54.781059025Z [err]  06:18:54 [INFO    ] ℹ️ ======================================================================
+2025-12-26T06:18:56.894666699Z [err]  06:18:56 [INFO    ] ℹ️ Автоматическая очистка кэша настроена (каждые 6ч)
+2025-12-26T06:18:56.894675027Z [err]  06:18:56 [INFO    ] ℹ️ Периодическая очистка сессий настроена (каждый час)
+2025-12-26T06:18:56.894686129Z [err]  06:18:56 [INFO    ] ℹ️ Периодическое логирование метрик настроено (каждые 6 часов)
+2025-12-26T06:18:56.894692923Z [err]  06:18:56 [INFO    ] ℹ️ Обновление рейтингов настроено (каждый час)
+2025-12-26T06:18:56.894698954Z [err]  06:18:56 [INFO    ] ℹ️ 💊 Health check настроен (каждые 300 сек)
+2025-12-26T06:18:56.894706002Z [err]  06:18:56 [INFO    ] ℹ️ 🚀 БОТ ПОЛНОСТЬЮ ЗАПУЩЕН И ГОТОВ К РАБОТЕ
+2025-12-26T06:18:58.202482264Z [err]  06:18:57 [INFO    ] ℹ️ Список команд установлен в Telegram
+2025-12-26T06:19:05.543172448Z [err]  06:19:05 [INFO    ] ℹ️ 📝 Команда /start от 790245132 (@shunyaa)
+2025-12-26T06:19:05.654129944Z [err]  06:19:05 [INFO    ] ℹ️ ✅ User 790245132 is subscribed to mandatory channel (status: member)
+2025-12-26T06:19:06.529474960Z [err]  06:19:06 [INFO    ] ℹ️ 🧹 Запуск автоматической очистки кэша...
+2025-12-26T06:19:06.529479292Z [err]  06:19:06 [INFO    ] ℹ️ Удалено 0 старых/неиспользуемых записей из кэша
+2025-12-26T06:19:06.529482729Z [err]  06:19:06 [INFO    ] ℹ️ 💾 Кэш: 0 записей, всего попаданий: 0
+2025-12-26T06:19:35.789243637Z [err]  06:19:26 [INFO    ] ℹ️ 📊 Обновление кэша рейтингов...
+2025-12-26T06:19:35.789256549Z [err]  06:19:26 [INFO    ] ℹ️    ✅ Период 'week': 0 пользователей
+2025-12-26T06:19:35.789263320Z [err]  06:19:26 [INFO    ] ℹ️    ✅ Период 'month': 0 пользователей
+2025-12-26T06:19:35.789272859Z [err]  06:19:26 [INFO    ] ℹ️    ✅ Период 'all': 0 пользователей
+2025-12-26T06:19:35.789290029Z [err]  06:19:26 [INFO    ] ℹ️ 💊 HEALTH CHECK: Users=1 | Uptime=0.0h | ErrorRate=0.0% | CacheHits=0 | AvgResponse=0ms
+2025-12-26T06:20:51.000000000Z [inf]  Starting Container
+2025-12-26T06:20:52.992730015Z [err]  06:20:52 [DEBUG] Waiting 3 seconds for Telegram polling lock to release...
+2025-12-26T06:20:52.992776404Z [err]  06:20:52 [INFO] CLEANUP: Current PID = 2
+2025-12-26T06:20:54.000000000Z [inf]  Starting Container
+2025-12-26T06:20:54.585082732Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:20:55.595695406Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:20:57.000000000Z [inf]  Stopping Container
+2025-12-26T06:20:57.139142232Z [err]  * 'max_anystr_length' has been renamed to 'str_max_length'
+2025-12-26T06:20:57.139154496Z [err]    warnings.warn(message, UserWarning)
+2025-12-26T06:20:57.139240828Z [err]  /usr/local/lib/python3.12/site-packages/pydantic/_internal/_config.py:345: UserWarning: Valid config keys have changed in V2:
+2025-12-26T06:20:57.149552172Z [err]  06:20:57 [INFO    ] ℹ️ BotState инициализирован
+2025-12-26T06:20:57.149561044Z [err]  06:20:57 [INFO    ] ℹ️ BotMetrics инициализирован
+2025-12-26T06:20:57.158513612Z [err]  06:20:57 [INFO    ] ℹ️ Таблица conversation_history не существует, будет создана позже
+2025-12-26T06:20:57.199054553Z [err]  06:20:57 [INFO    ] ℹ️ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T06:20:57.201216509Z [err]  06:20:57 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T06:20:57.204104397Z [err]  06:20:57 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T06:20:57.204109615Z [err]  06:20:57 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T06:20:57.204113594Z [err]  06:20:57 [INFO    ] ℹ️   • Добавление колонки course_name в user_progress...
+2025-12-26T06:20:57.206793190Z [err]  Existing: ['activities_cache', 'analytics', 'audit_logs', 'bookmark_history', 'bot_events', 'cache', 'conversation_history', 'conversation_stats', 'courses', 'daily_tasks', 'drops_history', 'faq', 'feedback', 'leaderboard_cache', 'learning_paths', 'lessons', 'requests', 'sqlite_sequence', 'teaching_lessons', 'tools', 'user_badges', 'user_bookmarks', 'user_bookmarks_v2', 'user_courses', 'user_drop_subscriptions', 'user_learning_paths', 'user_profiles', 'user_progress', 'user_questions', 'user_quiz_responses', 'user_quiz_stats', 'users']
+2025-12-26T06:20:57.206801621Z [err]  06:20:57 [WARNING ] ⚠️ Database schema incomplete. Missing tables: ['drops_feed']
+2025-12-26T06:20:57.206808035Z [err]  Attempting to reinitialize...
+2025-12-26T06:20:57.206864166Z [err]  06:20:57 [INFO    ] ℹ️ Миграция успешно завершена (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T06:20:57.206869497Z [err]  06:20:57 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T06:20:57.206875073Z [err]  06:20:57 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T06:20:57.206880954Z [err]  06:20:57 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T06:20:57.206886563Z [err]  06:20:57 [INFO    ] ℹ️ Миграция не требуется, схема актуальна
+2025-12-26T06:20:57.206892154Z [err]  06:20:57 [WARNING ] ⚠️ Database schema incomplete: missing 1 tables
+2025-12-26T06:20:57.206898084Z [err]  Missing: ['drops_feed']
+2025-12-26T06:20:57.208088954Z [err]  06:20:57 [INFO    ] ℹ️ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T06:20:57.208095061Z [err]  06:20:57 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T06:20:57.210508110Z [err]  06:20:57 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T06:20:57.210518708Z [err]  06:20:57 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T06:20:57.210523588Z [err]  06:20:57 [INFO    ] ℹ️ Миграция не требуется, схема актуальна
+2025-12-26T06:20:57.212784395Z [err]  06:20:57 [WARNING ] ⚠️ Database schema incomplete: missing 1 tables
+2025-12-26T06:20:57.212792892Z [err]  Missing: ['drops_feed']
+2025-12-26T06:20:57.212798651Z [err]  Existing: ['activities_cache', 'analytics', 'audit_logs', 'bookmark_history', 'bot_events', 'cache', 'conversation_history', 'conversation_stats', 'courses', 'daily_tasks', 'drops_history', 'faq', 'feedback', 'leaderboard_cache', 'learning_paths', 'lessons', 'requests', 'sqlite_sequence', 'teaching_lessons', 'tools', 'user_badges', 'user_bookmarks', 'user_bookmarks_v2', 'user_courses', 'user_drop_subscriptions', 'user_learning_paths', 'user_profiles', 'user_progress', 'user_questions', 'user_quiz_responses', 'user_quiz_stats', 'users']
+2025-12-26T06:20:57.212807710Z [err]  06:20:57 [ERROR   ] ❌ Critical: Database schema still invalid after reinitialization!
+2025-12-26T06:20:57.212812359Z [err]  Missing: ['drops_feed']
+2025-12-26T06:20:57.221937731Z [err]  06:20:57 [INFO    ] ℹ️   📊 Created: idx_users_leaderboard (leaderboard queries)
+2025-12-26T06:20:57.221945366Z [err]  06:20:57 [INFO    ] ℹ️   📝 Created: idx_requests_user_date (user request history)
+2025-12-26T06:20:57.221950467Z [err]  06:20:57 [WARNING ] ⚠️   ⚠️ Skipping idx_user_progress_lookup (missing columns)
+2025-12-26T06:20:57.221955029Z [err]  06:20:57 [INFO    ] ℹ️   ✅ Created: idx_daily_tasks_user (daily task queries)
+2025-12-26T06:20:57.221959854Z [err]  06:20:57 [INFO    ] ℹ️   🔖 Created: idx_bookmarks_user (bookmark queries)
+2025-12-26T06:20:57.221964641Z [err]  06:20:57 [INFO    ] ℹ️   📈 Created: idx_analytics_date (analytics queries)
+2025-12-26T06:20:57.221968694Z [err]  06:20:57 [INFO    ] ℹ️ Database indices created successfully (v0.38.0 - QUICK WIN #2)
+2025-12-26T06:20:57.224440272Z [err]  06:20:57 [INFO    ] ℹ️ Database pool initialized: {'created': 5, 'total_get': 0, 'total_return': 0, 'errors': 0, 'pool_size': 5, 'available': 5}
+2025-12-26T06:20:57.224448941Z [err]  06:20:57 [INFO    ] ℹ️ Директория бэкапов готова: /app/backups
+2025-12-26T06:20:57.232776654Z [err]  06:20:57 [INFO    ] ℹ️ ======================================================================
+2025-12-26T06:20:57.232777966Z [err]  06:20:57 [INFO    ] ℹ️ Бэкап создан: /app/backups/rvx_bot_backup_20251226_062057.db (0.02 MB)
+2025-12-26T06:20:57.232786388Z [err]  06:20:57 [INFO    ] ℹ️ Директория бэкапов готова: /app/backups
+2025-12-26T06:20:57.232793618Z [err]  06:20:57 [INFO    ] ℹ️ ======================================================================
+2025-12-26T06:20:57.232800020Z [err]  06:20:57 [INFO    ] ℹ️ 🚀 RVX Telegram Bot v0.7.0 запускается...
+2025-12-26T06:20:57.232803349Z [err]  06:20:57 [INFO    ] ℹ️   • Daily limit: 50 запросов
+2025-12-26T06:20:57.232806650Z [err]  06:20:57 [INFO    ] ℹ️ ======================================================================
+2025-12-26T06:20:57.232813251Z [err]  06:20:57 [INFO    ] ℹ️ 📊 Конфигурация:
+2025-12-26T06:20:57.232817036Z [err]  06:20:57 [INFO    ] ℹ️   • Flood control: 3с
+2025-12-26T06:20:57.232820663Z [err]  06:20:57 [INFO    ] ℹ️   • API URL: https://web-production-ddd5.up.railway.app/explain_news
+2025-12-26T06:20:57.232826599Z [err]  06:20:57 [INFO    ] ℹ️   • Admin users: 2 (with limits)
+2025-12-26T06:20:57.232827550Z [err]  06:20:57 [INFO    ] ℹ️   • Max input: 4096 символов
+2025-12-26T06:20:57.232835655Z [err]  06:20:57 [INFO    ] ℹ️   • Unlimited admins: 0 (no limits) ⭐
+2025-12-26T06:20:57.232842081Z [err]  06:20:57 [INFO    ] ℹ️   • Mandatory channel: Да
+2025-12-26T06:20:57.232851489Z [err]  06:20:57 [INFO    ] ℹ️   • Update channel: Нет
+2025-12-26T06:20:57.232857720Z [err]  06:20:57 [INFO    ] ℹ️   • Bot version: 0.21.0
+2025-12-26T06:20:57.232864596Z [err]  06:20:57 [INFO    ] ℹ️   • Analytics: Включена
+2025-12-26T06:20:57.848117623Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:20:58.000000000Z [inf]  Stopping Container
+2025-12-26T06:20:58.225256117Z [err]  06:20:56 [INFO    ] ℹ️ 📊 Req=0 (0%) | Users=0 | Resp=0.0ms
+2025-12-26T06:20:58.830044357Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:20:59.276238316Z [err]  06:20:59 [INFO    ] ℹ️ Автоматическая очистка кэша настроена (каждые 6ч)
+2025-12-26T06:20:59.276247090Z [err]  06:20:59 [INFO    ] ℹ️ Периодическая очистка сессий настроена (каждый час)
+2025-12-26T06:20:59.276253214Z [err]  06:20:59 [INFO    ] ℹ️ Периодическое логирование метрик настроено (каждые 6 часов)
+2025-12-26T06:20:59.276259116Z [err]  06:20:59 [INFO    ] ℹ️ Обновление рейтингов настроено (каждый час)
+2025-12-26T06:20:59.276265040Z [err]  06:20:59 [INFO    ] ℹ️ 💊 Health check настроен (каждые 300 сек)
+2025-12-26T06:20:59.276270893Z [err]  06:20:59 [INFO    ] ℹ️ 🚀 БОТ ПОЛНОСТЬЮ ЗАПУЩЕН И ГОТОВ К РАБОТЕ
+2025-12-26T06:21:00.848738952Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:21:01.129393176Z [err]  06:21:00 [INFO    ] ℹ️ Список команд установлен в Telegram
+2025-12-26T06:21:02.843133939Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:21:03.853964039Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:21:05.542553692Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:21:06.618616237Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:21:08.226787535Z [err]  06:21:07 [INFO    ] ℹ️ 📝 Команда /start от 790245132 (@shunyaa)
+2025-12-26T06:21:08.226794306Z [err]  06:21:08 [INFO    ] ℹ️ ✅ User 790245132 is subscribed to mandatory channel (status: member)
+2025-12-26T06:21:09.276101631Z [err]  06:21:09 [INFO    ] ℹ️ 🧹 Запуск автоматической очистки кэша...
+2025-12-26T06:21:09.276109927Z [err]  06:21:09 [INFO    ] ℹ️ Удалено 0 старых/неиспользуемых записей из кэша
+2025-12-26T06:21:09.276115608Z [err]  06:21:09 [INFO    ] ℹ️ 💾 Кэш: 0 записей, всего попаданий: 0
+2025-12-26T06:21:09.674147979Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:21:10.680289460Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:21:29.323216926Z [err]  06:21:29 [INFO    ] ℹ️    ✅ Период 'week': 0 пользователей
+2025-12-26T06:21:29.323227809Z [err]  06:21:29 [INFO    ] ℹ️    ✅ Период 'month': 0 пользователей
+2025-12-26T06:21:29.323234555Z [err]  06:21:29 [INFO    ] ℹ️    ✅ Период 'all': 0 пользователей
+2025-12-26T06:21:29.323241398Z [err]  06:21:29 [INFO    ] ℹ️ 💊 HEALTH CHECK: Users=1 | Uptime=0.0h | ErrorRate=0.0% | CacheHits=0 | AvgResponse=0ms
+2025-12-26T06:21:29.323299179Z [err]  06:21:29 [INFO    ] ℹ️ 📊 Обновление кэша рейтингов...
+2025-12-26T06:22:50.000000000Z [inf]  Starting Container
+2025-12-26T06:22:51.000000000Z [inf]  Starting Container
+2025-12-26T06:22:51.788173082Z [err]  06:22:51 [INFO] CLEANUP: Current PID = 2
+2025-12-26T06:22:51.788180508Z [err]  06:22:51 [DEBUG] Waiting 3 seconds for Telegram polling lock to release...
+2025-12-26T06:22:52.662455461Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:22:53.213309332Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:22:54.000000000Z [inf]  Stopping Container
+2025-12-26T06:22:54.001428470Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:22:54.523865915Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:22:55.111868359Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:22:55.702878742Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:22:56.211767373Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:22:56.410494364Z [err]  /usr/local/lib/python3.12/site-packages/pydantic/_internal/_config.py:345: UserWarning: Valid config keys have changed in V2:
+2025-12-26T06:22:56.410506699Z [err]  * 'max_anystr_length' has been renamed to 'str_max_length'
+2025-12-26T06:22:56.410515256Z [err]    warnings.warn(message, UserWarning)
+2025-12-26T06:22:56.416538102Z [err]  06:22:56 [INFO    ] ℹ️ BotState инициализирован
+2025-12-26T06:22:56.416546325Z [err]  06:22:56 [INFO    ] ℹ️ BotMetrics инициализирован
+2025-12-26T06:22:56.438731012Z [err]  06:22:56 [INFO    ] ℹ️ Таблица conversation_history не существует, будет создана позже
+2025-12-26T06:22:56.534186896Z [err]  06:22:56 [INFO    ] ℹ️ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T06:22:56.534192153Z [err]  06:22:56 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T06:22:56.534197647Z [err]  06:22:56 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T06:22:56.534202323Z [err]  06:22:56 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T06:22:56.534208543Z [err]  06:22:56 [INFO    ] ℹ️   • Добавление колонки course_name в user_progress...
+2025-12-26T06:22:56.539027178Z [err]  06:22:56 [INFO    ] ℹ️ Миграция успешно завершена (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T06:22:56.539036312Z [err]  06:22:56 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T06:22:56.539042607Z [err]  06:22:56 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T06:22:56.539048888Z [err]  06:22:56 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T06:22:56.539054698Z [err]  06:22:56 [INFO    ] ℹ️ Миграция не требуется, схема актуальна
+2025-12-26T06:22:56.539063078Z [err]  06:22:56 [WARNING ] ⚠️ Database schema incomplete: missing 1 tables
+2025-12-26T06:22:56.539070693Z [err]  Missing: ['drops_feed']
+2025-12-26T06:22:56.539076082Z [err]  Existing: ['activities_cache', 'analytics', 'audit_logs', 'bookmark_history', 'bot_events', 'cache', 'conversation_history', 'conversation_stats', 'courses', 'daily_tasks', 'drops_history', 'faq', 'feedback', 'leaderboard_cache', 'learning_paths', 'lessons', 'requests', 'sqlite_sequence', 'teaching_lessons', 'tools', 'user_badges', 'user_bookmarks', 'user_bookmarks_v2', 'user_courses', 'user_drop_subscriptions', 'user_learning_paths', 'user_profiles', 'user_progress', 'user_questions', 'user_quiz_responses', 'user_quiz_stats', 'users']
+2025-12-26T06:22:56.539081527Z [err]  06:22:56 [WARNING ] ⚠️ Database schema incomplete. Missing tables: ['drops_feed']
+2025-12-26T06:22:56.539086907Z [err]  Attempting to reinitialize...
+2025-12-26T06:22:56.539534278Z [err]  06:22:56 [INFO    ] ℹ️ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T06:22:56.539544529Z [err]  06:22:56 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T06:22:56.540220420Z [err]  06:22:56 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T06:22:56.540229488Z [err]  06:22:56 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T06:22:56.541057231Z [err]  06:22:56 [INFO    ] ℹ️ Миграция не требуется, схема актуальна
+2025-12-26T06:22:56.546667057Z [err]  06:22:56 [WARNING ] ⚠️ Database schema incomplete: missing 1 tables
+2025-12-26T06:22:56.546674520Z [err]  Missing: ['drops_feed']
+2025-12-26T06:22:56.546679550Z [err]  Existing: ['activities_cache', 'analytics', 'audit_logs', 'bookmark_history', 'bot_events', 'cache', 'conversation_history', 'conversation_stats', 'courses', 'daily_tasks', 'drops_history', 'faq', 'feedback', 'leaderboard_cache', 'learning_paths', 'lessons', 'requests', 'sqlite_sequence', 'teaching_lessons', 'tools', 'user_badges', 'user_bookmarks', 'user_bookmarks_v2', 'user_courses', 'user_drop_subscriptions', 'user_learning_paths', 'user_profiles', 'user_progress', 'user_questions', 'user_quiz_responses', 'user_quiz_stats', 'users']
+2025-12-26T06:22:56.546685226Z [err]  06:22:56 [ERROR   ] ❌ Critical: Database schema still invalid after reinitialization!
+2025-12-26T06:22:56.546689893Z [err]  Missing: ['drops_feed']
+2025-12-26T06:22:56.546694977Z [err]  06:22:56 [INFO    ] ℹ️   📊 Created: idx_users_leaderboard (leaderboard queries)
+2025-12-26T06:22:56.547402750Z [err]  06:22:56 [INFO    ] ℹ️   📝 Created: idx_requests_user_date (user request history)
+2025-12-26T06:22:56.547410140Z [err]  06:22:56 [WARNING ] ⚠️   ⚠️ Skipping idx_user_progress_lookup (missing columns)
+2025-12-26T06:22:56.552731465Z [err]  06:22:56 [INFO    ] ℹ️   ✅ Created: idx_daily_tasks_user (daily task queries)
+2025-12-26T06:22:56.552738898Z [err]  06:22:56 [INFO    ] ℹ️   🔖 Created: idx_bookmarks_user (bookmark queries)
+2025-12-26T06:22:56.552743824Z [err]  06:22:56 [INFO    ] ℹ️   📈 Created: idx_analytics_date (analytics queries)
+2025-12-26T06:22:56.552749007Z [err]  06:22:56 [INFO    ] ℹ️ Database indices created successfully (v0.38.0 - QUICK WIN #2)
+2025-12-26T06:22:56.558413484Z [err]  06:22:56 [INFO    ] ℹ️ Database pool initialized: {'created': 5, 'total_get': 0, 'total_return': 0, 'errors': 0, 'pool_size': 5, 'available': 5}
+2025-12-26T06:22:56.558417975Z [err]  06:22:56 [INFO    ] ℹ️ Директория бэкапов готова: /app/backups
+2025-12-26T06:22:56.568516219Z [err]  06:22:56 [INFO    ] ℹ️ Бэкап создан: /app/backups/rvx_bot_backup_20251226_062256.db (0.02 MB)
+2025-12-26T06:22:56.573697532Z [err]  06:22:56 [INFO    ] ℹ️   • Daily limit: 50 запросов
+2025-12-26T06:22:56.573698504Z [err]  06:22:56 [INFO    ] ℹ️ Директория бэкапов готова: /app/backups
+2025-12-26T06:22:56.573706480Z [err]  06:22:56 [INFO    ] ℹ️   • Flood control: 3с
+2025-12-26T06:22:56.573709459Z [err]  06:22:56 [INFO    ] ℹ️ ======================================================================
+2025-12-26T06:22:56.573712984Z [err]  06:22:56 [INFO    ] ℹ️   • Admin users: 2 (with limits)
+2025-12-26T06:22:56.573718808Z [err]  06:22:56 [INFO    ] ℹ️   • Unlimited admins: 0 (no limits) ⭐
+2025-12-26T06:22:56.573719289Z [err]  06:22:56 [INFO    ] ℹ️ 🚀 RVX Telegram Bot v0.7.0 запускается...
+2025-12-26T06:22:56.573724277Z [err]  06:22:56 [INFO    ] ℹ️   • Mandatory channel: Да
+2025-12-26T06:22:56.573729128Z [err]  06:22:56 [INFO    ] ℹ️ ======================================================================
+2025-12-26T06:22:56.573730204Z [err]  06:22:56 [INFO    ] ℹ️   • Update channel: Нет
+2025-12-26T06:22:56.573735687Z [err]  06:22:56 [INFO    ] ℹ️   • Bot version: 0.21.0
+2025-12-26T06:22:56.573739601Z [err]  06:22:56 [INFO    ] ℹ️ 📊 Конфигурация:
+2025-12-26T06:22:56.573740567Z [err]  06:22:56 [INFO    ] ℹ️   • Analytics: Включена
+2025-12-26T06:22:56.573746021Z [err]  06:22:56 [INFO    ] ℹ️ ======================================================================
+2025-12-26T06:22:56.573749332Z [err]  06:22:56 [INFO    ] ℹ️   • API URL: https://web-production-ddd5.up.railway.app/explain_news
+2025-12-26T06:22:56.573756225Z [err]  06:22:56 [INFO    ] ℹ️   • Max input: 4096 символов
+2025-12-26T06:22:57.000000000Z [inf]  Stopping Container
+2025-12-26T06:22:57.029574715Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:22:57.536624217Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:22:58.608256843Z [err]  06:22:58 [INFO    ] ℹ️ Автоматическая очистка кэша настроена (каждые 6ч)
+2025-12-26T06:22:58.608264237Z [err]  06:22:58 [INFO    ] ℹ️ Периодическая очистка сессий настроена (каждый час)
+2025-12-26T06:22:58.608848774Z [err]  06:22:58 [INFO    ] ℹ️ Периодическое логирование метрик настроено (каждые 6 часов)
+2025-12-26T06:22:58.608856698Z [err]  06:22:58 [INFO    ] ℹ️ Обновление рейтингов настроено (каждый час)
+2025-12-26T06:22:58.608863478Z [err]  06:22:58 [INFO    ] ℹ️ 💊 Health check настроен (каждые 300 сек)
+2025-12-26T06:22:58.609717322Z [err]  06:22:58 [INFO    ] ℹ️ 🚀 БОТ ПОЛНОСТЬЮ ЗАПУЩЕН И ГОТОВ К РАБОТЕ
+2025-12-26T06:22:58.640252725Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:23:00.178295059Z [err]  06:23:00 [INFO    ] ℹ️ Список команд установлен в Telegram
+2025-12-26T06:23:04.301401732Z [err]  06:23:04 [INFO    ] ℹ️ 📝 Команда /start от 790245132 (@shunyaa)
+2025-12-26T06:23:04.301410576Z [err]  06:23:04 [INFO    ] ℹ️ 🚀 START_COMMAND called by user 790245132 (@shunyaa)
+2025-12-26T06:23:04.301416545Z [err]  06:23:04 [INFO    ] ℹ️ 📋 Checking mandatory channel subscription for user 790245132...
+2025-12-26T06:23:04.375553239Z [err]  06:23:04 [INFO    ] ℹ️ ✅ User 790245132 is subscribed to mandatory channel (status: member)
+2025-12-26T06:23:04.375565074Z [err]  06:23:04 [INFO    ] ℹ️ ✅ Subscription check result for user 790245132: True
+2025-12-26T06:23:04.375573184Z [err]  06:23:04 [INFO    ] ℹ️ ✅ User 790245132 is subscribed, proceeding with start_command
+2025-12-26T06:23:08.617151056Z [err]  06:23:08 [INFO    ] ℹ️ 🧹 Запуск автоматической очистки кэша...
+2025-12-26T06:23:08.617159625Z [err]  06:23:08 [INFO    ] ℹ️ Удалено 0 старых/неиспользуемых записей из кэша
+2025-12-26T06:23:08.617165712Z [err]  06:23:08 [INFO    ] ℹ️ 💾 Кэш: 0 записей, всего попаданий: 0
+2025-12-26T06:23:38.612124235Z [err]  06:23:28 [INFO    ] ℹ️ 📊 Обновление кэша рейтингов...
+2025-12-26T06:23:38.612132365Z [err]  06:23:28 [INFO    ] ℹ️    ✅ Период 'week': 0 пользователей
+2025-12-26T06:23:38.612137745Z [err]  06:23:28 [INFO    ] ℹ️    ✅ Период 'month': 0 пользователей
+2025-12-26T06:23:38.612141961Z [err]  06:23:28 [INFO    ] ℹ️    ✅ Период 'all': 0 пользователей
+2025-12-26T06:23:38.612153099Z [err]  06:23:28 [INFO    ] ℹ️ 💊 HEALTH CHECK: Users=1 | Uptime=0.0h | ErrorRate=0.0% | CacheHits=0 | AvgResponse=0ms
+2025-12-26T06:23:38.612158423Z [err]  06:23:30 [INFO    ] ℹ️ 🔘 Callback получен: start_teach от пользователя 790245132
+2025-12-26T06:24:58.632722013Z [err]  06:24:58 [INFO    ] ℹ️ 📊 Req=0 (0%) | Users=0 | Resp=0.0ms
+2025-12-26T06:25:08.000000000Z [inf]  Starting Container
+2025-12-26T06:25:09.000000000Z [inf]  Starting Container
+2025-12-26T06:25:09.523701999Z [err]  06:25:08 [INFO] CLEANUP: Current PID = 2
+2025-12-26T06:25:09.523706596Z [err]  06:25:08 [DEBUG] Waiting 3 seconds for Telegram polling lock to release...
+2025-12-26T06:25:10.762043534Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:25:10.762053208Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:25:11.694951553Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:25:12.743575075Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:25:13.000000000Z [inf]  Stopping Container
+2025-12-26T06:25:14.403203099Z [err]  06:25:14 [INFO    ] ℹ️ Миграция успешно завершена (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T06:25:14.403212057Z [err]  06:25:14 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T06:25:14.403219010Z [err]  06:25:14 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T06:25:14.403225027Z [err]  06:25:14 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T06:25:14.403230658Z [err]  06:25:14 [INFO    ] ℹ️ Миграция не требуется, схема актуальна
+2025-12-26T06:25:14.403243661Z [err]  06:25:14 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T06:25:14.403247224Z [err]  06:25:14 [INFO    ] ℹ️ Таблица conversation_history не существует, будет создана позже
+2025-12-26T06:25:14.403251591Z [err]  06:25:14 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T06:25:14.403258173Z [err]  /usr/local/lib/python3.12/site-packages/pydantic/_internal/_config.py:345: UserWarning: Valid config keys have changed in V2:
+2025-12-26T06:25:14.403259312Z [err]  06:25:14 [INFO    ] ℹ️   • Добавление колонки course_name в user_progress...
+2025-12-26T06:25:14.403259540Z [err]  06:25:14 [INFO    ] ℹ️ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T06:25:14.403267253Z [err]  06:25:14 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T06:25:14.403336615Z [err]  * 'max_anystr_length' has been renamed to 'str_max_length'
+2025-12-26T06:25:14.403352568Z [err]    warnings.warn(message, UserWarning)
+2025-12-26T06:25:14.403359307Z [err]  06:25:14 [INFO    ] ℹ️ BotState инициализирован
+2025-12-26T06:25:14.403364995Z [err]  06:25:14 [INFO    ] ℹ️ BotMetrics инициализирован
+2025-12-26T06:25:14.404901196Z [err]  Missing: ['drops_feed']
+2025-12-26T06:25:14.404908508Z [err]  Existing: ['activities_cache', 'analytics', 'audit_logs', 'bookmark_history', 'bot_events', 'cache', 'conversation_history', 'conversation_stats', 'courses', 'daily_tasks', 'drops_history', 'faq', 'feedback', 'leaderboard_cache', 'learning_paths', 'lessons', 'requests', 'sqlite_sequence', 'teaching_lessons', 'tools', 'user_badges', 'user_bookmarks', 'user_bookmarks_v2', 'user_courses', 'user_drop_subscriptions', 'user_learning_paths', 'user_profiles', 'user_progress', 'user_questions', 'user_quiz_responses', 'user_quiz_stats', 'users']
+2025-12-26T06:25:14.404922985Z [err]  Missing: ['drops_feed']
+2025-12-26T06:25:14.404931085Z [err]  Existing: ['activities_cache', 'analytics', 'audit_logs', 'bookmark_history', 'bot_events', 'cache', 'conversation_history', 'conversation_stats', 'courses', 'daily_tasks', 'drops_history', 'faq', 'feedback', 'leaderboard_cache', 'learning_paths', 'lessons', 'requests', 'sqlite_sequence', 'teaching_lessons', 'tools', 'user_badges', 'user_bookmarks', 'user_bookmarks_v2', 'user_courses', 'user_drop_subscriptions', 'user_learning_paths', 'user_profiles', 'user_progress', 'user_questions', 'user_quiz_responses', 'user_quiz_stats', 'users']
+2025-12-26T06:25:14.404941611Z [err]  06:25:14 [WARNING ] ⚠️ Database schema incomplete. Missing tables: ['drops_feed']
+2025-12-26T06:25:14.404950475Z [err]  Attempting to reinitialize...
+2025-12-26T06:25:14.404964135Z [err]  06:25:14 [WARNING ] ⚠️ Database schema incomplete: missing 1 tables
+2025-12-26T06:25:14.404966608Z [err]  06:25:14 [INFO    ] ℹ️ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T06:25:14.404972379Z [err]  06:25:14 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T06:25:14.404977710Z [err]  06:25:14 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T06:25:14.404983523Z [err]  06:25:14 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T06:25:14.404988674Z [err]  06:25:14 [INFO    ] ℹ️ Миграция не требуется, схема актуальна
+2025-12-26T06:25:14.404993001Z [err]  06:25:14 [WARNING ] ⚠️ Database schema incomplete: missing 1 tables
+2025-12-26T06:25:14.406959080Z [err]  06:25:14 [INFO    ] ℹ️ ======================================================================
+2025-12-26T06:25:14.406960160Z [err]  06:25:14 [INFO    ] ℹ️ Database pool initialized: {'created': 5, 'total_get': 0, 'total_return': 0, 'errors': 0, 'pool_size': 5, 'available': 5}
+2025-12-26T06:25:14.406969832Z [err]  06:25:14 [INFO    ] ℹ️ Директория бэкапов готова: /app/backups
+2025-12-26T06:25:14.406974635Z [err]  06:25:14 [INFO    ] ℹ️ Бэкап создан: /app/backups/rvx_bot_backup_20251226_062514.db (0.02 MB)
+2025-12-26T06:25:14.406979115Z [err]  06:25:14 [INFO    ] ℹ️ Директория бэкапов готова: /app/backups
+2025-12-26T06:25:14.406983709Z [err]  06:25:14 [INFO    ] ℹ️ ======================================================================
+2025-12-26T06:25:14.406988821Z [err]  06:25:14 [INFO    ] ℹ️ 🚀 RVX Telegram Bot v0.7.0 запускается...
+2025-12-26T06:25:14.407008334Z [err]  06:25:14 [ERROR   ] ❌ Critical: Database schema still invalid after reinitialization!
+2025-12-26T06:25:14.407013256Z [err]  Missing: ['drops_feed']
+2025-12-26T06:25:14.407018351Z [err]  06:25:14 [INFO    ] ℹ️   📊 Created: idx_users_leaderboard (leaderboard queries)
+2025-12-26T06:25:14.407022805Z [err]  06:25:14 [INFO    ] ℹ️   📝 Created: idx_requests_user_date (user request history)
+2025-12-26T06:25:14.407027270Z [err]  06:25:14 [WARNING ] ⚠️   ⚠️ Skipping idx_user_progress_lookup (missing columns)
+2025-12-26T06:25:14.407031818Z [err]  06:25:14 [INFO    ] ℹ️   ✅ Created: idx_daily_tasks_user (daily task queries)
+2025-12-26T06:25:14.407036706Z [err]  06:25:14 [INFO    ] ℹ️   🔖 Created: idx_bookmarks_user (bookmark queries)
+2025-12-26T06:25:14.407042250Z [err]  06:25:14 [INFO    ] ℹ️   📈 Created: idx_analytics_date (analytics queries)
+2025-12-26T06:25:14.407046723Z [err]  06:25:14 [INFO    ] ℹ️ Database indices created successfully (v0.38.0 - QUICK WIN #2)
+2025-12-26T06:25:14.410518000Z [err]  06:25:14 [INFO    ] ℹ️   • Bot version: 0.21.0
+2025-12-26T06:25:14.410528939Z [err]  06:25:14 [INFO    ] ℹ️   • Analytics: Включена
+2025-12-26T06:25:14.410536114Z [err]  06:25:14 [INFO    ] ℹ️ ======================================================================
+2025-12-26T06:25:14.410568270Z [err]  06:25:14 [INFO    ] ℹ️ 📊 Конфигурация:
+2025-12-26T06:25:14.410579195Z [err]  06:25:14 [INFO    ] ℹ️   • API URL: https://web-production-ddd5.up.railway.app/explain_news
+2025-12-26T06:25:14.410586148Z [err]  06:25:14 [INFO    ] ℹ️   • Max input: 4096 символов
+2025-12-26T06:25:14.410594625Z [err]  06:25:14 [INFO    ] ℹ️   • Daily limit: 50 запросов
+2025-12-26T06:25:14.410610575Z [err]  06:25:14 [INFO    ] ℹ️   • Flood control: 3с
+2025-12-26T06:25:14.410617697Z [err]  06:25:14 [INFO    ] ℹ️   • Admin users: 2 (with limits)
+2025-12-26T06:25:14.410638197Z [err]  06:25:14 [INFO    ] ℹ️   • Unlimited admins: 0 (no limits) ⭐
+2025-12-26T06:25:14.410645971Z [err]  06:25:14 [INFO    ] ℹ️   • Mandatory channel: Да
+2025-12-26T06:25:14.410652825Z [err]  06:25:14 [INFO    ] ℹ️   • Update channel: Нет
+2025-12-26T06:25:14.668707386Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:25:15.000000000Z [inf]  Stopping Container
+2025-12-26T06:25:15.849145331Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:25:16.317428961Z [err]  06:25:16 [INFO    ] ℹ️ Автоматическая очистка кэша настроена (каждые 6ч)
+2025-12-26T06:25:16.317430385Z [err]  06:25:16 [INFO    ] ℹ️ 💊 Health check настроен (каждые 300 сек)
+2025-12-26T06:25:16.317438256Z [err]  06:25:16 [INFO    ] ℹ️ Периодическая очистка сессий настроена (каждый час)
+2025-12-26T06:25:16.317445454Z [err]  06:25:16 [INFO    ] ℹ️ Периодическое логирование метрик настроено (каждые 6 часов)
+2025-12-26T06:25:16.317447880Z [err]  06:25:16 [INFO    ] ℹ️ 🚀 БОТ ПОЛНОСТЬЮ ЗАПУЩЕН И ГОТОВ К РАБОТЕ
+2025-12-26T06:25:16.317452654Z [err]  06:25:16 [INFO    ] ℹ️ Обновление рейтингов настроено (каждый час)
+2025-12-26T06:25:16.654651101Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:25:17.683872355Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:25:17.809587674Z [err]  06:25:17 [INFO    ] ℹ️ Список команд установлен в Telegram
+2025-12-26T06:25:18.825656073Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:25:20.871338633Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:25:21.630310996Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:25:26.414877646Z [err]  06:25:26 [INFO    ] ℹ️ 🧹 Запуск автоматической очистки кэша...
+2025-12-26T06:25:26.414886574Z [err]  06:25:26 [INFO    ] ℹ️ Удалено 0 старых/неиспользуемых записей из кэша
+2025-12-26T06:25:26.414893780Z [err]  06:25:26 [INFO    ] ℹ️ 💾 Кэш: 0 записей, всего попаданий: 0
+2025-12-26T06:25:46.129092460Z [err]  06:25:42 [INFO    ] ℹ️ 📝 Команда /start от 790245132 (@shunyaa)
+2025-12-26T06:25:46.129098487Z [err]  06:25:42 [INFO    ] ℹ️ 🚀 START_COMMAND called by user 790245132 (@shunyaa)
+2025-12-26T06:25:46.129103894Z [err]  06:25:42 [INFO    ] ℹ️ 📋 Checking mandatory channel subscription for user 790245132...
+2025-12-26T06:25:46.129108882Z [err]  06:25:42 [INFO    ] ℹ️ ✅ User 790245132 is subscribed to mandatory channel (status: member)
+2025-12-26T06:25:46.129114385Z [err]  06:25:42 [INFO    ] ℹ️ ✅ Subscription check result for user 790245132: True
+2025-12-26T06:25:46.129119555Z [err]  06:25:42 [INFO    ] ℹ️ ✅ User 790245132 is subscribed, proceeding with start_command
+2025-12-26T06:25:46.477077773Z [err]  06:25:46 [INFO    ] ℹ️    ✅ Период 'all': 0 пользователей
+2025-12-26T06:25:46.477087002Z [err]  06:25:46 [INFO    ] ℹ️ 💊 HEALTH CHECK: Users=1 | Uptime=0.0h | ErrorRate=0.0% | CacheHits=0 | AvgResponse=0ms
+2025-12-26T06:25:46.477119359Z [err]  06:25:46 [INFO    ] ℹ️ 📊 Обновление кэша рейтингов...
+2025-12-26T06:25:46.477125916Z [err]  06:25:46 [INFO    ] ℹ️    ✅ Период 'week': 0 пользователей
+2025-12-26T06:25:46.477131673Z [err]  06:25:46 [INFO    ] ℹ️    ✅ Период 'month': 0 пользователей
+2025-12-26T06:27:26.188198517Z [err]  06:27:16 [INFO    ] ℹ️ 📊 Req=0 (0%) | Users=0 | Resp=0.0ms
+2025-12-26T06:27:38.000000000Z [inf]  Starting Container
+2025-12-26T06:27:39.000000000Z [inf]  Starting Container
+2025-12-26T06:27:39.549154569Z [err]  06:27:38 [INFO] CLEANUP: Current PID = 2
+2025-12-26T06:27:39.549158344Z [err]  06:27:38 [DEBUG] Waiting 3 seconds for Telegram polling lock to release...
+2025-12-26T06:27:40.162588192Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:27:41.008811716Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:27:42.541575326Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:27:43.000000000Z [inf]  Stopping Container
+2025-12-26T06:27:43.735975679Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:27:43.937448874Z [err]  /usr/local/lib/python3.12/site-packages/pydantic/_internal/_config.py:345: UserWarning: Valid config keys have changed in V2:
+2025-12-26T06:27:43.937458054Z [err]  * 'max_anystr_length' has been renamed to 'str_max_length'
+2025-12-26T06:27:43.937464691Z [err]    warnings.warn(message, UserWarning)
+2025-12-26T06:27:43.948465653Z [err]  06:27:43 [INFO    ] ℹ️ BotState инициализирован
+2025-12-26T06:27:43.948473947Z [err]  06:27:43 [INFO    ] ℹ️ BotMetrics инициализирован
+2025-12-26T06:27:44.642768962Z [err]  06:27:44 [INFO    ] ℹ️ Таблица conversation_history не существует, будет создана позже
+2025-12-26T06:27:45.000000000Z [inf]  Stopping Container
+2025-12-26T06:27:45.711340289Z [err]  06:27:45 [INFO    ] ℹ️ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T06:27:45.771633944Z [err]  06:27:45 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T06:27:45.772527075Z [err]  06:27:45 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T06:27:45.772541243Z [err]  06:27:45 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T06:27:45.772552490Z [err]  06:27:45 [INFO    ] ℹ️   • Добавление колонки course_name в user_progress...
+2025-12-26T06:27:45.860725258Z [err]  06:27:45 [INFO    ] ℹ️ Миграция успешно завершена (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T06:27:45.860731824Z [err]  06:27:45 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T06:27:45.860738957Z [err]  06:27:45 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T06:27:45.860743437Z [err]  06:27:45 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T06:27:45.861675645Z [err]  06:27:45 [INFO    ] ℹ️ Миграция не требуется, схема актуальна
+2025-12-26T06:27:45.863258004Z [err]  06:27:45 [WARNING ] ⚠️ Database schema incomplete: missing 1 tables
+2025-12-26T06:27:45.863264467Z [err]  Missing: ['drops_feed']
+2025-12-26T06:27:45.863270600Z [err]  Existing: ['activities_cache', 'analytics', 'audit_logs', 'bookmark_history', 'bot_events', 'cache', 'conversation_history', 'conversation_stats', 'courses', 'daily_tasks', 'drops_history', 'faq', 'feedback', 'leaderboard_cache', 'learning_paths', 'lessons', 'requests', 'sqlite_sequence', 'teaching_lessons', 'tools', 'user_badges', 'user_bookmarks', 'user_bookmarks_v2', 'user_courses', 'user_drop_subscriptions', 'user_learning_paths', 'user_profiles', 'user_progress', 'user_questions', 'user_quiz_responses', 'user_quiz_stats', 'users']
+2025-12-26T06:27:45.863278283Z [err]  06:27:45 [WARNING ] ⚠️ Database schema incomplete. Missing tables: ['drops_feed']
+2025-12-26T06:27:45.863285004Z [err]  Attempting to reinitialize...
+2025-12-26T06:27:45.863857975Z [err]  06:27:45 [INFO    ] ℹ️ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T06:27:45.863863058Z [err]  06:27:45 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T06:27:45.864900971Z [err]  06:27:45 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T06:27:45.864908818Z [err]  06:27:45 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T06:27:45.864917944Z [err]  06:27:45 [INFO    ] ℹ️ Миграция не требуется, схема актуальна
+2025-12-26T06:27:45.876481450Z [err]  06:27:45 [WARNING ] ⚠️ Database schema incomplete: missing 1 tables
+2025-12-26T06:27:45.876489093Z [err]  Missing: ['drops_feed']
+2025-12-26T06:27:45.876494129Z [err]  Existing: ['activities_cache', 'analytics', 'audit_logs', 'bookmark_history', 'bot_events', 'cache', 'conversation_history', 'conversation_stats', 'courses', 'daily_tasks', 'drops_history', 'faq', 'feedback', 'leaderboard_cache', 'learning_paths', 'lessons', 'requests', 'sqlite_sequence', 'teaching_lessons', 'tools', 'user_badges', 'user_bookmarks', 'user_bookmarks_v2', 'user_courses', 'user_drop_subscriptions', 'user_learning_paths', 'user_profiles', 'user_progress', 'user_questions', 'user_quiz_responses', 'user_quiz_stats', 'users']
+2025-12-26T06:27:45.876499320Z [err]  06:27:45 [ERROR   ] ❌ Critical: Database schema still invalid after reinitialization!
+2025-12-26T06:27:45.876504332Z [err]  Missing: ['drops_feed']
+2025-12-26T06:27:45.877561409Z [err]  06:27:45 [INFO    ] ℹ️   📊 Created: idx_users_leaderboard (leaderboard queries)
+2025-12-26T06:27:45.897278746Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:27:45.928938521Z [err]  06:27:45 [INFO    ] ℹ️   📝 Created: idx_requests_user_date (user request history)
+2025-12-26T06:27:45.928946990Z [err]  06:27:45 [WARNING ] ⚠️   ⚠️ Skipping idx_user_progress_lookup (missing columns)
+2025-12-26T06:27:45.933996220Z [err]  06:27:45 [INFO    ] ℹ️   ✅ Created: idx_daily_tasks_user (daily task queries)
+2025-12-26T06:27:45.934004873Z [err]  06:27:45 [INFO    ] ℹ️   🔖 Created: idx_bookmarks_user (bookmark queries)
+2025-12-26T06:27:45.964414310Z [err]  06:27:45 [INFO    ] ℹ️   📈 Created: idx_analytics_date (analytics queries)
+2025-12-26T06:27:45.964421940Z [err]  06:27:45 [INFO    ] ℹ️ Database indices created successfully (v0.38.0 - QUICK WIN #2)
+2025-12-26T06:27:45.969221445Z [err]  06:27:45 [INFO    ] ℹ️ Database pool initialized: {'created': 5, 'total_get': 0, 'total_return': 0, 'errors': 0, 'pool_size': 5, 'available': 5}
+2025-12-26T06:27:45.969225786Z [err]  06:27:45 [INFO    ] ℹ️ Директория бэкапов готова: /app/backups
+2025-12-26T06:27:46.040903037Z [err]  06:27:46 [INFO    ] ℹ️ Бэкап создан: /app/backups/rvx_bot_backup_20251226_062745.db (0.02 MB)
+2025-12-26T06:27:46.111772721Z [err]  06:27:46 [INFO    ] ℹ️   • Bot version: 0.21.0
+2025-12-26T06:27:46.111778516Z [err]  06:27:46 [INFO    ] ℹ️ Директория бэкапов готова: /app/backups
+2025-12-26T06:27:46.111783238Z [err]  06:27:46 [INFO    ] ℹ️   • Analytics: Включена
+2025-12-26T06:27:46.111788776Z [err]  06:27:46 [INFO    ] ℹ️ ======================================================================
+2025-12-26T06:27:46.111789061Z [err]  06:27:46 [INFO    ] ℹ️ ======================================================================
+2025-12-26T06:27:46.111795584Z [err]  06:27:46 [INFO    ] ℹ️ 🚀 RVX Telegram Bot v0.7.0 запускается...
+2025-12-26T06:27:46.111801382Z [err]  06:27:46 [INFO    ] ℹ️ ======================================================================
+2025-12-26T06:27:46.111807130Z [err]  06:27:46 [INFO    ] ℹ️ 📊 Конфигурация:
+2025-12-26T06:27:46.111813381Z [err]  06:27:46 [INFO    ] ℹ️   • API URL: https://web-production-ddd5.up.railway.app/explain_news
+2025-12-26T06:27:46.111819235Z [err]  06:27:46 [INFO    ] ℹ️   • Max input: 4096 символов
+2025-12-26T06:27:46.111824866Z [err]  06:27:46 [INFO    ] ℹ️   • Daily limit: 50 запросов
+2025-12-26T06:27:46.111830154Z [err]  06:27:46 [INFO    ] ℹ️   • Flood control: 3с
+2025-12-26T06:27:46.111835876Z [err]  06:27:46 [INFO    ] ℹ️   • Admin users: 2 (with limits)
+2025-12-26T06:27:46.111841723Z [err]  06:27:46 [INFO    ] ℹ️   • Unlimited admins: 0 (no limits) ⭐
+2025-12-26T06:27:46.111847123Z [err]  06:27:46 [INFO    ] ℹ️   • Mandatory channel: Да
+2025-12-26T06:27:46.111852434Z [err]  06:27:46 [INFO    ] ℹ️   • Update channel: Нет
+2025-12-26T06:27:46.674973020Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:27:47.854053825Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:27:48.151797322Z [err]  06:27:48 [INFO    ] ℹ️ Автоматическая очистка кэша настроена (каждые 6ч)
+2025-12-26T06:27:48.151809564Z [err]  06:27:48 [INFO    ] ℹ️ Периодическая очистка сессий настроена (каждый час)
+2025-12-26T06:27:48.151818179Z [err]  06:27:48 [INFO    ] ℹ️ Обновление рейтингов настроено (каждый час)
+2025-12-26T06:27:48.151821443Z [err]  06:27:48 [INFO    ] ℹ️ Периодическое логирование метрик настроено (каждые 6 часов)
+2025-12-26T06:27:48.151837269Z [err]  06:27:48 [INFO    ] ℹ️ 💊 Health check настроен (каждые 300 сек)
+2025-12-26T06:27:48.151843219Z [err]  06:27:48 [INFO    ] ℹ️ 🚀 БОТ ПОЛНОСТЬЮ ЗАПУЩЕН И ГОТОВ К РАБОТЕ
+2025-12-26T06:27:49.717244445Z [err]  06:27:49 [INFO    ] ℹ️ Список команд установлен в Telegram
+2025-12-26T06:27:49.981420784Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:27:50.919697847Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:27:52.971374285Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:27:53.704402518Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T06:27:58.160955360Z [err]  06:27:58 [INFO    ] ℹ️ Удалено 0 старых/неиспользуемых записей из кэша
+2025-12-26T06:27:58.160963735Z [err]  06:27:58 [INFO    ] ℹ️ 💾 Кэш: 0 записей, всего попаданий: 0
+2025-12-26T06:27:58.160970444Z [err]  06:27:58 [INFO    ] ℹ️ 🧹 Запуск автоматической очистки кэша...
+2025-12-26T06:28:18.161144237Z [err]  06:28:18 [INFO    ] ℹ️ 📊 Обновление кэша рейтингов...
+2025-12-26T06:28:18.161151039Z [err]  06:28:18 [INFO    ] ℹ️    ✅ Период 'week': 0 пользователей
+2025-12-26T06:28:18.161155779Z [err]  06:28:18 [INFO    ] ℹ️    ✅ Период 'month': 0 пользователей
+2025-12-26T06:28:18.161162404Z [err]  06:28:18 [INFO    ] ℹ️    ✅ Период 'all': 0 пользователей
+2025-12-26T06:28:18.161167578Z [err]  06:28:18 [INFO    ] ℹ️ 💊 HEALTH CHECK: Users=0 | Uptime=0.0h | ErrorRate=0.0% | CacheHits=0 | AvgResponse=0ms
+2025-12-26T06:28:22.918089528Z [err]  06:28:22 [INFO    ] ℹ️ 📝 Команда /start от 790245132 (@shunyaa)
+2025-12-26T06:28:22.927443333Z [err]  06:28:22 [INFO    ] ℹ️ 🚀 START_COMMAND called by user 790245132 (@shunyaa)
+2025-12-26T06:28:22.927451590Z [err]  06:28:22 [INFO    ] ℹ️ 📋 Checking mandatory channel subscription for user 790245132...
+2025-12-26T06:28:23.200852656Z [err]  06:28:23 [INFO    ] ℹ️ ✅ User 790245132 is subscribed to mandatory channel (status: member)
+2025-12-26T06:28:23.200859340Z [err]  06:28:23 [INFO    ] ℹ️ ✅ Subscription check result for user 790245132: True
+2025-12-26T06:28:23.201152530Z [err]  06:28:23 [INFO    ] ℹ️ ✅ User 790245132 is subscribed, proceeding with start_command
+2025-12-26T06:29:53.214656305Z [err]  06:29:48 [INFO    ] ℹ️ 📊 Req=0 (0%) | Users=0 | Resp=0.0ms
+2025-12-26T06:30:33.229771198Z [err]  06:30:25 [INFO    ] ℹ️ 📝 Команда /start от 7216426044 (@SV4096)
+2025-12-26T06:30:33.229784757Z [err]  06:30:25 [INFO    ] ℹ️ 🚀 START_COMMAND called by user 7216426044 (@SV4096)
+2025-12-26T06:30:33.229793013Z [err]  06:30:25 [INFO    ] ℹ️ 📋 Checking mandatory channel subscription for user 7216426044...
+2025-12-26T06:30:33.229800963Z [err]  06:30:25 [INFO    ] ℹ️ ✅ User 7216426044 is subscribed to mandatory channel (status: creator)
+2025-12-26T06:30:33.229808439Z [err]  06:30:25 [INFO    ] ℹ️ ✅ Subscription check result for user 7216426044: True
+2025-12-26T06:30:33.229816379Z [err]  06:30:25 [INFO    ] ℹ️ ✅ User 7216426044 is subscribed, proceeding with start_command
+2025-12-26T06:30:53.105520619Z [err]  06:30:52 [INFO    ] ℹ️ 📨 Message from chat_id=7216426044, type=private
+2025-12-26T06:30:53.105527663Z [err]  06:30:52 [INFO    ] ℹ️ 🤖 AI диалог для 7216426044: 'Что ты умеешь?...'
+2025-12-26T06:30:54.641091694Z [err]  06:30:54 [INFO    ] ℹ️ AI Dialogue для 7216426044: 'Что ты умеешь?...' → ИИ ответ (1163 символов)
+2025-12-26T06:33:26.353661087Z [err]  06:33:18 [INFO    ] ℹ️ 💊 HEALTH CHECK: Users=2 | Uptime=0.1h | ErrorRate=0.0% | CacheHits=0 | AvgResponse=0ms
+2025-12-26T06:34:06.355557294Z [err]  06:34:01 [INFO    ] ℹ️ 📝 Команда /start от 790245132 (@shunyaa)
+2025-12-26T06:34:06.355562849Z [err]  06:34:01 [INFO    ] ℹ️ 🚀 START_COMMAND called by user 790245132 (@shunyaa)
+2025-12-26T06:34:06.355566776Z [err]  06:34:01 [INFO    ] ℹ️ 🗑️  Cleared subscription cache for user 790245132
+2025-12-26T06:34:06.355570704Z [err]  06:34:01 [INFO    ] ℹ️ 📋 Checking mandatory channel subscription for user 790245132...
+2025-12-26T06:34:06.355574224Z [err]  06:34:02 [INFO    ] ℹ️ ❌ User 790245132 is NOT subscribed to mandatory channel (status: left)
+2025-12-26T06:34:06.355578271Z [err]  06:34:02 [INFO    ] ℹ️ ✅ Subscription check result for user 790245132: False
+2025-12-26T06:34:07.555461558Z [err]  06:34:07 [INFO    ] ℹ️ User 790245132 clicked button without channel subscription
+2025-12-26T06:34:13.835285540Z [err]  06:34:13 [INFO    ] ℹ️ 📝 Команда /start от 790245132 (@shunyaa)
+2025-12-26T06:34:13.836066721Z [err]  06:34:13 [INFO    ] ℹ️ 🚀 START_COMMAND called by user 790245132 (@shunyaa)
+2025-12-26T06:34:13.836074674Z [err]  06:34:13 [INFO    ] ℹ️ 🗑️  Cleared subscription cache for user 790245132
+2025-12-26T06:34:13.836080981Z [err]  06:34:13 [INFO    ] ℹ️ 📋 Checking mandatory channel subscription for user 790245132...
+2025-12-26T06:34:14.087313667Z [err]  06:34:14 [INFO    ] ℹ️ ✅ User 790245132 is subscribed to mandatory channel (status: member)
+2025-12-26T06:34:14.087325489Z [err]  06:34:14 [INFO    ] ℹ️ ✅ Subscription check result for user 790245132: True
+2025-12-26T06:34:14.087336916Z [err]  06:34:14 [INFO    ] ℹ️ ✅ User 790245132 is subscribed, proceeding with start_command
+2025-12-26T06:38:26.081187931Z [err]  06:38:18 [INFO    ] ℹ️ 💊 HEALTH CHECK: Users=2 | Uptime=0.2h | ErrorRate=0.0% | CacheHits=0 | AvgResponse=0ms
+2025-12-26T06:43:26.494588332Z [err]  06:43:18 [INFO    ] ℹ️ 💊 HEALTH CHECK: Users=2 | Uptime=0.3h | ErrorRate=0.0% | CacheHits=0 | AvgResponse=0ms
+2025-12-26T06:48:18.470227297Z [err]  06:48:18 [INFO    ] ℹ️ 💊 HEALTH CHECK: Users=2 | Uptime=0.3h | ErrorRate=0.0% | CacheHits=0 | AvgResponse=0ms
+2025-12-26T06:53:18.522020718Z [err]  06:53:18 [INFO    ] ℹ️ 💊 HEALTH CHECK: Users=2 | Uptime=0.4h | ErrorRate=0.0% | CacheHits=0 | AvgResponse=0ms
+2025-12-26T06:58:18.726032541Z [err]  06:58:18 [INFO    ] ℹ️ 💊 HEALTH CHECK: Users=2 | Uptime=0.5h | ErrorRate=0.0% | CacheHits=0 | AvgResponse=0ms
+2025-12-26T07:03:18.620431940Z [err]  07:03:18 [INFO    ] ℹ️ 💊 HEALTH CHECK: Users=2 | Uptime=0.6h | ErrorRate=0.0% | CacheHits=0 | AvgResponse=0ms
+2025-12-26T07:08:19.020353471Z [err]  07:08:18 [INFO    ] ℹ️ 💊 HEALTH CHECK: Users=2 | Uptime=0.7h | ErrorRate=0.0% | CacheHits=0 | AvgResponse=0ms
+2025-12-26T07:09:59.267145432Z [err]  07:09:58 [INFO    ] ℹ️ ✅ User 7216426044 is subscribed to mandatory channel (status: creator)
+2025-12-26T07:09:59.267151571Z [err]  07:09:58 [INFO    ] ℹ️ 🔘 Callback получен: feedback_not_helpful_7216426044 от пользователя 7216426044
+2025-12-26T07:10:04.016838152Z [err]  07:10:04 [INFO    ] ℹ️ 🗑️  Cleared subscription cache for user 7216426044
+2025-12-26T07:10:04.016858388Z [err]  07:10:04 [INFO    ] ℹ️ 📋 Checking mandatory channel subscription for user 7216426044...
+2025-12-26T07:10:04.016901701Z [err]  07:10:03 [INFO    ] ℹ️ 📝 Команда /start от 7216426044 (@SV4096)
+2025-12-26T07:10:04.016908910Z [err]  07:10:04 [INFO    ] ℹ️ 🚀 START_COMMAND called by user 7216426044 (@SV4096)
+2025-12-26T07:10:04.273390378Z [err]  07:10:04 [INFO    ] ℹ️ ✅ User 7216426044 is subscribed to mandatory channel (status: creator)
+2025-12-26T07:10:04.273396235Z [err]  07:10:04 [INFO    ] ℹ️ ✅ Subscription check result for user 7216426044: True
+2025-12-26T07:10:04.273402917Z [err]  07:10:04 [INFO    ] ℹ️ ✅ User 7216426044 is subscribed, proceeding with start_command
+2025-12-26T07:13:25.369577848Z [err]  07:13:18 [INFO    ] ℹ️ 💊 HEALTH CHECK: Users=2 | Uptime=0.8h | ErrorRate=0.0% | CacheHits=0 | AvgResponse=0ms
+2025-12-26T07:18:26.035210399Z [err]  07:18:18 [INFO    ] ℹ️ 💊 HEALTH CHECK: Users=2 | Uptime=0.8h | ErrorRate=0.0% | CacheHits=0 | AvgResponse=0ms
+2025-12-26T07:19:16.020201552Z [err]  07:19:13 [INFO    ] ℹ️ ✅ User 7216426044 is subscribed to mandatory channel (status: creator)
+2025-12-26T07:19:16.020207495Z [err]  07:19:13 [INFO    ] ℹ️ 📨 Message from chat_id=7216426044, type=private
+2025-12-26T07:19:16.020211559Z [err]  07:19:13 [INFO    ] ℹ️ 🤖 AI диалог для 7216426044: 'Ты умеешь говорить на украинском?...'
+2025-12-26T07:19:16.020215783Z [err]  07:19:14 [INFO    ] ℹ️ AI Dialogue для 7216426044: 'Ты умеешь говорить на украинском?...' → ИИ ответ (515 символов)
+2025-12-26T07:23:26.078018597Z [err]  07:23:18 [INFO    ] ℹ️ 💊 HEALTH CHECK: Users=2 | Uptime=0.9h | ErrorRate=0.0% | CacheHits=0 | AvgResponse=0ms
+2025-12-26T07:27:02.000000000Z [inf]  Starting Container
+2025-12-26T07:27:03.249707469Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:27:03.251313716Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:27:04.281965013Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:27:05.000000000Z [inf]  Stopping Container
+2025-12-26T07:27:05.365385785Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:27:06.550302270Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:27:07.623934704Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:27:08.678948409Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:27:09.752817141Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:27:10.824618890Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:27:12.175208316Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:27:13.309274799Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:27:33.000000000Z [inf]  Starting Container
+2025-12-26T07:27:34.670320451Z [err]  07:27:34 [INFO] CLEANUP: Current PID = 2
+2025-12-26T07:27:34.670326691Z [err]  07:27:34 [DEBUG] Waiting 3 seconds for Telegram polling lock to release...
+2025-12-26T07:27:39.366047972Z [err]  /usr/local/lib/python3.12/site-packages/pydantic/_internal/_config.py:345: UserWarning: Valid config keys have changed in V2:
+2025-12-26T07:27:39.366054505Z [err]  * 'max_anystr_length' has been renamed to 'str_max_length'
+2025-12-26T07:27:39.366058901Z [err]    warnings.warn(message, UserWarning)
+2025-12-26T07:27:39.381203401Z [err]  07:27:39 [INFO    ] ℹ️ BotState инициализирован
+2025-12-26T07:27:39.381213490Z [err]  07:27:39 [INFO    ] ℹ️ BotMetrics инициализирован
+2025-12-26T07:27:39.388137730Z [err]  07:27:39 [INFO    ] ℹ️ Таблица conversation_history не существует, будет создана позже
+2025-12-26T07:27:39.433917426Z [err]  07:27:39 [INFO    ] ℹ️ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T07:27:39.433924313Z [err]  07:27:39 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T07:27:39.433931119Z [err]  07:27:39 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T07:27:39.433935442Z [err]  07:27:39 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T07:27:39.433939943Z [err]  07:27:39 [INFO    ] ℹ️   • Добавление колонки course_name в user_progress...
+2025-12-26T07:27:39.435474339Z [err]  07:27:39 [INFO    ] ℹ️ Миграция успешно завершена (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T07:27:39.435482805Z [err]  07:27:39 [INFO    ] ℹ️ Добавление колонки language для поддержки мультиязычности...
+2025-12-26T07:27:39.437283649Z [err]  07:27:39 [INFO    ] ℹ️ Колонка language успешно добавлена
+2025-12-26T07:27:39.437289627Z [err]  07:27:39 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T07:27:39.437294524Z [err]  07:27:39 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T07:27:39.437299048Z [err]  07:27:39 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T07:27:39.439229485Z [err]  07:27:39 [INFO    ] ℹ️ Миграция не требуется, схема актуальна
+2025-12-26T07:27:39.439236132Z [err]  07:27:39 [WARNING ] ⚠️ Database schema incomplete: missing 1 tables
+2025-12-26T07:27:39.439241390Z [err]  Missing: ['drops_feed']
+2025-12-26T07:27:39.439244921Z [err]  Existing: ['activities_cache', 'analytics', 'audit_logs', 'bookmark_history', 'bot_events', 'cache', 'conversation_history', 'conversation_stats', 'courses', 'daily_tasks', 'drops_history', 'faq', 'feedback', 'leaderboard_cache', 'learning_paths', 'lessons', 'requests', 'sqlite_sequence', 'teaching_lessons', 'tools', 'user_badges', 'user_bookmarks', 'user_bookmarks_v2', 'user_courses', 'user_drop_subscriptions', 'user_learning_paths', 'user_profiles', 'user_progress', 'user_questions', 'user_quiz_responses', 'user_quiz_stats', 'users']
+2025-12-26T07:27:39.439248749Z [err]  07:27:39 [WARNING ] ⚠️ Database schema incomplete. Missing tables: ['drops_feed']
+2025-12-26T07:27:39.439252479Z [err]  Attempting to reinitialize...
+2025-12-26T07:27:39.441017549Z [err]  07:27:39 [INFO    ] ℹ️ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T07:27:39.441023386Z [err]  07:27:39 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T07:27:39.441027776Z [err]  07:27:39 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T07:27:39.441032257Z [err]  07:27:39 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T07:27:39.442392749Z [err]  07:27:39 [INFO    ] ℹ️ Миграция не требуется, схема актуальна
+2025-12-26T07:27:39.444244778Z [err]  07:27:39 [WARNING ] ⚠️ Database schema incomplete: missing 1 tables
+2025-12-26T07:27:39.444253166Z [err]  Missing: ['drops_feed']
+2025-12-26T07:27:39.444259057Z [err]  Existing: ['activities_cache', 'analytics', 'audit_logs', 'bookmark_history', 'bot_events', 'cache', 'conversation_history', 'conversation_stats', 'courses', 'daily_tasks', 'drops_history', 'faq', 'feedback', 'leaderboard_cache', 'learning_paths', 'lessons', 'requests', 'sqlite_sequence', 'teaching_lessons', 'tools', 'user_badges', 'user_bookmarks', 'user_bookmarks_v2', 'user_courses', 'user_drop_subscriptions', 'user_learning_paths', 'user_profiles', 'user_progress', 'user_questions', 'user_quiz_responses', 'user_quiz_stats', 'users']
+2025-12-26T07:27:39.444282611Z [err]  07:27:39 [ERROR   ] ❌ Critical: Database schema still invalid after reinitialization!
+2025-12-26T07:27:39.444292844Z [err]  Missing: ['drops_feed']
+2025-12-26T07:27:39.445801341Z [err]  07:27:39 [INFO    ] ℹ️   📊 Created: idx_users_leaderboard (leaderboard queries)
+2025-12-26T07:27:39.445810197Z [err]  07:27:39 [INFO    ] ℹ️   📝 Created: idx_requests_user_date (user request history)
+2025-12-26T07:27:39.445817735Z [err]  07:27:39 [WARNING ] ⚠️   ⚠️ Skipping idx_user_progress_lookup (missing columns)
+2025-12-26T07:27:39.447346900Z [err]  07:27:39 [INFO    ] ℹ️   ✅ Created: idx_daily_tasks_user (daily task queries)
+2025-12-26T07:27:39.447353210Z [err]  07:27:39 [INFO    ] ℹ️   🔖 Created: idx_bookmarks_user (bookmark queries)
+2025-12-26T07:27:39.449453501Z [err]  07:27:39 [INFO    ] ℹ️   📈 Created: idx_analytics_date (analytics queries)
+2025-12-26T07:27:39.449460339Z [err]  07:27:39 [INFO    ] ℹ️ Database indices created successfully (v0.38.0 - QUICK WIN #2)
+2025-12-26T07:27:39.976476680Z [err]  07:27:39 [INFO    ] ℹ️   • Max input: 4096 символов
+2025-12-26T07:27:39.976491298Z [err]  07:27:39 [INFO    ] ℹ️   • Daily limit: 50 запросов
+2025-12-26T07:27:39.976499102Z [err]  07:27:39 [INFO    ] ℹ️   • Flood control: 3с
+2025-12-26T07:27:39.976506530Z [err]  07:27:39 [INFO    ] ℹ️   • Admin users: 2 (with limits)
+2025-12-26T07:27:39.976514431Z [err]  07:27:39 [INFO    ] ℹ️   • Unlimited admins: 0 (no limits) ⭐
+2025-12-26T07:27:39.976522011Z [err]  07:27:39 [INFO    ] ℹ️   • Mandatory channel: Да
+2025-12-26T07:27:39.976529418Z [err]  07:27:39 [INFO    ] ℹ️   • Update channel: Нет
+2025-12-26T07:27:39.976536882Z [err]  07:27:39 [INFO    ] ℹ️   • Bot version: 0.21.0
+2025-12-26T07:27:39.976602571Z [err]  07:27:39 [INFO    ] ℹ️ Database pool initialized: {'created': 5, 'total_get': 0, 'total_return': 0, 'errors': 0, 'pool_size': 5, 'available': 5}
+2025-12-26T07:27:39.976607097Z [err]  07:27:39 [INFO    ] ℹ️ Директория бэкапов готова: /app/backups
+2025-12-26T07:27:39.976611815Z [err]  07:27:39 [INFO    ] ℹ️ Бэкап создан: /app/backups/rvx_bot_backup_20251226_072739.db (0.02 MB)
+2025-12-26T07:27:39.976616077Z [err]  07:27:39 [INFO    ] ℹ️ Директория бэкапов готова: /app/backups
+2025-12-26T07:27:39.976621267Z [err]  07:27:39 [INFO    ] ℹ️ ======================================================================
+2025-12-26T07:27:39.976626136Z [err]  07:27:39 [INFO    ] ℹ️ 🚀 RVX Telegram Bot v0.7.0 запускается...
+2025-12-26T07:27:39.976631567Z [err]  07:27:39 [INFO    ] ℹ️ ======================================================================
+2025-12-26T07:27:39.976636503Z [err]  07:27:39 [INFO    ] ℹ️ 📊 Конфигурация:
+2025-12-26T07:27:39.976641562Z [err]  07:27:39 [INFO    ] ℹ️   • API URL: https://web-production-ddd5.up.railway.app/explain_news
+2025-12-26T07:27:39.978857475Z [err]  07:27:39 [INFO    ] ℹ️   • Analytics: Включена
+2025-12-26T07:27:39.978865395Z [err]  07:27:39 [INFO    ] ℹ️ ======================================================================
+2025-12-26T07:27:40.000000000Z [inf]  Stopping Container
+2025-12-26T07:27:41.953528273Z [err]  07:27:41 [INFO    ] ℹ️ 🚀 БОТ ПОЛНОСТЬЮ ЗАПУЩЕН И ГОТОВ К РАБОТЕ
+2025-12-26T07:27:41.953531456Z [err]  07:27:41 [INFO    ] ℹ️ Периодическая очистка сессий настроена (каждый час)
+2025-12-26T07:27:41.953541135Z [err]  07:27:41 [INFO    ] ℹ️ Периодическое логирование метрик настроено (каждые 6 часов)
+2025-12-26T07:27:41.953548437Z [err]  07:27:41 [INFO    ] ℹ️ Обновление рейтингов настроено (каждый час)
+2025-12-26T07:27:41.953568896Z [err]  07:27:41 [INFO    ] ℹ️ Автоматическая очистка кэша настроена (каждые 6ч)
+2025-12-26T07:27:41.953613118Z [err]  07:27:41 [INFO    ] ℹ️ 💊 Health check настроен (каждые 300 сек)
+2025-12-26T07:27:43.173401899Z [err]  07:27:43 [INFO    ] ℹ️ Список команд установлен в Telegram
+2025-12-26T07:27:45.964386354Z [err]  07:27:45 [INFO    ] ℹ️ 📋 Checking mandatory channel subscription for user 790245132...
+2025-12-26T07:27:45.964500970Z [err]  07:27:45 [INFO    ] ℹ️ 📝 Команда /start от 790245132 (@shunyaa)
+2025-12-26T07:27:45.964507753Z [err]  07:27:45 [INFO    ] ℹ️ 🚀 START_COMMAND called by user 790245132 (@shunyaa)
+2025-12-26T07:27:45.964516199Z [err]  Error getting user language from DB: cannot import name 'get_db' from 'db_service' (/app/db_service.py)
+2025-12-26T07:27:45.979058949Z [err]  07:27:45 [INFO    ] ℹ️ ❌ User 790245132 is NOT subscribed to mandatory channel (status: left)
+2025-12-26T07:27:45.979070097Z [err]  07:27:45 [INFO    ] ℹ️ ✅ Subscription check result for user 790245132: False
+2025-12-26T07:27:51.218666035Z [err]  07:27:51 [INFO    ] ℹ️ User 790245132 clicked button without channel subscription
+2025-12-26T07:27:51.506136971Z [err]  07:27:51 [INFO    ] ℹ️ 🧹 Запуск автоматической очистки кэша...
+2025-12-26T07:27:51.506145385Z [err]  07:27:51 [INFO    ] ℹ️ Удалено 0 старых/неиспользуемых записей из кэша
+2025-12-26T07:27:51.506160920Z [err]  07:27:51 [INFO    ] ℹ️ 💾 Кэш: 0 записей, всего попаданий: 0
+2025-12-26T07:27:57.110242155Z [err]  07:27:56 [INFO    ] ℹ️ ✅ Subscription check result for user 790245132: True
+2025-12-26T07:27:57.110249444Z [err]  07:27:56 [INFO    ] ℹ️ ✅ User 790245132 is subscribed, proceeding with start_command
+2025-12-26T07:27:57.110316540Z [err]  07:27:56 [INFO    ] ℹ️ 📝 Команда /start от 790245132 (@shunyaa)
+2025-12-26T07:27:57.110322696Z [err]  07:27:56 [INFO    ] ℹ️ 🚀 START_COMMAND called by user 790245132 (@shunyaa)
+2025-12-26T07:27:57.110328110Z [err]  Error getting user language from DB: cannot import name 'get_db' from 'db_service' (/app/db_service.py)
+2025-12-26T07:27:57.110333953Z [err]  07:27:56 [INFO    ] ℹ️ 🗑️  Cleared subscription cache for user 790245132
+2025-12-26T07:27:57.110339219Z [err]  07:27:56 [INFO    ] ℹ️ 📋 Checking mandatory channel subscription for user 790245132...
+2025-12-26T07:27:57.110345010Z [err]  07:27:56 [INFO    ] ℹ️ ✅ User 790245132 is subscribed to mandatory channel (status: member)
+2025-12-26T07:28:16.717791284Z [err]  07:28:11 [INFO    ] ℹ️ 📊 Обновление кэша рейтингов...
+2025-12-26T07:28:16.717798245Z [err]  07:28:11 [INFO    ] ℹ️    ✅ Период 'week': 0 пользователей
+2025-12-26T07:28:16.717803914Z [err]  07:28:11 [INFO    ] ℹ️    ✅ Период 'month': 0 пользователей
+2025-12-26T07:28:16.717809323Z [err]  07:28:11 [INFO    ] ℹ️    ✅ Период 'all': 0 пользователей
+2025-12-26T07:28:16.717814801Z [err]  07:28:11 [INFO    ] ℹ️ 💊 HEALTH CHECK: Users=1 | Uptime=0.0h | ErrorRate=0.0% | CacheHits=0 | AvgResponse=0ms
+2025-12-26T07:29:47.146081550Z [err]  07:29:41 [INFO    ] ℹ️ 📊 Req=0 (0%) | Users=0 | Resp=0.0ms
+2025-12-26T07:29:51.000000000Z [inf]  Starting Container
+2025-12-26T07:29:52.000000000Z [inf]  Starting Container
+2025-12-26T07:29:52.472946517Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:29:52.543453376Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:29:53.290757387Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:29:53.861883580Z [err]  07:29:52 [INFO] CLEANUP: Current PID = 2
+2025-12-26T07:29:53.861888000Z [err]  07:29:52 [DEBUG] Waiting 3 seconds for Telegram polling lock to release...
+2025-12-26T07:29:54.000000000Z [inf]  Stopping Container
+2025-12-26T07:29:54.034887747Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:29:54.480176404Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:29:55.188518814Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:29:55.601177245Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:29:56.122165968Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:29:56.531632601Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:29:57.284129395Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:29:57.722499214Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:29:58.065905767Z [err]  /usr/local/lib/python3.12/site-packages/pydantic/_internal/_config.py:345: UserWarning: Valid config keys have changed in V2:
+2025-12-26T07:29:58.065912070Z [err]  * 'max_anystr_length' has been renamed to 'str_max_length'
+2025-12-26T07:29:58.065918381Z [err]    warnings.warn(message, UserWarning)
+2025-12-26T07:29:58.065925448Z [err]  07:29:58 [INFO    ] ℹ️ BotState инициализирован
+2025-12-26T07:29:58.065934753Z [err]  07:29:58 [INFO    ] ℹ️ BotMetrics инициализирован
+2025-12-26T07:29:58.065941692Z [err]  07:29:58 [INFO    ] ℹ️ Таблица conversation_history не существует, будет создана позже
+2025-12-26T07:29:58.109816501Z [err]  07:29:58 [INFO    ] ℹ️ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T07:29:58.117977625Z [err]  07:29:58 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T07:29:58.118006213Z [err]  07:29:58 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T07:29:58.118045891Z [err]  07:29:58 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T07:29:58.118071058Z [err]  07:29:58 [INFO    ] ℹ️   • Добавление колонки course_name в user_progress...
+2025-12-26T07:29:58.139299685Z [err]  07:29:58 [INFO    ] ℹ️ Миграция успешно завершена (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T07:29:58.139314238Z [err]  Missing: ['drops_feed']
+2025-12-26T07:29:58.139323807Z [err]  07:29:58 [INFO    ] ℹ️ Добавление колонки language для поддержки мультиязычности...
+2025-12-26T07:29:58.139336384Z [err]  07:29:58 [INFO    ] ℹ️ Колонка language успешно добавлена
+2025-12-26T07:29:58.139346812Z [err]  07:29:58 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T07:29:58.139352275Z [err]  Existing: ['activities_cache', 'analytics', 'audit_logs', 'bookmark_history', 'bot_events', 'cache', 'conversation_history', 'conversation_stats', 'courses', 'daily_tasks', 'drops_history', 'faq', 'feedback', 'leaderboard_cache', 'learning_paths', 'lessons', 'requests', 'sqlite_sequence', 'teaching_lessons', 'tools', 'user_badges', 'user_bookmarks', 'user_bookmarks_v2', 'user_courses', 'user_drop_subscriptions', 'user_learning_paths', 'user_profiles', 'user_progress', 'user_questions', 'user_quiz_responses', 'user_quiz_stats', 'users']
+2025-12-26T07:29:58.139358677Z [err]  07:29:58 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T07:29:58.139369709Z [err]  07:29:58 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T07:29:58.139381069Z [err]  07:29:58 [WARNING ] ⚠️ Database schema incomplete. Missing tables: ['drops_feed']
+2025-12-26T07:29:58.139387947Z [err]  07:29:58 [INFO    ] ℹ️ Миграция не требуется, схема актуальна
+2025-12-26T07:29:58.139397676Z [err]  07:29:58 [WARNING ] ⚠️ Database schema incomplete: missing 1 tables
+2025-12-26T07:29:58.139405626Z [err]  Attempting to reinitialize...
+2025-12-26T07:29:58.139426905Z [err]  07:29:58 [INFO    ] ℹ️ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T07:29:58.143976617Z [err]  07:29:58 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T07:29:58.143985127Z [err]  07:29:58 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T07:29:58.143992108Z [err]  07:29:58 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T07:29:58.144000886Z [err]  07:29:58 [INFO    ] ℹ️ Миграция не требуется, схема актуальна
+2025-12-26T07:29:58.144008343Z [err]  07:29:58 [WARNING ] ⚠️ Database schema incomplete: missing 1 tables
+2025-12-26T07:29:58.144016516Z [err]  Missing: ['drops_feed']
+2025-12-26T07:29:58.144024353Z [err]  Existing: ['activities_cache', 'analytics', 'audit_logs', 'bookmark_history', 'bot_events', 'cache', 'conversation_history', 'conversation_stats', 'courses', 'daily_tasks', 'drops_history', 'faq', 'feedback', 'leaderboard_cache', 'learning_paths', 'lessons', 'requests', 'sqlite_sequence', 'teaching_lessons', 'tools', 'user_badges', 'user_bookmarks', 'user_bookmarks_v2', 'user_courses', 'user_drop_subscriptions', 'user_learning_paths', 'user_profiles', 'user_progress', 'user_questions', 'user_quiz_responses', 'user_quiz_stats', 'users']
+2025-12-26T07:29:58.144031358Z [err]  07:29:58 [ERROR   ] ❌ Critical: Database schema still invalid after reinitialization!
+2025-12-26T07:29:58.144038946Z [err]  Missing: ['drops_feed']
+2025-12-26T07:29:58.144045032Z [err]  07:29:58 [INFO    ] ℹ️   📊 Created: idx_users_leaderboard (leaderboard queries)
+2025-12-26T07:29:58.144051355Z [err]  07:29:58 [INFO    ] ℹ️   📝 Created: idx_requests_user_date (user request history)
+2025-12-26T07:29:58.144058129Z [err]  07:29:58 [WARNING ] ⚠️   ⚠️ Skipping idx_user_progress_lookup (missing columns)
+2025-12-26T07:29:58.160616575Z [err]  07:29:58 [INFO    ] ℹ️   ✅ Created: idx_daily_tasks_user (daily task queries)
+2025-12-26T07:29:58.160626381Z [err]  07:29:58 [INFO    ] ℹ️   🔖 Created: idx_bookmarks_user (bookmark queries)
+2025-12-26T07:29:58.160634755Z [err]  07:29:58 [INFO    ] ℹ️   📈 Created: idx_analytics_date (analytics queries)
+2025-12-26T07:29:58.160641795Z [err]  07:29:58 [INFO    ] ℹ️ Database indices created successfully (v0.38.0 - QUICK WIN #2)
+2025-12-26T07:29:58.160649356Z [err]  07:29:58 [INFO    ] ℹ️ Database pool initialized: {'created': 5, 'total_get': 0, 'total_return': 0, 'errors': 0, 'pool_size': 5, 'available': 5}
+2025-12-26T07:29:58.160656284Z [err]  07:29:58 [INFO    ] ℹ️ Директория бэкапов готова: /app/backups
+2025-12-26T07:29:58.164510808Z [err]  07:29:58 [INFO    ] ℹ️ Бэкап создан: /app/backups/rvx_bot_backup_20251226_072958.db (0.02 MB)
+2025-12-26T07:29:58.167880330Z [err]  07:29:58 [INFO    ] ℹ️ Директория бэкапов готова: /app/backups
+2025-12-26T07:29:58.167890050Z [err]  07:29:58 [INFO    ] ℹ️ ======================================================================
+2025-12-26T07:29:58.167896916Z [err]  07:29:58 [INFO    ] ℹ️ 🚀 RVX Telegram Bot v0.7.0 запускается...
+2025-12-26T07:29:58.167903397Z [err]  07:29:58 [INFO    ] ℹ️ ======================================================================
+2025-12-26T07:29:58.167910874Z [err]  07:29:58 [INFO    ] ℹ️ 📊 Конфигурация:
+2025-12-26T07:29:58.167917160Z [err]  07:29:58 [INFO    ] ℹ️   • API URL: https://web-production-ddd5.up.railway.app/explain_news
+2025-12-26T07:29:58.167924595Z [err]  07:29:58 [INFO    ] ℹ️   • Max input: 4096 символов
+2025-12-26T07:29:58.167930875Z [err]  07:29:58 [INFO    ] ℹ️   • Daily limit: 50 запросов
+2025-12-26T07:29:58.167941327Z [err]  07:29:58 [INFO    ] ℹ️   • Flood control: 3с
+2025-12-26T07:29:58.167950057Z [err]  07:29:58 [INFO    ] ℹ️   • Admin users: 2 (with limits)
+2025-12-26T07:29:58.167956452Z [err]  07:29:58 [INFO    ] ℹ️   • Unlimited admins: 0 (no limits) ⭐
+2025-12-26T07:29:58.167962077Z [err]  07:29:58 [INFO    ] ℹ️   • Mandatory channel: Да
+2025-12-26T07:29:58.167967654Z [err]  07:29:58 [INFO    ] ℹ️   • Update channel: Нет
+2025-12-26T07:29:58.169855659Z [err]  07:29:58 [INFO    ] ℹ️   • Bot version: 0.21.0
+2025-12-26T07:29:58.169864486Z [err]  07:29:58 [INFO    ] ℹ️   • Analytics: Включена
+2025-12-26T07:29:58.169871785Z [err]  07:29:58 [INFO    ] ℹ️ ======================================================================
+2025-12-26T07:29:59.000000000Z [inf]  Stopping Container
+2025-12-26T07:30:00.224798994Z [err]  07:30:00 [INFO    ] ℹ️ Автоматическая очистка кэша настроена (каждые 6ч)
+2025-12-26T07:30:00.224808809Z [err]  07:30:00 [INFO    ] ℹ️ Периодическая очистка сессий настроена (каждый час)
+2025-12-26T07:30:00.224815679Z [err]  07:30:00 [INFO    ] ℹ️ Периодическое логирование метрик настроено (каждые 6 часов)
+2025-12-26T07:30:00.224821349Z [err]  07:30:00 [INFO    ] ℹ️ Обновление рейтингов настроено (каждый час)
+2025-12-26T07:30:00.224826947Z [err]  07:30:00 [INFO    ] ℹ️ 💊 Health check настроен (каждые 300 сек)
+2025-12-26T07:30:00.224832353Z [err]  07:30:00 [INFO    ] ℹ️ 🚀 БОТ ПОЛНОСТЬЮ ЗАПУЩЕН И ГОТОВ К РАБОТЕ
+2025-12-26T07:30:02.056922344Z [err]  07:30:01 [INFO    ] ℹ️ Список команд установлен в Telegram
+2025-12-26T07:30:07.171102404Z [err]  07:30:07 [INFO    ] ℹ️ 📝 Команда /start от 790245132 (@shunyaa)
+2025-12-26T07:30:07.171111371Z [err]  07:30:07 [INFO    ] ℹ️ 🚀 START_COMMAND called by user 790245132 (@shunyaa)
+2025-12-26T07:30:07.171117925Z [err]  Error getting user language from DB: cannot import name 'get_db' from 'db_service' (/app/db_service.py)
+2025-12-26T07:30:07.171123215Z [err]  07:30:07 [INFO    ] ℹ️ 📋 Checking mandatory channel subscription for user 790245132...
+2025-12-26T07:30:07.478528955Z [err]  07:30:07 [INFO    ] ℹ️ ❌ User 790245132 is NOT subscribed to mandatory channel (status: left)
+2025-12-26T07:30:07.478554119Z [err]  07:30:07 [INFO    ] ℹ️ ✅ Subscription check result for user 790245132: False
+2025-12-26T07:30:10.229395297Z [err]  07:30:10 [INFO    ] ℹ️ 🧹 Запуск автоматической очистки кэша...
+2025-12-26T07:30:10.229399177Z [err]  07:30:10 [INFO    ] ℹ️ Удалено 0 старых/неиспользуемых записей из кэша
+2025-12-26T07:30:10.229405011Z [err]  07:30:10 [INFO    ] ℹ️ 💾 Кэш: 0 записей, всего попаданий: 0
+2025-12-26T07:30:12.208945054Z [err]  07:30:12 [INFO    ] ℹ️ User 790245132 clicked button without channel subscription
+2025-12-26T07:30:31.710647670Z [err]  07:30:30 [INFO    ] ℹ️ 📊 Обновление кэша рейтингов...
+2025-12-26T07:30:31.710654493Z [err]  07:30:30 [INFO    ] ℹ️    ✅ Период 'week': 0 пользователей
+2025-12-26T07:30:31.710659986Z [err]  07:30:30 [INFO    ] ℹ️    ✅ Период 'month': 0 пользователей
+2025-12-26T07:30:31.710665479Z [err]  07:30:30 [INFO    ] ℹ️    ✅ Период 'all': 0 пользователей
+2025-12-26T07:30:31.710671201Z [err]  07:30:30 [INFO    ] ℹ️ 💊 HEALTH CHECK: Users=0 | Uptime=0.0h | ErrorRate=0.0% | CacheHits=0 | AvgResponse=0ms
+2025-12-26T07:31:40.000000000Z [inf]  Starting Container
+2025-12-26T07:31:41.332059321Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:31:41.586083379Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:31:42.000000000Z [inf]  Starting Container
+2025-12-26T07:31:42.583892529Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:31:42.754152819Z [err]  07:31:42 [DEBUG] Waiting 3 seconds for Telegram polling lock to release...
+2025-12-26T07:31:42.754227716Z [err]  07:31:42 [INFO] CLEANUP: Current PID = 2
+2025-12-26T07:31:43.000000000Z [inf]  Stopping Container
+2025-12-26T07:31:43.577152951Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:31:44.516967373Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:31:45.456734126Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:31:46.417004078Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:31:47.468171654Z [err]  /usr/local/lib/python3.12/site-packages/pydantic/_internal/_config.py:345: UserWarning: Valid config keys have changed in V2:
+2025-12-26T07:31:47.468180974Z [err]  * 'max_anystr_length' has been renamed to 'str_max_length'
+2025-12-26T07:31:47.468187823Z [err]    warnings.warn(message, UserWarning)
+2025-12-26T07:31:47.471483968Z [err]  07:31:47 [INFO    ] ℹ️ BotState инициализирован
+2025-12-26T07:31:47.471494226Z [err]  07:31:47 [INFO    ] ℹ️ BotMetrics инициализирован
+2025-12-26T07:31:47.492460120Z [err]  07:31:47 [INFO    ] ℹ️ Таблица conversation_history не существует, будет создана позже
+2025-12-26T07:31:47.631368264Z [err]  07:31:47 [INFO    ] ℹ️ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T07:31:47.631373234Z [err]  07:31:47 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T07:31:47.631377563Z [err]  07:31:47 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T07:31:47.631381874Z [err]  07:31:47 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T07:31:47.631386325Z [err]  07:31:47 [INFO    ] ℹ️   • Добавление колонки course_name в user_progress...
+2025-12-26T07:31:47.631390696Z [err]  07:31:47 [INFO    ] ℹ️ Миграция успешно завершена (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T07:31:47.631394984Z [err]  07:31:47 [INFO    ] ℹ️ Добавление колонки language для поддержки мультиязычности...
+2025-12-26T07:31:47.631399084Z [err]  07:31:47 [INFO    ] ℹ️ Колонка language успешно добавлена
+2025-12-26T07:31:47.631403142Z [err]  07:31:47 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T07:31:47.631407344Z [err]  07:31:47 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T07:31:47.631411095Z [err]  07:31:47 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T07:31:47.631415377Z [err]  07:31:47 [INFO    ] ℹ️ Миграция не требуется, схема актуальна
+2025-12-26T07:31:47.631419575Z [err]  07:31:47 [WARNING ] ⚠️ Database schema incomplete: missing 1 tables
+2025-12-26T07:31:47.631424400Z [err]  Missing: ['drops_feed']
+2025-12-26T07:31:47.631428891Z [err]  Existing: ['activities_cache', 'analytics', 'audit_logs', 'bookmark_history', 'bot_events', 'cache', 'conversation_history', 'conversation_stats', 'courses', 'daily_tasks', 'drops_history', 'faq', 'feedback', 'leaderboard_cache', 'learning_paths', 'lessons', 'requests', 'sqlite_sequence', 'teaching_lessons', 'tools', 'user_badges', 'user_bookmarks', 'user_bookmarks_v2', 'user_courses', 'user_drop_subscriptions', 'user_learning_paths', 'user_profiles', 'user_progress', 'user_questions', 'user_quiz_responses', 'user_quiz_stats', 'users']
+2025-12-26T07:31:47.631433163Z [err]  07:31:47 [WARNING ] ⚠️ Database schema incomplete. Missing tables: ['drops_feed']
+2025-12-26T07:31:47.631437117Z [err]  Attempting to reinitialize...
+2025-12-26T07:31:47.631441329Z [err]  07:31:47 [INFO    ] ℹ️ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T07:31:47.631445629Z [err]  07:31:47 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T07:31:47.631451249Z [err]  07:31:47 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T07:31:47.631455219Z [err]  07:31:47 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T07:31:47.631459325Z [err]  07:31:47 [INFO    ] ℹ️ Миграция не требуется, схема актуальна
+2025-12-26T07:31:47.631463395Z [err]  07:31:47 [WARNING ] ⚠️ Database schema incomplete: missing 1 tables
+2025-12-26T07:31:47.631468126Z [err]  Missing: ['drops_feed']
+2025-12-26T07:31:47.631472519Z [err]  Existing: ['activities_cache', 'analytics', 'audit_logs', 'bookmark_history', 'bot_events', 'cache', 'conversation_history', 'conversation_stats', 'courses', 'daily_tasks', 'drops_history', 'faq', 'feedback', 'leaderboard_cache', 'learning_paths', 'lessons', 'requests', 'sqlite_sequence', 'teaching_lessons', 'tools', 'user_badges', 'user_bookmarks', 'user_bookmarks_v2', 'user_courses', 'user_drop_subscriptions', 'user_learning_paths', 'user_profiles', 'user_progress', 'user_questions', 'user_quiz_responses', 'user_quiz_stats', 'users']
+2025-12-26T07:31:47.631476726Z [err]  07:31:47 [ERROR   ] ❌ Critical: Database schema still invalid after reinitialization!
+2025-12-26T07:31:47.631480716Z [err]  Missing: ['drops_feed']
+2025-12-26T07:31:47.631484900Z [err]  07:31:47 [INFO    ] ℹ️   📊 Created: idx_users_leaderboard (leaderboard queries)
+2025-12-26T07:31:47.631489270Z [err]  07:31:47 [INFO    ] ℹ️   📝 Created: idx_requests_user_date (user request history)
+2025-12-26T07:31:47.631493715Z [err]  07:31:47 [WARNING ] ⚠️   ⚠️ Skipping idx_user_progress_lookup (missing columns)
+2025-12-26T07:31:47.631498854Z [err]  07:31:47 [INFO    ] ℹ️   🔖 Created: idx_bookmarks_user (bookmark queries)
+2025-12-26T07:31:47.631507088Z [err]  07:31:47 [INFO    ] ℹ️   📈 Created: idx_analytics_date (analytics queries)
+2025-12-26T07:31:47.631507143Z [err]  07:31:47 [INFO    ] ℹ️   ✅ Created: idx_daily_tasks_user (daily task queries)
+2025-12-26T07:31:47.631512320Z [err]  07:31:47 [INFO    ] ℹ️ Database indices created successfully (v0.38.0 - QUICK WIN #2)
+2025-12-26T07:31:47.631516723Z [err]  07:31:47 [INFO    ] ℹ️ Database pool initialized: {'created': 5, 'total_get': 0, 'total_return': 0, 'errors': 0, 'pool_size': 5, 'available': 5}
+2025-12-26T07:31:47.631520696Z [err]  07:31:47 [INFO    ] ℹ️ Директория бэкапов готова: /app/backups
+2025-12-26T07:31:47.631525283Z [err]  07:31:47 [INFO    ] ℹ️ Бэкап создан: /app/backups/rvx_bot_backup_20251226_073147.db (0.02 MB)
+2025-12-26T07:31:47.631531123Z [err]  07:31:47 [INFO    ] ℹ️ Директория бэкапов готова: /app/backups
+2025-12-26T07:31:47.631535278Z [err]  07:31:47 [INFO    ] ℹ️ ======================================================================
+2025-12-26T07:31:47.631539823Z [err]  07:31:47 [INFO    ] ℹ️ 🚀 RVX Telegram Bot v0.7.0 запускается...
+2025-12-26T07:31:47.631557550Z [err]  07:31:47 [INFO    ] ℹ️ ======================================================================
+2025-12-26T07:31:47.631561356Z [err]  07:31:47 [INFO    ] ℹ️ 📊 Конфигурация:
+2025-12-26T07:31:47.631565288Z [err]  07:31:47 [INFO    ] ℹ️   • API URL: https://web-production-ddd5.up.railway.app/explain_news
+2025-12-26T07:31:47.631569551Z [err]  07:31:47 [INFO    ] ℹ️   • Max input: 4096 символов
+2025-12-26T07:31:47.631573888Z [err]  07:31:47 [INFO    ] ℹ️   • Daily limit: 50 запросов
+2025-12-26T07:31:47.631581568Z [err]  07:31:47 [INFO    ] ℹ️   • Flood control: 3с
+2025-12-26T07:31:47.631585532Z [err]  07:31:47 [INFO    ] ℹ️   • Admin users: 2 (with limits)
+2025-12-26T07:31:47.631595103Z [err]  07:31:47 [INFO    ] ℹ️   • Unlimited admins: 0 (no limits) ⭐
+2025-12-26T07:31:47.631599475Z [err]  07:31:47 [INFO    ] ℹ️   • Mandatory channel: Да
+2025-12-26T07:31:47.631606533Z [err]  07:31:47 [INFO    ] ℹ️   • Update channel: Нет
+2025-12-26T07:31:47.631610240Z [err]  07:31:47 [INFO    ] ℹ️   • Bot version: 0.21.0
+2025-12-26T07:31:47.631614436Z [err]  07:31:47 [INFO    ] ℹ️   • Analytics: Включена
+2025-12-26T07:31:47.631619177Z [err]  07:31:47 [INFO    ] ℹ️ ======================================================================
+2025-12-26T07:31:47.726457791Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:31:48.000000000Z [inf]  Stopping Container
+2025-12-26T07:31:48.824197934Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:31:49.725875214Z [err]  07:31:49 [INFO    ] ℹ️ Автоматическая очистка кэша настроена (каждые 6ч)
+2025-12-26T07:31:49.725883723Z [err]  07:31:49 [INFO    ] ℹ️ Периодическая очистка сессий настроена (каждый час)
+2025-12-26T07:31:49.725889546Z [err]  07:31:49 [INFO    ] ℹ️ Периодическое логирование метрик настроено (каждые 6 часов)
+2025-12-26T07:31:49.725894506Z [err]  07:31:49 [INFO    ] ℹ️ Обновление рейтингов настроено (каждый час)
+2025-12-26T07:31:49.725898852Z [err]  07:31:49 [INFO    ] ℹ️ 💊 Health check настроен (каждые 300 сек)
+2025-12-26T07:31:49.725904732Z [err]  07:31:49 [INFO    ] ℹ️ 🚀 БОТ ПОЛНОСТЬЮ ЗАПУЩЕН И ГОТОВ К РАБОТЕ
+2025-12-26T07:31:49.815593110Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:31:50.822002156Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:31:51.397620355Z [err]  07:31:51 [INFO    ] ℹ️ Список команд установлен в Telegram
+2025-12-26T07:31:59.666858084Z [err]  07:31:59 [INFO    ] ℹ️ 🧹 Запуск автоматической очистки кэша...
+2025-12-26T07:31:59.666867872Z [err]  07:31:59 [INFO    ] ℹ️ Удалено 0 старых/неиспользуемых записей из кэша
+2025-12-26T07:31:59.666875401Z [err]  07:31:59 [INFO    ] ℹ️ 💾 Кэш: 0 записей, всего попаданий: 0
+2025-12-26T07:32:19.718046531Z [err]  07:32:15 [INFO    ] ℹ️ 📝 Команда /start от 790245132 (@shunyaa)
+2025-12-26T07:32:19.718056573Z [err]  07:32:15 [INFO    ] ℹ️ 🚀 START_COMMAND called by user 790245132 (@shunyaa)
+2025-12-26T07:32:19.718065256Z [err]  Error getting user language from DB: cannot import name 'get_db' from 'db_service' (/app/db_service.py)
+2025-12-26T07:32:19.718073739Z [err]  07:32:15 [INFO    ] ℹ️ 📋 Checking mandatory channel subscription for user 790245132...
+2025-12-26T07:32:19.718082314Z [err]  07:32:16 [INFO    ] ℹ️ ❌ User 790245132 is NOT subscribed to mandatory channel (status: left)
+2025-12-26T07:32:19.718090808Z [err]  07:32:16 [INFO    ] ℹ️ ✅ Subscription check result for user 790245132: False
+2025-12-26T07:32:19.718099083Z [err]  07:32:19 [INFO    ] ℹ️ 📊 Обновление кэша рейтингов...
+2025-12-26T07:32:19.718108682Z [err]  07:32:19 [INFO    ] ℹ️    ✅ Период 'week': 0 пользователей
+2025-12-26T07:32:19.718115083Z [err]  07:32:19 [INFO    ] ℹ️    ✅ Период 'month': 0 пользователей
+2025-12-26T07:32:19.718120724Z [err]  07:32:19 [INFO    ] ℹ️    ✅ Период 'all': 0 пользователей
+2025-12-26T07:32:19.718126413Z [err]  07:32:19 [INFO    ] ℹ️ 💊 HEALTH CHECK: Users=0 | Uptime=0.0h | ErrorRate=0.0% | CacheHits=0 | AvgResponse=0ms
+2025-12-26T07:32:23.794582548Z [err]  07:32:23 [INFO    ] ℹ️ User 790245132 clicked button without channel subscription
+2025-12-26T07:33:54.273890074Z [err]  07:33:49 [INFO    ] ℹ️ 📊 Req=0 (0%) | Users=0 | Resp=0.0ms
+2025-12-26T07:36:34.000000000Z [inf]  Starting Container
+2025-12-26T07:36:35.626401458Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:36:35.626408644Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:36:36.874332867Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:36:37.000000000Z [inf]  Stopping Container
+2025-12-26T07:36:38.000000000Z [inf]  Starting Container
+2025-12-26T07:36:38.736666660Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:36:39.521438613Z [err]  07:36:38 [INFO] CLEANUP: Current PID = 2
+2025-12-26T07:36:39.521444531Z [err]  07:36:38 [DEBUG] Waiting 3 seconds for Telegram polling lock to release...
+2025-12-26T07:36:39.621046913Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:36:40.632228830Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:36:41.672994066Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:36:44.000000000Z [inf]  Stopping Container
+2025-12-26T07:36:44.914722603Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:36:45.601623570Z [err]  07:36:45 [INFO    ] ℹ️ Добавление колонки language для поддержки мультиязычности...
+2025-12-26T07:36:45.601635313Z [err]  * 'max_anystr_length' has been renamed to 'str_max_length'
+2025-12-26T07:36:45.601636044Z [err]  07:36:45 [INFO    ] ℹ️ Колонка language успешно добавлена
+2025-12-26T07:36:45.601643369Z [err]  07:36:45 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T07:36:45.601649372Z [err]    warnings.warn(message, UserWarning)
+2025-12-26T07:36:45.601657699Z [err]  07:36:44 [INFO    ] ℹ️ BotState инициализирован
+2025-12-26T07:36:45.601664789Z [err]  07:36:44 [INFO    ] ℹ️ BotMetrics инициализирован
+2025-12-26T07:36:45.601671299Z [err]  07:36:44 [INFO    ] ℹ️ Таблица conversation_history не существует, будет создана позже
+2025-12-26T07:36:45.601678912Z [err]  07:36:45 [INFO    ] ℹ️ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T07:36:45.601685588Z [err]  07:36:45 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T07:36:45.601691493Z [err]  07:36:45 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T07:36:45.601699916Z [err]  07:36:45 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T07:36:45.601708130Z [err]  07:36:45 [INFO    ] ℹ️   • Добавление колонки course_name в user_progress...
+2025-12-26T07:36:45.601714430Z [err]  07:36:45 [INFO    ] ℹ️ Миграция успешно завершена (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T07:36:45.602295076Z [err]  /usr/local/lib/python3.12/site-packages/pydantic/_internal/_config.py:345: UserWarning: Valid config keys have changed in V2:
+2025-12-26T07:36:45.961405236Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:36:46.599826134Z [err]  07:36:45 [WARNING ] ⚠️ Database schema incomplete: missing 1 tables
+2025-12-26T07:36:46.599832847Z [err]  Missing: ['drops_feed']
+2025-12-26T07:36:46.599838526Z [err]  Existing: ['activities_cache', 'analytics', 'audit_logs', 'bookmark_history', 'bot_events', 'cache', 'conversation_history', 'conversation_stats', 'courses', 'daily_tasks', 'drops_history', 'faq', 'feedback', 'leaderboard_cache', 'learning_paths', 'lessons', 'requests', 'sqlite_sequence', 'teaching_lessons', 'tools', 'user_badges', 'user_bookmarks', 'user_bookmarks_v2', 'user_courses', 'user_drop_subscriptions', 'user_learning_paths', 'user_profiles', 'user_progress', 'user_questions', 'user_quiz_responses', 'user_quiz_stats', 'users']
+2025-12-26T07:36:46.599844505Z [err]  07:36:45 [ERROR   ] ❌ Critical: Database schema still invalid after reinitialization!
+2025-12-26T07:36:46.599852006Z [err]  Missing: ['drops_feed']
+2025-12-26T07:36:46.599858129Z [err]  07:36:45 [INFO    ] ℹ️   📊 Created: idx_users_leaderboard (leaderboard queries)
+2025-12-26T07:36:46.599863989Z [err]  07:36:45 [INFO    ] ℹ️   📝 Created: idx_requests_user_date (user request history)
+2025-12-26T07:36:46.599869916Z [err]  07:36:45 [WARNING ] ⚠️   ⚠️ Skipping idx_user_progress_lookup (missing columns)
+2025-12-26T07:36:46.599876183Z [err]  07:36:45 [INFO    ] ℹ️   ✅ Created: idx_daily_tasks_user (daily task queries)
+2025-12-26T07:36:46.599881945Z [err]  07:36:45 [INFO    ] ℹ️   🔖 Created: idx_bookmarks_user (bookmark queries)
+2025-12-26T07:36:46.599888071Z [err]  07:36:45 [INFO    ] ℹ️   📈 Created: idx_analytics_date (analytics queries)
+2025-12-26T07:36:46.599894411Z [err]  07:36:45 [INFO    ] ℹ️ Database indices created successfully (v0.38.0 - QUICK WIN #2)
+2025-12-26T07:36:46.599900154Z [err]  07:36:45 [INFO    ] ℹ️ Database pool initialized: {'created': 5, 'total_get': 0, 'total_return': 0, 'errors': 0, 'pool_size': 5, 'available': 5}
+2025-12-26T07:36:46.599977604Z [err]  07:36:45 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T07:36:46.599983466Z [err]  07:36:45 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T07:36:46.599989669Z [err]  07:36:45 [INFO    ] ℹ️ Миграция не требуется, схема актуальна
+2025-12-26T07:36:46.599995387Z [err]  07:36:45 [WARNING ] ⚠️ Database schema incomplete: missing 1 tables
+2025-12-26T07:36:46.600001007Z [err]  Missing: ['drops_feed']
+2025-12-26T07:36:46.600006363Z [err]  Existing: ['activities_cache', 'analytics', 'audit_logs', 'bookmark_history', 'bot_events', 'cache', 'conversation_history', 'conversation_stats', 'courses', 'daily_tasks', 'drops_history', 'faq', 'feedback', 'leaderboard_cache', 'learning_paths', 'lessons', 'requests', 'sqlite_sequence', 'teaching_lessons', 'tools', 'user_badges', 'user_bookmarks', 'user_bookmarks_v2', 'user_courses', 'user_drop_subscriptions', 'user_learning_paths', 'user_profiles', 'user_progress', 'user_questions', 'user_quiz_responses', 'user_quiz_stats', 'users']
+2025-12-26T07:36:46.600012126Z [err]  07:36:45 [WARNING ] ⚠️ Database schema incomplete. Missing tables: ['drops_feed']
+2025-12-26T07:36:46.600018327Z [err]  Attempting to reinitialize...
+2025-12-26T07:36:46.600026632Z [err]  07:36:45 [INFO    ] ℹ️ База данных инициализирована с optimized indexes (v0.37.0 - Teaching Module Phase 1)
+2025-12-26T07:36:46.600031972Z [err]  07:36:45 [INFO    ] ℹ️ Проверка необходимости миграции...
+2025-12-26T07:36:46.600037333Z [err]  07:36:45 [INFO    ] ℹ️ Проверка полноты схемы таблицы users...
+2025-12-26T07:36:46.600043214Z [err]  07:36:45 [INFO    ] ℹ️ Таблица users имеет полную схему
+2025-12-26T07:36:46.600048827Z [err]  07:36:45 [INFO    ] ℹ️ Миграция не требуется, схема актуальна
+2025-12-26T07:36:47.812281179Z [err]  07:36:45 [INFO    ] ℹ️ Директория бэкапов готова: /app/backups
+2025-12-26T07:36:47.812285402Z [err]  07:36:45 [INFO    ] ℹ️ Бэкап создан: /app/backups/rvx_bot_backup_20251226_073645.db (0.02 MB)
+2025-12-26T07:36:47.812289091Z [err]  07:36:45 [INFO    ] ℹ️ Директория бэкапов готова: /app/backups
+2025-12-26T07:36:47.812292975Z [err]  07:36:45 [INFO    ] ℹ️ ======================================================================
+2025-12-26T07:36:47.812296981Z [err]  07:36:45 [INFO    ] ℹ️ 🚀 RVX Telegram Bot v0.7.0 запускается...
+2025-12-26T07:36:47.812301403Z [err]  07:36:45 [INFO    ] ℹ️ ======================================================================
+2025-12-26T07:36:47.812305145Z [err]  07:36:45 [INFO    ] ℹ️ 📊 Конфигурация:
+2025-12-26T07:36:47.812310096Z [err]  07:36:45 [INFO    ] ℹ️   • API URL: https://web-production-ddd5.up.railway.app/explain_news
+2025-12-26T07:36:47.812314553Z [err]  07:36:45 [INFO    ] ℹ️   • Max input: 4096 символов
+2025-12-26T07:36:47.812318324Z [err]  07:36:45 [INFO    ] ℹ️   • Daily limit: 50 запросов
+2025-12-26T07:36:47.812322198Z [err]  07:36:45 [INFO    ] ℹ️   • Flood control: 3с
+2025-12-26T07:36:47.812325969Z [err]  07:36:45 [INFO    ] ℹ️   • Admin users: 2 (with limits)
+2025-12-26T07:36:47.812330014Z [err]  07:36:45 [INFO    ] ℹ️   • Unlimited admins: 0 (no limits) ⭐
+2025-12-26T07:36:47.812334085Z [err]  07:36:45 [INFO    ] ℹ️   • Mandatory channel: Да
+2025-12-26T07:36:47.812337864Z [err]  07:36:45 [INFO    ] ℹ️   • Update channel: Нет
+2025-12-26T07:36:47.812342958Z [err]  07:36:45 [INFO    ] ℹ️   • Bot version: 0.21.0
+2025-12-26T07:36:47.812346560Z [err]  07:36:45 [INFO    ] ℹ️   • Analytics: Включена
+2025-12-26T07:36:47.812350195Z [err]  07:36:45 [INFO    ] ℹ️ ======================================================================
+2025-12-26T07:36:47.876451467Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:36:48.557165343Z [err]  07:36:47 [INFO    ] ℹ️ Автоматическая очистка кэша настроена (каждые 6ч)
+2025-12-26T07:36:48.557177802Z [err]  07:36:47 [INFO    ] ℹ️ Периодическая очистка сессий настроена (каждый час)
+2025-12-26T07:36:48.557185310Z [err]  07:36:47 [INFO    ] ℹ️ Периодическое логирование метрик настроено (каждые 6 часов)
+2025-12-26T07:36:48.557195001Z [err]  07:36:47 [INFO    ] ℹ️ Обновление рейтингов настроено (каждый час)
+2025-12-26T07:36:48.557203110Z [err]  07:36:47 [INFO    ] ℹ️ 💊 Health check настроен (каждые 300 сек)
+2025-12-26T07:36:48.557210453Z [err]  07:36:47 [INFO    ] ℹ️ 🚀 БОТ ПОЛНОСТЬЮ ЗАПУЩЕН И ГОТОВ К РАБОТЕ
+2025-12-26T07:36:48.726895326Z [err]  python: can't open file '/app/api_server.py': [Errno 2] No such file or directory
+2025-12-26T07:36:49.676423583Z [err]  07:36:48 [INFO    ] ℹ️ Список команд установлен в Telegram
+2025-12-26T07:36:54.496644781Z [err]  07:36:53 [INFO    ] ℹ️ 📝 Команда /start от 790245132 (@shunyaa)
+2025-12-26T07:36:54.496649483Z [err]  07:36:53 [INFO    ] ℹ️ 🚀 START_COMMAND called by user 790245132 (@shunyaa)
+2025-12-26T07:36:54.496654136Z [err]  Error getting user language from DB: cannot import name 'get_db' from 'db_service' (/app/db_service.py)
+2025-12-26T07:36:54.496658597Z [err]  07:36:53 [INFO    ] ℹ️ 📋 Checking mandatory channel subscription for user 790245132...
+2025-12-26T07:36:54.496663042Z [err]  07:36:54 [INFO    ] ℹ️ ❌ User 790245132 is NOT subscribed to mandatory channel (status: left)
+2025-12-26T07:36:54.496668386Z [err]  07:36:54 [INFO    ] ℹ️ ✅ Subscription check result for user 790245132: False
+2025-12-26T07:36:57.587224489Z [err]  07:36:57 [INFO    ] ℹ️ 🧹 Запуск автоматической очистки кэша...
+2025-12-26T07:36:57.587230683Z [err]  07:36:57 [INFO    ] ℹ️ Удалено 0 старых/неиспользуемых записей из кэша
+2025-12-26T07:36:57.587237345Z [err]  07:36:57 [INFO    ] ℹ️ 💾 Кэш: 0 записей, всего попаданий: 0
+2025-12-26T07:37:02.667884963Z [err]  07:37:01 [INFO    ] ℹ️ User 790245132 clicked button without channel subscription

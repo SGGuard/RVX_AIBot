@@ -14,6 +14,7 @@ i18n (Internationalization) модуль для мультиязычной по�
 
 import json
 import os
+import sqlite3
 from typing import Dict, Optional, Any
 from pathlib import Path
 import logging
@@ -126,28 +127,42 @@ def get_user_language(user_id: int, default: Optional[str] = None) -> str:
     Returns:
         Код языка (e.g. "ru", "uk")
     """
+    print(f"DEBUG i18n: get_user_language called for user_id={user_id}")
+    
     # Проверяем кэш
     if user_id in _user_languages_cache:
-        return _user_languages_cache[user_id]
+        lang = _user_languages_cache[user_id]
+        print(f"DEBUG i18n: Found in cache: {lang}")
+        return lang
+    
+    print(f"DEBUG i18n: Not in cache, querying DB...")
     
     # Получаем из БД
     try:
-        from db_service import get_db
+        print(f"DEBUG i18n: Opening DB connection...")
+        conn = sqlite3.connect("rvx_bot.db")
+        cursor = conn.cursor()
+        print(f"DEBUG i18n: Executing query...")
+        cursor.execute("SELECT language FROM users WHERE user_id = ?", (user_id,))
+        result = cursor.fetchone()
+        print(f"DEBUG i18n: Query result: {result}")
+        conn.close()
         
-        with get_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT language FROM users WHERE user_id = ?", (user_id,))
-            result = cursor.fetchone()
-            
-            if result and result[0]:
-                lang = result[0]
-                _user_languages_cache[user_id] = lang
-                return lang
+        if result and result[0]:
+            lang = result[0]
+            print(f"DEBUG i18n: Found language in DB: {lang}")
+            _user_languages_cache[user_id] = lang
+            return lang
+        else:
+            print(f"DEBUG i18n: No result or empty language in DB")
     except Exception as e:
+        print(f"DEBUG i18n: Exception in get_user_language: {e}")
         logger.warning(f"Error getting user language from DB: {e}")
     
     # Возвращаем дефолт
-    return default or DEFAULT_LANGUAGE
+    result_lang = default or DEFAULT_LANGUAGE
+    print(f"DEBUG i18n: Returning default language: {result_lang}")
+    return result_lang
 
 
 async def set_user_language(user_id: int, language: str) -> bool:
@@ -166,20 +181,19 @@ async def set_user_language(user_id: int, language: str) -> bool:
         return False
     
     try:
-        from db_service import get_db
+        conn = sqlite3.connect("rvx_bot.db")
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE users SET language = ? WHERE user_id = ?",
+            (language, user_id)
+        )
+        conn.commit()
+        conn.close()
         
-        with get_db() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                "UPDATE users SET language = ? WHERE user_id = ?",
-                (language, user_id)
-            )
-            conn.commit()
-            
-            # Обновляем кэш
-            _user_languages_cache[user_id] = language
-            logger.info(f"Set language {language} for user {user_id}")
-            return True
+        # Обновляем кэш
+        _user_languages_cache[user_id] = language
+        logger.info(f"Set language {language} for user {user_id}")
+        return True
     except Exception as e:
         logger.error(f"Error setting user language: {e}")
         return False
