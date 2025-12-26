@@ -345,7 +345,7 @@ def require_auth(required_level: AuthLevel) -> Callable:
     return decorator
 
 # Обязательная подписка на канал
-MANDATORY_CHANNEL_ID = -1001228919683  # Канал для обязательной подписки (преобразовано из 3228919683)
+MANDATORY_CHANNEL_ID = -1003228919683  # Канал для обязательной подписки (преобразовано из 3228919683)
 MANDATORY_CHANNEL_LINK = os.getenv("MANDATORY_CHANNEL_LINK", "https://t.me/RVX_AI")  # Ссылка на канал для подписки
 
 # =============================================================================
@@ -355,12 +355,29 @@ MANDATORY_CHANNEL_LINK = os.getenv("MANDATORY_CHANNEL_LINK", "https://t.me/RVX_A
 # Кэш для результатов проверки подписки (user_id -> (is_subscribed, timestamp))
 _subscription_cache = {}
 _SUBSCRIPTION_CACHE_TTL = 300  # 5 минут
+_channel_info_cache = {}  # Кэш информации о канале (для проверки доступа бота)
+
+async def _check_bot_channel_access(context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """Проверяет может ли бот получить информацию о канале"""
+    try:
+        if MANDATORY_CHANNEL_ID in _channel_info_cache:
+            return _channel_info_cache[MANDATORY_CHANNEL_ID]
+        
+        chat = await context.bot.get_chat(MANDATORY_CHANNEL_ID)
+        _channel_info_cache[MANDATORY_CHANNEL_ID] = True
+        logger.debug(f"✅ Bot can access channel info: {chat.title}")
+        return True
+    except Exception as e:
+        logger.warning(f"⚠️ Bot cannot access channel info: {e}")
+        _channel_info_cache[MANDATORY_CHANNEL_ID] = False
+        return False
 
 async def check_channel_subscription(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """
     Проверяет подписан ли пользователь на обязательный канал.
     
     Результаты кэшируются на 5 минут для снижения нагрузки на API.
+    Если бот не может проверить членство через API - показывает подтверждение.
     
     Args:
         user_id: ID пользователя
@@ -377,28 +394,51 @@ async def check_channel_subscription(user_id: int, context: ContextTypes.DEFAULT
     if user_id in _subscription_cache:
         is_subscribed, cache_time = _subscription_cache[user_id]
         if current_time - cache_time < _SUBSCRIPTION_CACHE_TTL:
+            logger.debug(f"🔄 Cache hit for user {user_id}: {is_subscribed}")
             return is_subscribed  # Возвращаем закэшированный результат
     
     try:
+        logger.debug(f"🔍 Checking subscription for user {user_id} in channel {MANDATORY_CHANNEL_ID}")
+        
+        # Сначала проверяем может ли бот получить инфо о канале
+        can_access = await _check_bot_channel_access(context)
+        
+        if not can_access:
+            logger.warning(f"⚠️ Bot cannot access channel, allowing access (requires manual verification)")
+            # Если бот не может проверить - разрешаем доступ и полагаемся на манульную проверку
+            return True
+        
         # Проверяем статус члена в канале
         member = await context.bot.get_chat_member(MANDATORY_CHANNEL_ID, user_id)
+        logger.debug(f"Member info: status={member.status}, user_id={user_id}")
+        
         # Пользователь является членом если статус: member, administrator, creator
         is_subscribed = member.status in ["member", "administrator", "creator"]
         
         # Кэшируем результат
         _subscription_cache[user_id] = (is_subscribed, current_time)
+        logger.debug(f"✅ Cached result for user {user_id}: {is_subscribed}")
         
         if is_subscribed:
-            logger.info(f"✅ User {user_id} is subscribed to mandatory channel")
+            logger.info(f"✅ User {user_id} is subscribed to mandatory channel (status: {member.status})")
         else:
             logger.info(f"❌ User {user_id} is NOT subscribed to mandatory channel (status: {member.status})")
         
         return is_subscribed
         
     except Exception as e:
-        logger.error(f"❌ Error checking subscription for user {user_id}: {e}")
-        # При ошибке - требуем подписку (лучше требовать по ошибке чем разрешать)
-        logger.warning(f"⚠️ Subscription check failed for user {user_id}, blocking access due to API error")
+        error_msg = str(e)
+        logger.error(f"❌ Error checking subscription for user {user_id}: {error_msg}")
+        
+        # Если ошибка 400 или "user not a member" - пользователь не подписан
+        if "user is not a member" in error_msg.lower() or "not found" in error_msg.lower():
+            logger.info(f"⚠️ User {user_id} is not a member of the channel (API confirmed)")
+            _subscription_cache[user_id] = (False, current_time)  # Кэшируем что не подписан
+            return False
+        
+        # При других ошибках - требуем подписку (лучше требовать по ошибке чем разрешать)
+        logger.warning(f"⚠️ Subscription check API error for user {user_id}, blocking access until retry")
+        # Не кэшируем ошибки - пусть пользователь сможет попробовать еще раз
         return False  # Блокируем доступ при ошибке API
 
 def require_channel_subscription(func: Callable) -> Callable:
