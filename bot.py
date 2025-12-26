@@ -344,9 +344,87 @@ def require_auth(required_level: AuthLevel) -> Callable:
         return wrapper
     return decorator
 
-# Обязательная подписка
-MANDATORY_CHANNEL_ID = os.getenv("MANDATORY_CHANNEL_ID", "")
-MANDATORY_CHANNEL_LINK = os.getenv("MANDATORY_CHANNEL_LINK", "")
+# Обязательная подписка на канал
+MANDATORY_CHANNEL_ID = -1001228919683  # Канал для обязательной подписки (преобразовано из 3228919683)
+MANDATORY_CHANNEL_LINK = os.getenv("MANDATORY_CHANNEL_LINK", "https://t.me/+Hq8Fp0TnJQE0NWEy")  # Ссылка на канал для подписки
+
+# =============================================================================
+# CHANNEL SUBSCRIPTION CHECK (v0.42.1 Mandatory Subscription)
+# =============================================================================
+
+async def check_channel_subscription(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """
+    Проверяет подписан ли пользователь на обязательный канал.
+    
+    Args:
+        user_id: ID пользователя
+        context: Telegram context для доступа к боту
+    
+    Returns:
+        True если пользователь подписан, False если нет
+    """
+    if not MANDATORY_CHANNEL_ID:
+        return True  # Если канал не задан, всем разрешено
+    
+    try:
+        # Проверяем статус члена в канале
+        member = await context.bot.get_chat_member(MANDATORY_CHANNEL_ID, user_id)
+        # Пользователь является членом если статус: member, administrator, creator
+        return member.status in ["member", "administrator", "creator"]
+    except Exception as e:
+        logger.warning(f"Error checking subscription for user {user_id}: {e}")
+        # При ошибке считаем что проверка не удалась и требуем подписку
+        return False
+
+def require_channel_subscription(func: Callable) -> Callable:
+    """
+    Декоратор для проверки подписки на обязательный канал.
+    
+    Если пользователь не подписан на канал, отправляет сообщение с кнопкой
+    для перехода на канал и прерывает выполнение команды.
+    
+    Usage:
+        @require_channel_subscription
+        async def some_command(update, context):
+            # код команды
+            pass
+    """
+    @wraps(func)
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
+        user_id = update.effective_user.id
+        
+        # Проверяем подписку
+        is_subscribed = await check_channel_subscription(user_id, context)
+        
+        if not is_subscribed:
+            logger.info(f"User {user_id} tried to use command without channel subscription")
+            
+            # Отправляем сообщение с кнопкой для подписки
+            keyboard = [
+                [
+                    InlineKeyboardButton(
+                        "📢 Подписаться на канал",
+                        url=MANDATORY_CHANNEL_LINK
+                    )
+                ]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await update.message.reply_text(
+                "<b>📢 Требуется подписка</b>\\n\\n"
+                "Для использования этого бота необходимо подписаться на наш канал. "
+                "После подписки вы сможете пользоваться всеми командами.\\n\\n"
+                "👇 Подпишитесь по ссылке ниже:",
+                reply_markup=reply_markup,
+                parse_mode=ParseMode.HTML
+            )
+            return
+        
+        # Пользователь подписан, выполняем команду
+        return await func(update, context, *args, **kwargs)
+    
+    return wrapper
+
 
 # Канал для постов об обновлениях (админский канал для публикации новостей)
 UPDATE_CHANNEL_ID = os.getenv("UPDATE_CHANNEL_ID", "")  # Канал для постов об обновлениях
@@ -5897,6 +5975,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     Приветственное сообщение с адаптивными кнопками.
     
     Функция:
+    - Проверяет подписку на обязательный канал (v0.42.1)
     - Сохраняет пользователя в БД
     - Проверяет бан
     - Анализирует уровень знаний
@@ -5911,6 +5990,32 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     """
     user = update.effective_user
     user_id = user.id
+    
+    # ✅ v0.42.1: Проверяем подписку на обязательный канал
+    is_subscribed = await check_channel_subscription(user_id, context)
+    if not is_subscribed:
+        logger.info(f"User {user_id} started bot without channel subscription")
+        
+        # Отправляем сообщение с кнопкой для подписки
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    "📢 Подписаться на канал",
+                    url=MANDATORY_CHANNEL_LINK
+                )
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            "<b>📢 Требуется подписка</b>\\n\\n"
+            "Добро пожаловать! Для использования этого бота необходимо подписаться на наш канал. "
+            "После подписки вы получите доступ ко всем функциям.\\n\\n"
+            "👇 Подпишитесь по ссылке ниже:",
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.HTML
+        )
+        return
     
     # ✅ v0.25.0: Track user_start event
     tracker = get_tracker()
@@ -9135,7 +9240,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     """
     Обрабатывает нажатие inline-кнопок.
     
-    Поддерживаемые действия:
+    Функции:
+    - Проверяет подписку на обязательный канал (v0.42.1)
     - Выбор меню
     - Ответы на квесты
     - Выбор уровня
@@ -9155,6 +9261,35 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     data = query.data
     user = query.from_user
+    user_id = user.id
+    
+    # ✅ v0.42.1: Проверяем подписку перед обработкой кнопки
+    # Пропускаем проверку для кнопок которые относятся к подписке
+    if not data.startswith("skip_"):
+        is_subscribed = await check_channel_subscription(user_id, context)
+        if not is_subscribed:
+            logger.info(f"User {user_id} clicked button without channel subscription")
+            
+            # Отправляем сообщение с кнопкой для подписки
+            keyboard = [
+                [
+                    InlineKeyboardButton(
+                        "📢 Подписаться на канал",
+                        url=MANDATORY_CHANNEL_LINK
+                    )
+                ]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                "<b>📢 Требуется подписка на канал</b>\\n\\n"
+                "Для использования этого бота необходимо подписаться на наш канал. "
+                "После подписки вы получите доступ ко всем функциям.\\n\\n"
+                "👇 Подпишитесь по ссылке ниже:",
+                reply_markup=reply_markup,
+                parse_mode=ParseMode.HTML
+            )
+            return
     
     logger.info(f"🔘 Callback получен: {data} от пользователя {user.id}")
     
@@ -12565,6 +12700,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     Обрабатывает текстовые сообщения пользователей.
     
     Функция:
+    - Проверяет подписку на обязательный канал (v0.42.1)
     - Проверяет бан и лимиты
     - Анализирует тип контента
     - Вызывает AI анализ
@@ -12584,6 +12720,33 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         None
     """
     user = update.effective_user
+    user_id = user.id
+    
+    # ✅ v0.42.1: Проверяем подписку на обязательный канал перед обработкой сообщения
+    is_subscribed = await check_channel_subscription(user_id, context)
+    if not is_subscribed:
+        logger.info(f"User {user_id} sent message without channel subscription")
+        
+        # Отправляем сообщение с кнопкой для подписки
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    "📢 Подписаться на канал",
+                    url=MANDATORY_CHANNEL_LINK
+                )
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            "<b>📢 Требуется подписка на канал</b>\\n\\n"
+            "Для использования этого бота необходимо подписаться на наш канал. "
+            "После подписки вы сможете пользоваться всеми функциями.\\n\\n"
+            "👇 Подпишитесь по ссылке ниже:",
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.HTML
+        )
+        return
     
     # 🔍 DEBUG: Log chat_id for digest setup
     if update.message and update.message.chat:
