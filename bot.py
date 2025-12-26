@@ -19,6 +19,16 @@ from functools import wraps
 from dotenv import load_dotenv
 from pydantic import BaseModel, field_validator, ValidationInfo, ValidationError, Field
 
+# Импорт i18n для мультиязычной поддержки
+try:
+    from i18n import get_text, set_user_language, get_user_language as get_user_lang
+except ImportError:
+    logger = logging.getLogger(__name__)
+    logger.warning("i18n module not found, will use stub functions")
+    async def get_text(key, *args, **kwargs): return f"[{key}]"
+    async def set_user_language(*args, **kwargs): return False
+    def get_user_lang(*args, **kwargs): return "ru"
+
 # ============================================================================
 # 🔧 CRITICAL: Clean up old bot processes on startup
 # ============================================================================
@@ -2390,6 +2400,13 @@ def migrate_database() -> None:
             logger.info(f"Миграция успешно завершена (v0.37.0 - Teaching Module Phase 1)")
         else:
             logger.info(f"Миграция не требуется, схема актуальна")
+        
+        # v0.43.0: Добавляем поддержку мультиязычности
+        if not check_column_exists(cursor, 'users', 'language'):
+            logger.info("Добавление колонки language для поддержки мультиязычности...")
+            cursor.execute("ALTER TABLE users ADD COLUMN language TEXT DEFAULT 'ru'")
+            conn.commit()
+            logger.info("Колонка language успешно добавлена")
 
 
 def create_database_indices() -> None:
@@ -6075,6 +6092,34 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     
     logger.info(f"🚀 START_COMMAND called by user {user_id} (@{user.username})")
     
+    # ✅ v0.43.0: Проверяем язык пользователя - если не установлен, показываем выбор
+    user_language = get_user_lang(user_id, default=None)
+    print(f"DEBUG: User language from DB: {user_language}")
+    
+    if user_language is None:
+        logger.info(f"📢 User {user_id} doesn't have language selected, showing language selection menu")
+        
+        # Сохраняем пользователя в БД чтобы потом можно было обновить язык
+        save_user(user_id, user.username or "", user.first_name)
+        
+        # Показываем меню выбора языка
+        selection_prompt = await get_text("language.select_prompt", language="ru")
+        
+        keyboard = [
+            [
+                InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"),
+                InlineKeyboardButton("🇺🇦 Українська", callback_data="lang_uk")
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            selection_prompt,
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.HTML
+        )
+        return  # Выходим, дальше пользователь выбирает язык и мы снова вызовем start_command
+    
     # Очищаем кэш для этого пользователя при каждом /start (чтобы всегда проверять актуальный статус)
     await clear_subscription_cache(user_id)
     
@@ -9342,11 +9387,45 @@ async def show_quiz_results(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 # CALLBACK ОБРАБОТЧИК
 # =============================================================================
 
+async def handle_language_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Обрабатывает выбор языка пользователем.
+    
+    Срабатывает при нажатии на кнопку выбора языка (ru, uk)
+    
+    Args:
+        update: Telegram Update объект
+        context: Telegram Context объект
+    """
+    query = update.callback_query
+    user_id = query.from_user.id
+    selected_language = query.data.replace("lang_", "")
+    
+    # Валидируем язык
+    if selected_language not in ["ru", "uk"]:
+        await query.answer("❌ Неизвестный язык", show_alert=False)
+        return
+    
+    # Сохраняем выбор в БД
+    success = await set_user_language(user_id, selected_language)
+    
+    if success:
+        logger.info(f"✅ User {user_id} selected language: {selected_language}")
+        await query.answer(f"✅ Язык установлен!", show_alert=False)
+        
+        # Теперь показываем главное меню
+        await start_command(update, context)
+    else:
+        logger.error(f"❌ Failed to set language for user {user_id}")
+        await query.answer("❌ Ошибка при установке языка", show_alert=True)
+
+
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Обрабатывает нажатие inline-кнопок.
     
     Функции:
+    - Выбор языка (v0.43.0)
     - Проверяет подписку на обязательный канал (v0.42.1)
     - Выбор меню
     - Ответы на квесты
@@ -9368,6 +9447,10 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     data = query.data
     user = query.from_user
     user_id = user.id
+    
+    # ✅ v0.43.0: Проверяем выбор языка первым делом
+    if data.startswith("lang_"):
+        return await handle_language_selection(update, context)
     
     # ✅ v0.42.1: Проверяем подписку перед обработкой кнопки
     # Пропускаем проверку для кнопок которые относятся к подписке
