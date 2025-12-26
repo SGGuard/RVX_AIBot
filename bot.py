@@ -352,9 +352,15 @@ MANDATORY_CHANNEL_LINK = os.getenv("MANDATORY_CHANNEL_LINK", "https://t.me/RVX_A
 # CHANNEL SUBSCRIPTION CHECK (v0.42.1 Mandatory Subscription)
 # =============================================================================
 
+# Кэш для результатов проверки подписки (user_id -> (is_subscribed, timestamp))
+_subscription_cache = {}
+_SUBSCRIPTION_CACHE_TTL = 300  # 5 минут
+
 async def check_channel_subscription(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """
     Проверяет подписан ли пользователь на обязательный канал.
+    
+    Результаты кэшируются на 5 минут для снижения нагрузки на API.
     
     Args:
         user_id: ID пользователя
@@ -366,15 +372,35 @@ async def check_channel_subscription(user_id: int, context: ContextTypes.DEFAULT
     if not MANDATORY_CHANNEL_ID:
         return True  # Если канал не задан, всем разрешено
     
+    # Проверяем кэш
+    current_time = time.time()
+    if user_id in _subscription_cache:
+        is_subscribed, cache_time = _subscription_cache[user_id]
+        if current_time - cache_time < _SUBSCRIPTION_CACHE_TTL:
+            return is_subscribed  # Возвращаем закэшированный результат
+    
     try:
         # Проверяем статус члена в канале
         member = await context.bot.get_chat_member(MANDATORY_CHANNEL_ID, user_id)
         # Пользователь является членом если статус: member, administrator, creator
-        return member.status in ["member", "administrator", "creator"]
+        is_subscribed = member.status in ["member", "administrator", "creator"]
+        
+        # Кэшируем результат
+        _subscription_cache[user_id] = (is_subscribed, current_time)
+        
+        if is_subscribed:
+            logger.info(f"✅ User {user_id} is subscribed to mandatory channel")
+        else:
+            logger.info(f"❌ User {user_id} is NOT subscribed to mandatory channel (status: {member.status})")
+        
+        return is_subscribed
+        
     except Exception as e:
-        logger.warning(f"Error checking subscription for user {user_id}: {e}")
-        # При ошибке считаем что проверка не удалась и требуем подписку
-        return False
+        logger.error(f"❌ Error checking subscription for user {user_id}: {e}")
+        # При ошибке - пропускаем проверку (разрешаем доступ) чтобы бот работал
+        # Вместо блокировки пользователя при ошибке API
+        logger.warning(f"⚠️ Subscription check failed for user {user_id}, allowing access due to API error")
+        return True  # Разрешаем доступ при ошибке API (лучше разрешить по ошибке чем заблокировать)
 
 def require_channel_subscription(func: Callable) -> Callable:
     """
@@ -399,12 +425,18 @@ def require_channel_subscription(func: Callable) -> Callable:
         if not is_subscribed:
             logger.info(f"User {user_id} tried to use command without channel subscription")
             
-            # Отправляем сообщение с кнопкой для подписки
+            # Отправляем сообщение с кнопками для подписки
             keyboard = [
                 [
                     InlineKeyboardButton(
                         "📢 Подписаться на канал",
                         url=MANDATORY_CHANNEL_LINK
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        "✅ Я подписался, проверить еще раз",
+                        callback_data=f"check_subscription_{user_id}"
                     )
                 ]
             ]
@@ -9292,6 +9324,50 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             return
     
     logger.info(f"🔘 Callback получен: {data} от пользователя {user.id}")
+    
+    # ============ SUBSCRIPTION CHECK CALLBACK ============
+    if data.startswith("check_subscription_"):
+        # Очищаем кэш подписки для этого пользователя
+        user_id = user.id
+        if user_id in _subscription_cache:
+            del _subscription_cache[user_id]
+        
+        # Проверяем подписку еще раз
+        is_subscribed = await check_channel_subscription(user_id, context)
+        
+        if is_subscribed:
+            await query.edit_message_text(
+                "✅ <b>Спасибо за подписку!</b>\n\n"
+                "Вы подписаны на наш канал и теперь имеете полный доступ ко всем функциям бота. "
+                "Напишите /start чтобы начать работу.",
+                parse_mode=ParseMode.HTML
+            )
+            return
+        else:
+            # Пользователь еще не подписался
+            keyboard = [
+                [
+                    InlineKeyboardButton(
+                        "📢 Подписаться на канал",
+                        url=MANDATORY_CHANNEL_LINK
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        "✅ Я подписался, проверить еще раз",
+                        callback_data=f"check_subscription_{user_id}"
+                    )
+                ]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                "❌ <b>Подписка еще не подтверждена</b>\n\n"
+                "Пожалуйста, сначала подпишитесь на наш канал, а затем нажмите кнопку ниже.",
+                reply_markup=reply_markup,
+                parse_mode=ParseMode.HTML
+            )
+            return
     
     # ============ PROFILE CALLBACKS v0.37.15 ============
     if data == "start_profile":
