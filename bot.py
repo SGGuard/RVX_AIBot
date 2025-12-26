@@ -9397,27 +9397,40 @@ async def handle_language_selection(update: Update, context: ContextTypes.DEFAUL
         update: Telegram Update объект
         context: Telegram Context объект
     """
-    query = update.callback_query
-    user_id = query.from_user.id
-    selected_language = query.data.replace("lang_", "")
-    
-    # Валидируем язык
-    if selected_language not in ["ru", "uk"]:
-        await query.answer("❌ Неизвестный язык", show_alert=False)
-        return
-    
-    # Сохраняем выбор в БД
-    success = await set_user_language(user_id, selected_language)
-    
-    if success:
-        logger.info(f"✅ User {user_id} selected language: {selected_language}")
-        await query.answer(f"✅ Язык установлен!", show_alert=False)
+    try:
+        query = update.callback_query
+        user_id = query.from_user.id
+        selected_language = query.data.replace("lang_", "")
         
-        # Теперь показываем главное меню
-        await start_command(update, context)
-    else:
-        logger.error(f"❌ Failed to set language for user {user_id}")
-        await query.answer("❌ Ошибка при установке языка", show_alert=True)
+        logger.info(f"Processing language selection for user {user_id}: {selected_language}")
+        
+        # Валидируем язык
+        if selected_language not in ["ru", "uk"]:
+            logger.warning(f"Invalid language selected by user {user_id}: {selected_language}")
+            await query.answer("❌ Неизвестный язык", show_alert=False)
+            return
+        
+        # Сохраняем выбор в БД
+        logger.info(f"Setting language {selected_language} for user {user_id}...")
+        success = await set_user_language(user_id, selected_language)
+        
+        if success:
+            logger.info(f"✅ User {user_id} language set to {selected_language}")
+            await query.answer(f"✅ Язык установлен!", show_alert=False)
+            
+            # Теперь показываем главное меню
+            logger.info(f"Calling start_command for user {user_id} with language {selected_language}")
+            await start_command(update, context)
+        else:
+            logger.error(f"❌ Failed to set language for user {user_id}")
+            await query.answer("❌ Ошибка при установке языка", show_alert=True)
+    
+    except Exception as e:
+        logger.error(f"❌ ERROR in handle_language_selection: {e}", exc_info=True)
+        try:
+            await query.answer(f"❌ Ошибка: {str(e)[:50]}", show_alert=True)
+        except:
+            logger.error("Could not send error message to user")
 
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -9484,72 +9497,103 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     # ============ SUBSCRIPTION CHECK CALLBACK ============
     if data.startswith("check_subscription_"):
-        # Очищаем кэш подписки для этого пользователя
-        user_id = user.id
-        if user_id in _subscription_cache:
-            del _subscription_cache[user_id]
-        
-        # Проверяем подписку еще раз
-        is_subscribed = await check_channel_subscription(user_id, context)
-        
-        if is_subscribed:
-            # ✅ v0.43.0: Проверяем язык пользователя
-            user_language = get_user_lang(user_id, default=None)
+        try:
+            # Очищаем кэш подписки для этого пользователя
+            user_id = user.id
+            logger.info(f"Processing check_subscription button for user {user_id}")
             
-            if user_language is None:
-                # Если язык не выбран, показываем выбор языка
-                logger.info(f"📢 User {user_id} subscribed successfully, showing language selection")
+            if user_id in _subscription_cache:
+                del _subscription_cache[user_id]
+                logger.debug(f"Cleared subscription cache for user {user_id}")
+            
+            # Проверяем подписку еще раз
+            logger.info(f"Re-checking subscription for user {user_id}...")
+            is_subscribed = await check_channel_subscription(user_id, context)
+            logger.info(f"Subscription check result for user {user_id}: {is_subscribed}")
+            
+            if is_subscribed:
+                logger.info(f"✅ User {user_id} is now subscribed!")
                 
-                selection_prompt = await get_text("language.select_prompt", language="ru")
+                # ✅ v0.43.0: Проверяем язык пользователя
+                user_language = get_user_lang(user_id, default=None)
+                logger.info(f"User {user_id} language: {user_language}")
                 
+                if user_language is None:
+                    # Если язык не выбран, показываем выбор языка
+                    logger.info(f"📢 User {user_id} subscribed successfully, showing language selection")
+                    
+                    selection_prompt = await get_text("language.select_prompt", language="ru")
+                    
+                    keyboard = [
+                        [
+                            InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"),
+                            InlineKeyboardButton("🇺🇦 Українська", callback_data="lang_uk")
+                        ]
+                    ]
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                    
+                    await query.edit_message_text(
+                        f"✅ <b>Спасибо за подписку!</b>\n\n"
+                        f"Теперь выберите язык для использования бота:\n\n"
+                        f"{selection_prompt}",
+                        reply_markup=reply_markup,
+                        parse_mode=ParseMode.HTML
+                    )
+                    logger.info(f"✅ Language selection shown to user {user_id}")
+                else:
+                    # Если язык уже выбран, просто показываем сообщение и предлагаем начать
+                    logger.info(f"User {user_id} already has language {user_language}, showing success message")
+                    
+                    await query.edit_message_text(
+                        "✅ <b>Спасибо за подписку!</b>\n\n"
+                        "Вы подписаны на наш канал и теперь имеете полный доступ ко всем функциям бота. "
+                        "Напишите /start чтобы начать работу.",
+                        parse_mode=ParseMode.HTML
+                    )
+                    logger.info(f"✅ Success message shown to user {user_id}")
+            else:
+                logger.warning(f"❌ User {user_id} is still NOT subscribed after check")
+                
+                # Пользователь еще не подписался
                 keyboard = [
                     [
-                        InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"),
-                        InlineKeyboardButton("🇺🇦 Українська", callback_data="lang_uk")
+                        InlineKeyboardButton(
+                            "📢 Подписаться на канал",
+                            url=MANDATORY_CHANNEL_LINK
+                        )
+                    ],
+                    [
+                        InlineKeyboardButton(
+                            "✅ Я подписался, проверить еще раз",
+                            callback_data=f"check_subscription_{user_id}"
+                        )
                     ]
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
                 await query.edit_message_text(
-                    f"✅ <b>Спасибо за подписку!</b>\n\n"
-                    f"Теперь выберите язык для использования бота:\n\n"
-                    f"{selection_prompt}",
+                    "❌ <b>Подписка еще не подтверждена</b>\n\n"
+                    "Пожалуйста, сначала подпишитесь на наш канал, а затем нажмите кнопку ниже.",
                     reply_markup=reply_markup,
                     parse_mode=ParseMode.HTML
                 )
-            else:
-                # Если язык уже выбран, просто показываем сообщение и предлагаем начать
-                await query.edit_message_text(
-                    "✅ <b>Спасибо за подписку!</b>\n\n"
-                    "Вы подписаны на наш канал и теперь имеете полный доступ ко всем функциям бота. "
-                    "Напишите /start чтобы начать работу.",
-                    parse_mode=ParseMode.HTML
-                )
+                logger.warning(f"Subscription failed message shown to user {user_id}")
             return
-        else:
-            # Пользователь еще не подписался
-            keyboard = [
-                [
-                    InlineKeyboardButton(
-                        "📢 Подписаться на канал",
-                        url=MANDATORY_CHANNEL_LINK
-                    )
-                ],
-                [
-                    InlineKeyboardButton(
-                        "✅ Я подписался, проверить еще раз",
-                        callback_data=f"check_subscription_{user_id}"
-                    )
-                ]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await query.edit_message_text(
-                "❌ <b>Подписка еще не подтверждена</b>\n\n"
-                "Пожалуйста, сначала подпишитесь на наш канал, а затем нажмите кнопку ниже.",
-                reply_markup=reply_markup,
-                parse_mode=ParseMode.HTML
-            )
+        except Exception as e:
+            logger.error(f"❌ ERROR in check_subscription handler for user {user_id}: {e}", exc_info=True)
+            
+            try:
+                await query.edit_message_text(
+                    f"❌ <b>Ошибка при проверке подписки</b>\n\n"
+                    f"Произошла техническая ошибка. Пожалуйста, попробуйте позже.\n\n"
+                    f"Код ошибки: {type(e).__name__}"
+                )
+            except:
+                try:
+                    await query.answer("❌ Ошибка при проверке подписки", show_alert=True)
+                except:
+                    logger.error(f"Could not send error message to user {user_id}")
             return
     
     # ============ PROFILE CALLBACKS v0.37.15 ============
