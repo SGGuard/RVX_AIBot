@@ -9440,17 +9440,20 @@ async def handle_language_selection(update: Update, context: ContextTypes.DEFAUL
             ask_text = await get_text("menu.ask_button", user_id, language=selected_language)
             profile_text = await get_text("menu.profile_button", user_id, language=selected_language)
             settings_text = await get_text("menu.settings_button", user_id, language=selected_language)
-            thanks_text = await get_text("subscription.check_button", user_id, language=selected_language)
+            courses_text = await get_text("menu.courses_button", user_id, language=selected_language)
+            quests_text = await get_text("menu.quests_button", user_id, language=selected_language)
+            leaderboard_text = await get_text("menu.leaderboard_button", user_id, language=selected_language)
+            help_text = await get_text("menu.help_button", user_id, language=selected_language)
             
             # Получаем приветствие на выбранном языке
             thanks = "✅ Спасибо за подписку!" if selected_language == "ru" else "✅ Дякуємо за підписку!"
             
-            # Создаем кнопки меню с переводами
+            # Создаем расширенное меню с большим количеством кнопок
             keyboard = [
-                [InlineKeyboardButton(teach_text, callback_data="teach_menu")],
-                [InlineKeyboardButton(ask_text, callback_data="ask_question")],
-                [InlineKeyboardButton(profile_text, callback_data="start_profile")],
-                [InlineKeyboardButton(settings_text, callback_data="settings_menu")]
+                [InlineKeyboardButton(teach_text, callback_data="teach_menu"), InlineKeyboardButton(ask_text, callback_data="ask_question")],
+                [InlineKeyboardButton(courses_text, callback_data="learn_menu"), InlineKeyboardButton(quests_text, callback_data="quests_menu")],
+                [InlineKeyboardButton(leaderboard_text, callback_data="leaderboard_menu"), InlineKeyboardButton(profile_text, callback_data="start_profile")],
+                [InlineKeyboardButton(settings_text, callback_data="settings_menu"), InlineKeyboardButton(help_text, callback_data="help_menu")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
