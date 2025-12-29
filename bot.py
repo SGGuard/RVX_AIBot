@@ -4957,8 +4957,21 @@ async def call_api_with_retry(news_text: str, user_id: Optional[int] = None) -> 
     try:
         logger.info(f"📰 Встроенный анализ новостей ({len(news_text)} символов)")
         
-        # Используем встроенный анализатор
-        result = await analyze_news(news_text, user_id=user_id or 0)
+        # Получаем язык пользователя
+        user_language = "ru"  # по умолчанию русский
+        if user_id:
+            try:
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT language FROM users WHERE user_id = ?", (user_id,))
+                    result_lang = cursor.fetchone()
+                    if result_lang:
+                        user_language = result_lang[0]
+            except Exception as e:
+                logger.warning(f"Ошибка при получении языка пользователя: {e}")
+        
+        # Используем встроенный анализатор с языковой инструкцией
+        result = await analyze_news(news_text, user_id=user_id or 0, language=user_language)
         
         simplified_text = result.get("simplified_text", "")
         processing_time = result.get("processing_time_ms", 0)
@@ -8704,9 +8717,9 @@ async def admin_stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def ban_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Блокировка пользователя."""
     if len(context.args) < 1:
-        await update.message.reply_text(
-            "❌ Формат: /ban <user_id> [причина]"
-        )
+        user_id = update.effective_user.id
+        text = await get_text("error.ban_format", user_id)
+        await update.message.reply_text(f"❌ {text}")
         return
     
     try:
@@ -8732,7 +8745,8 @@ async def ban_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         })
     
     except ValueError:
-        await update.message.reply_text("❌ Неверный ID пользователя")
+        text = await get_text("error.invalid_user_id", user_id)
+        await update.message.reply_text(f"❌ {text}")
     except Exception as e:
         logger.error(f"Ошибка блокировки: {e}")
         await update.message.reply_text(f"❌ Ошибка: {e}")
@@ -8742,7 +8756,9 @@ async def ban_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 async def unban_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Разблокировка пользователя."""
     if len(context.args) < 1:
-        await update.message.reply_text("❌ Формат: /unban <user_id>")
+        user_id = update.effective_user.id
+        text = await get_text("error.unban_format", user_id)
+        await update.message.reply_text(f"❌ {text}")
         return
     
     try:
@@ -8794,9 +8810,8 @@ async def clear_cache_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Рассылка сообщения всем пользователям."""
     if not context.args:
-        await update.message.reply_text(
-            "❌ Формат: /broadcast <сообщение>"
-        )
+        text = await get_text("error.broadcast_format", update.effective_user.id)
+        await update.message.reply_text(f"❌ {text}")
         return
     
     message = " ".join(context.args)
@@ -8860,18 +8875,16 @@ async def post_to_channel_command(update: Update, context: ContextTypes.DEFAULT_
     
     # Проверка наличия текста
     if not context.args:
-        await update.message.reply_text(
-            "❌ Формат: /post_to_channel <текст>\n\n"
-            "Пример: /post_to_channel 🚀 <b>Новое обновление!</b>\n"
-            "(Поддерживается HTML форматирование)"
-        )
+        text = await get_text("error.post_format", update.effective_user.id)
+        await update.message.reply_text(f"❌ {text}")
         return
     
     post_text = " ".join(context.args)
     
     # Проверка что канал установлен
     if not UPDATE_CHANNEL_ID:
-        await update.message.reply_text("❌ UPDATE_CHANNEL_ID не установлен в .env")
+        text = await get_text("error.post_no_channel", update.effective_user.id)
+        await update.message.reply_text(f"❌ {text}")
         return
     
     try:
@@ -8923,26 +8936,24 @@ async def notify_version_command(update: Update, context: ContextTypes.DEFAULT_T
     Пример: /notify_version 0.15.0 | Новая система квестов | Улучшена производительность
     """
     # Проверка прав админа
-    if update.effective_user.id not in ADMIN_USERS:
-        await update.message.reply_text("❌ Только админы могут отправлять уведомления об обновлениях")
+    user_id = update.effective_user.id
+    if user_id not in ADMIN_USERS:
+        text = await get_text("error.admin_only_notify", user_id)
+        await update.message.reply_text(f"❌ {text}")
         return
     
     # Парсим аргументы
     if not context.args or len(context.args) < 2:
-        await update.message.reply_text(
-            "❌ Формат: /notify_version <версия> | <улучшение1> | <улучшение2>\n\n"
-            "Пример: /notify_version 0.15.0 | Новые квесты | Лучше производительность"
-        )
+        text = await get_text("error.version_format", user_id)
+        await update.message.reply_text(f"❌ {text}")
         return
     
     text = " ".join(context.args)
     parts = text.split("|")
     
     if len(parts) < 2:
-        await update.message.reply_text(
-            "❌ Используйте | для разделения версии и улучшений\n"
-            "Пример: /notify_version 0.15.0 | Новые квесты | Лучше производительность"
-        )
+        text = await get_text("error.version_separator", user_id)
+        await update.message.reply_text(f"❌ {text}")
         return
     
     version = parts[0].strip()
@@ -8968,8 +8979,10 @@ async def notify_version_command(update: Update, context: ContextTypes.DEFAULT_T
 async def notify_quests_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Отправляет уведомление о новых квестах в канал."""
     # Проверка прав админа
-    if update.effective_user.id not in ADMIN_USERS:
-        await update.message.reply_text("❌ Только админы могут отправлять уведомления о квестах")
+    user_id = update.effective_user.id
+    if user_id not in ADMIN_USERS:
+        text = await get_text("error.admin_only_notify", user_id)
+        await update.message.reply_text(f"❌ {text}")
         return
     
     try:
@@ -8994,31 +9007,31 @@ async def notify_milestone_command(update: Update, context: ContextTypes.DEFAULT
     Пример: /notify_milestone 100 активных пользователей | 100
     """
     # Проверка прав админа
-    if update.effective_user.id not in ADMIN_USERS:
-        await update.message.reply_text("❌ Только админы могут отправлять уведомления о вехах")
+    user_id = update.effective_user.id
+    if user_id not in ADMIN_USERS:
+        text = await get_text("error.admin_only_notify", user_id)
+        await update.message.reply_text(f"❌ {text}")
         return
     
     if not context.args or "|" not in " ".join(context.args):
-        await update.message.reply_text(
-            "❌ Формат: /notify_milestone <название> | <количество>\n\n"
-            "Пример: /notify_milestone 100 активных пользователей | 100"
-        )
+        text = await get_text("error.milestone_format", user_id)
+        await update.message.reply_text(f"❌ {text}")
         return
     
     text = " ".join(context.args)
     parts = text.split("|")
     
     if len(parts) != 2:
-        await update.message.reply_text(
-            "❌ Используйте | один раз для разделения названия и количества"
-        )
+        text = await get_text("error.milestone_separator", user_id)
+        await update.message.reply_text(f"❌ {text}")
         return
     
     milestone_name = parts[0].strip()
     try:
         count = int(parts[1].strip())
     except ValueError:
-        await update.message.reply_text("❌ Количество должно быть числом")
+        text = await get_text("error.milestone_number", user_id)
+        await update.message.reply_text(f"❌ {text}")
         return
     
     try:
@@ -9051,10 +9064,11 @@ async def drops_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     has_limit, _ = check_daily_limit(user_id)
     if not has_limit:
         try:
+            text = await get_text("error.daily_limit_exceeded", user_id)
             if is_callback and query:
-                await query.answer("❌ Превышен лимит запросов", show_alert=True)
+                await query.answer(f"❌ {text}", show_alert=True)
             else:
-                await update.message.reply_text("❌ Превышен лимит запросов на день")
+                await update.message.reply_text(f"❌ {text}")
         except Exception as e:
             logger.error(f"Ошибка при проверке лимита: {e}")
         return
