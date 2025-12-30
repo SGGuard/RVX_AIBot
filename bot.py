@@ -10867,10 +10867,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # Кнопка "Задать вопрос" (из ограничений регенерации и других мест)
     if data == "ask_question":
         await query.edit_message_text(
-            "💬 <b>Задайте мне вопрос о криптовалютах и Web3</b>\n\n"
-            "Пример: <code>Что такое смарт-контракт?</code>\n"
-            "Или: <code>Как работает Ethereum?</code>\n\n"
-            "<i>Просто напишите вопрос в чат и я вам отвечу</i>",
+            await get_text("menu.ask_question", user_id, language),
             parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]])
         )
@@ -10895,7 +10892,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         ]
         try:
             await query.edit_message_text(
-                "📋 <b>ГЛАВНОЕ МЕНЮ RVX</b>",
+                await get_text("menu.main", user_id, language),
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode=ParseMode.HTML
             )
