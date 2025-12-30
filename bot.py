@@ -8255,12 +8255,14 @@ async def _launch_teaching_lesson(update: Update, context: ContextTypes.DEFAULT_
         
         if not lesson:
             try:
+                error_text = await get_text("lesson.create_error", user_id, language)
                 await status_msg.edit_text(
-                    "❌ Не удалось создать урок. Попробуйте позже.",
+                    error_text,
                     parse_mode=ParseMode.HTML
                 )
             except:
-                await update.message.reply_text("❌ Не удалось создать урок. Попробуйте позже.")
+                error_msg = await get_text("lesson.create_error", user_id, language)
+                await update.message.reply_text(error_msg)
             return
         
         # Обновляем ежедневную задачу по обучению (v0.11.0)
@@ -8351,9 +8353,11 @@ async def _launch_teaching_lesson(update: Update, context: ContextTypes.DEFAULT_
             )
         except:
             if query:
-                await query.answer("⏱️ Истекло время ожидания.", show_alert=True)
+                timeout_msg = await get_text("lesson.timeout", user_id, language)
+                await query.answer(timeout_msg, show_alert=True)
             else:
-                await update.message.reply_text("⏱️ Истекло время ожидания.")
+                timeout_msg = await get_text("lesson.timeout", user_id, language)
+                await update.message.reply_text(timeout_msg)
     except Exception as e:
         logger.error(f"Ошибка в _launch_teaching_lesson: {e}")
         try:
@@ -8647,12 +8651,16 @@ async def test_digest_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     Отправляет дайджест в канал сразу же
     """
     try:
-        await update.message.reply_text("⏳ Сбираю данные для крипто дайджеста...", parse_mode=ParseMode.HTML)
+        user_id = update.effective_user.id
+        language = update.effective_user.language_code or "ru"
+        loading_msg = await get_text("digest.loading", user_id, language)
+        await update.message.reply_text(loading_msg, parse_mode=ParseMode.HTML)
         
         # Отправляем дайджест
         await send_crypto_digest(context)
         
-        await update.message.reply_text("✅ Крипто дайджест отправлен в канал!", parse_mode=ParseMode.HTML)
+        success_msg = await get_text("digest.sent_to_channel", user_id, language)
+        await update.message.reply_text(success_msg, parse_mode=ParseMode.HTML)
         
     except Exception as e:
         logger.error(f"Ошибка при тестировании дайджеста: {e}", exc_info=True)
@@ -8781,7 +8789,10 @@ async def unban_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         })
     
     except ValueError:
-        await update.message.reply_text("❌ Неверный ID пользователя")
+        user_id = update.effective_user.id
+        language = update.effective_user.language_code or "ru"
+        error_msg = await get_text("admin.invalid_user_id", user_id, language)
+        await update.message.reply_text(error_msg)
     except Exception as e:
         logger.error(f"Ошибка разблокировки: {e}")
         await update.message.reply_text(f"❌ Ошибка: {e}")
@@ -8870,7 +8881,10 @@ async def post_to_channel_command(update: Update, context: ContextTypes.DEFAULT_
     """
     # Проверка прав админа
     if update.effective_user.id not in ADMIN_USERS:
-        await update.message.reply_text("❌ Только админы могут отправлять посты в канал")
+        user_id = update.effective_user.id
+        language = update.effective_user.language_code or "ru"
+        error_msg = await get_text("admin.channel_post_denied", user_id, language)
+        await update.message.reply_text(error_msg)
         return
     
     # Проверка наличия текста
@@ -9153,10 +9167,12 @@ async def activities_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     has_limit, _ = check_daily_limit(user_id)
     if not has_limit:
         try:
+            language = update.effective_user.language_code or "ru"
+            error_msg = await get_text("error.daily_request_limit", user_id, language)
             if is_callback and query:
-                await query.answer("❌ Превышен лимит запросов", show_alert=True)
+                await query.answer(error_msg, show_alert=True)
             else:
-                await update.message.reply_text("❌ Превышен лимит запросов на день")
+                await update.message.reply_text(error_msg)
         except Exception as e:
             logger.error(f"Ошибка при проверке лимита: {e}")
         return
@@ -10953,13 +10969,16 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     add_xp_to_user(cursor, user.id, 5, "viewed_lesson")
                 logger.info(f"Пользователь {user.id} начал урок {course} #{lesson}")
             else:
-                await query.edit_message_text("❌ <b>Урок не найден</b>", parse_mode=ParseMode.HTML)
+                not_found_text = await get_text("lesson.not_found", user.id, user.language)
+                await query.edit_message_text(not_found_text, parse_mode=ParseMode.HTML)
         except Exception as e:
             logger.error(f"Ошибка в learn_: {e}", exc_info=True)
             try:
-                await query.edit_message_text("❌ <b>Ошибка загрузки урока</b>", parse_mode=ParseMode.HTML)
+                error_text = await get_text("lesson.load_error", user.id, user.language)
+                await query.edit_message_text(error_text, parse_mode=ParseMode.HTML)
             except:
-                await query.answer("Ошибка загрузки урока", show_alert=True)
+                error_msg = await get_text("lesson.load_error", user.id, user.language)
+                await query.answer(error_msg, show_alert=True)
         
         return
     
@@ -13088,7 +13107,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     user = update.effective_user
     
     if not update.message.photo:
-        await update.message.reply_text("❌ Не удалось получить изображение")
+        language = user.language_code or "ru"
+        error_msg = await get_text("image.not_found", user.id, language)
+        await update.message.reply_text(error_msg)
         return
     
     # Сохраняем пользователя
@@ -13107,7 +13128,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     
     # Проверка whitelist (если настроен)
     if ALLOWED_USERS and user.id not in ALLOWED_USERS and user.id not in ADMIN_USERS:
-        await update.message.reply_text("⛔ Доступ ограничен.\n\nБот работает в закрытом режиме.")
+        language = user.language_code or "ru"
+        access_msg = await get_text("image.access_denied", user.id, language)
+        await update.message.reply_text(access_msg)
         return
     
     # Проверка подписки на канал
@@ -13191,7 +13214,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 
                 if response.status_code != 200:
                     logger.error(f"API ошибка: {response.status_code}")
-                    await update.message.reply_text("❌ Ошибка при анализе")
+                    language = user.language_code or "ru"
+                    error_msg = await get_text("image.analyze_error", user.id, language)
+                    await update.message.reply_text(error_msg)
                     return
                 
                 result = response.json()
@@ -13289,10 +13314,14 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 
             except httpx.TimeoutException:
                 logger.error(f"Timeout при вызове API для фото")
-                await update.message.reply_text("⏱️ Timeout при анализе изображения. Попробуйте позже.")
+                language = user.language_code or "ru"
+                timeout_msg = await get_text("image.analyze_timeout", user.id, language)
+                await update.message.reply_text(timeout_msg)
             except Exception as e:
                 logger.error(f"Ошибка при вызове API: {e}")
-                await update.message.reply_text("❌ Ошибка при анализе изображения")
+                language = user.language_code or "ru"
+                error_msg = await get_text("image.analyze_error_general", user.id, language)
+                await update.message.reply_text(error_msg)
     
     except Exception as e:
         logger.error(f"Ошибка обработки фото: {e}", exc_info=True)
@@ -14346,7 +14375,9 @@ def main() -> None:
             return
         
         # Отправляем сообщение о загрузке
-        status_msg = await update.message.reply_text("⏳ Загружаю свежие дропы...")
+        language = user.language_code or "ru"
+        loading_msg = await get_text("drops.loading", user_id, language)
+        status_msg = await update.message.reply_text(loading_msg)
         increment_daily_requests(user_id)
         
         try:
@@ -14399,7 +14430,9 @@ def main() -> None:
             )
             return
         
-        status_msg = await update.message.reply_text("⏳ Загружаю активности...")
+        language = user.language_code or "ru"
+        loading_msg = await get_text("activities.loading_message", user_id, language)
+        status_msg = await update.message.reply_text(loading_msg)
         increment_daily_requests(user_id)
         
         try:
@@ -14451,7 +14484,9 @@ def main() -> None:
             await update.message.reply_text(f"⚠️ Лимит исчерпан: {limit_info}")
             return
         
-        status_msg = await update.message.reply_text("⏳ Загружаю трендовые токены...")
+        language = user.language_code or "ru"
+        loading_msg = await get_text("tokens.trending_loading", user_id, language)
+        status_msg = await update.message.reply_text(loading_msg)
         increment_daily_requests(user_id)
         
         try:
@@ -14542,7 +14577,9 @@ def main() -> None:
             
         except Exception as e:
             logger.error(f"Ошибка при получении подписок: {e}")
-            await update.message.reply_text("❌ Ошибка при получении подписок")
+            language = user.language_code or "ru"
+            error_msg = await get_text("drops.subscriptions_error", user_id, language)
+            await update.message.reply_text(error_msg)
     
     # ================================================================
     # 🔧 CRITICAL: Pre-Application Cleanup
