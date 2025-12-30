@@ -4957,21 +4957,8 @@ async def call_api_with_retry(news_text: str, user_id: Optional[int] = None) -> 
     try:
         logger.info(f"📰 Встроенный анализ новостей ({len(news_text)} символов)")
         
-        # Получаем язык пользователя
-        user_language = "ru"  # по умолчанию русский
-        if user_id:
-            try:
-                with get_db() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT language FROM users WHERE user_id = ?", (user_id,))
-                    result_lang = cursor.fetchone()
-                    if result_lang:
-                        user_language = result_lang[0]
-            except Exception as e:
-                logger.warning(f"Ошибка при получении языка пользователя: {e}")
-        
-        # Используем встроенный анализатор с языковой инструкцией
-        result = await analyze_news(news_text, user_id=user_id or 0, language=user_language)
+        # Используем встроенный анализатор
+        result = await analyze_news(news_text, user_id=user_id or 0)
         
         simplified_text = result.get("simplified_text", "")
         processing_time = result.get("processing_time_ms", 0)
