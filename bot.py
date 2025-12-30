@@ -10809,13 +10809,15 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             success = remove_bookmark(user.id, bookmark_id)
             
             if success:
-                await query.answer("✅ Закладка удалена", show_alert=True)
+                msg = await get_text("callback.bookmark_removed", user_id, language)
+                await query.answer(msg, show_alert=True)
                 await query.edit_message_text(
-                    "✅ <b>Закладка успешно удалена</b>",
+                    await get_text("bookmark.deleted", user_id, language),
                     parse_mode=ParseMode.HTML
                 )
             else:
-                await query.answer("❌ Не удалось удалить закладку", show_alert=True)
+                msg = await get_text("callback.bookmark_remove_error", user_id, language)
+                await query.answer(msg, show_alert=True)
         
         except ValueError:
             logger.error(f"Ошибка при удалении закладки")
