@@ -9129,9 +9129,10 @@ async def drops_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         drops = data.get("drops", [])
         
         if not drops:
-            text = "❌ Дропы не найдены"
+            text = await get_text("drops.not_found", user_id, language)
         else:
-            text = "📦 <b>ТОП-10 СВЕЖИХ NFT ДРОПОВ</b>\n\n"
+            drops_title = await get_text("drops.title", user_id, language)
+            text = drops_title
             for i, drop in enumerate(drops[:10], 1):
                 name = drop.get("name", "Unknown")
                 chain = drop.get("chain", "N/A")
@@ -9217,7 +9218,8 @@ async def activities_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         
         data = response.json()
         
-        text = "🔥 <b>АКТИВНОСТИ В КРИПТО</b>\n\n"
+        activities_title = await get_text("activities.title", user_id, language)
+        text = activities_title
         
         # Стейкинг
         staking = data.get("staking_updates", [])
@@ -9802,10 +9804,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await query.edit_message_text(
-                "<b>📢 Требуется подписка на канал</b>\n\n"
-                "Для использования этого бота необходимо подписаться на наш канал. "
-                "После подписки вы получите доступ ко всем функциям.\n\n"
-                "👇 Подпишитесь по ссылке ниже:",
+                await get_text("subscription.required", user_id, language),
                 reply_markup=reply_markup,
                 parse_mode=ParseMode.HTML
             )
@@ -9853,10 +9852,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     ]
                     reply_markup = InlineKeyboardMarkup(keyboard)
                     
+                    thankyou_msg = await get_text("subscription.thankyou", user_id, language)
                     await query.edit_message_text(
-                        f"✅ <b>Спасибо за подписку!</b>\n\n"
-                        f"Теперь выберите язык для использования бота:\n\n"
-                        f"{selection_prompt}",
+                        thankyou_msg,
                         reply_markup=reply_markup,
                         parse_mode=ParseMode.HTML
                     )
@@ -9873,10 +9871,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     ]
                     reply_markup = InlineKeyboardMarkup(keyboard)
                     
+                    confirmed_msg = await get_text("subscription.thankyou_confirmed", user_id, language)
                     await query.edit_message_text(
-                        "✅ <b>Спасибо за подписку!</b>\n\n"
-                        "Вы подписаны на наш канал и теперь имеете полный доступ ко всем функциям бота.\n\n"
-                        "Выберите язык (или переключитесь если нужно):",
+                        confirmed_msg,
                         reply_markup=reply_markup,
                         parse_mode=ParseMode.HTML
                     )
@@ -9901,9 +9898,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
+                not_verified_msg = await get_text("subscription.not_verified", user_id, language)
                 await query.edit_message_text(
-                    "❌ <b>Подписка еще не подтверждена</b>\n\n"
-                    "Пожалуйста, сначала подпишитесь на наш канал, а затем нажмите кнопку ниже.",
+                    not_verified_msg,
                     reply_markup=reply_markup,
                     parse_mode=ParseMode.HTML
                 )
@@ -9923,11 +9920,9 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 logger.error(f"Could not send alert to user {user_id}: {alert_error}")
             
             try:
+                error_msg = await get_text("subscription.error", user_id, language)
                 await query.edit_message_text(
-                    f"❌ <b>Техническая ошибка</b>\n\n"
-                    f"Произошла ошибка при проверке подписки.\n"
-                    f"Пожалуйста, попробуйте позже или свяжитесь с администратором.\n\n"
-                    f"<code>{type(e).__name__}</code>"
+                    error_msg,
                 )
             except Exception as edit_error:
                 logger.error(f"Could not edit message for user {user_id}: {edit_error}")
@@ -14530,7 +14525,8 @@ def main() -> None:
                     await status_msg.edit_text(msg)
                     return
                 
-                text = "📈 <b>ВИРУСНЫЕ ТОКЕНЫ (TRENDING)</b>\n\n"
+                trending_title = await get_text("tokens.trending_title", user_id, language)
+                text = trending_title
                 for i, token in enumerate(drops[:10], 1):
                     text += (
                         f"<b>{i}. {token.get('name')}</b> (${token.get('symbol', '?')})\n"
