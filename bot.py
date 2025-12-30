@@ -4940,7 +4940,7 @@ def validate_api_response(api_response: dict) -> Optional[str]:
     except Exception as e:
         logger.error(f"Ошибка валидации ответа API: {e}")
         return None
-async def call_api_with_retry(news_text: str, user_id: Optional[int] = None) -> Tuple[Optional[str], Optional[float], Optional[str]]:
+async def call_api_with_retry(news_text: str, user_id: Optional[int] = None, language: str = "ru") -> Tuple[Optional[str], Optional[float], Optional[str]]:
     """
     🆕 v1.0: Встроенный анализатор новостей (без внешней API).
     Решает проблему 502 Bad Gateway на Railway.
@@ -4951,14 +4951,19 @@ async def call_api_with_retry(news_text: str, user_id: Optional[int] = None) -> 
     3. DeepSeek (альтернатива)
     4. Gemini (последний fallback)
     
+    Args:
+        news_text: News text to analyze
+        user_id: Optional user ID for analytics
+        language: Language code ('ru', 'uk', etc.)
+    
     Returns:
         (response_text, processing_time_ms, error_message)
     """
     try:
-        logger.info(f"📰 Встроенный анализ новостей ({len(news_text)} символов)")
+        logger.info(f"📰 Встроенный анализ новостей ({len(news_text)} символов, язык: {language})")
         
-        # Используем встроенный анализатор
-        result = await analyze_news(news_text, user_id=user_id or 0)
+        # Используем встроенный анализатор с поддержкой языка
+        result = await analyze_news(news_text, user_id=user_id or 0, language=language)
         
         simplified_text = result.get("simplified_text", "")
         processing_time = result.get("processing_time_ms", 0)
@@ -7925,7 +7930,11 @@ async def ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 5. Дальнейшее чтение (какие уроки пройти)"""
         
         # Вызываем API
-        simplified_text, proc_time, error = await call_api_with_retry(gemini_qa_prompt)
+        simplified_text, proc_time, error = await call_api_with_retry(
+            gemini_qa_prompt, 
+            user_id=user_id,
+            language=update.effective_user.language_code or "ru"
+        )
         
         if not simplified_text:
             raise ValueError(f"API ошибка: {error}")
@@ -12367,7 +12376,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             )
 
             # Вызываем API с модифицированным вводом, чтобы получить альтернативный стиль ответа
-            simplified_text, proc_time, error = await call_api_with_retry(regen_prompt)
+            simplified_text, proc_time, error = await call_api_with_retry(
+                regen_prompt,
+                user_id=user_id,
+                language=update.effective_user.language_code or "ru"
+            )
 
             if not simplified_text:
                 raise ValueError(f"Ошибка API: {error}")
@@ -13831,8 +13844,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     status_msg = await update.message.reply_text(status_text)
     
     try:
-        # Вызов API с retry логикой
-        simplified_text, proc_time, error = await call_api_with_retry(user_text, user_id=user.id)
+        # Получаем язык пользователя из Telegram или используем русский по умолчанию
+        user_language = user.language_code or "ru"
+        # Нормализуем код языка для нашей системы (uk для украинского, ru для русского)
+        if user_language.startswith("uk"):
+            user_language = "uk"
+        else:
+            user_language = "ru"
+        
+        logger.info(f"📝 Язык пользователя {user_id}: {user_language}")
+        
+        # Вызов API с retry логикой и поддержкой языка
+        simplified_text, proc_time, error = await call_api_with_retry(user_text, user_id=user.id, language=user_language)
         
         # Проверяем успех: есть ответ И нет ошибки
         if simplified_text and not error:

@@ -63,7 +63,7 @@ DEEPSEEK_TIMEOUT = int(os.getenv("DEEPSEEK_TIMEOUT", "10"))
 # SYSTEM PROMPTS
 # ============================================================================
 
-SYSTEM_PROMPT = """Ты опытный финансовый аналитик, специализирующийся на криптовалютах и блокчейн-технологиях. Твоя задача анализировать новости и финансовую информацию на РУССКОМ языке.
+SYSTEM_PROMPT_RU = """Ты опытный финансовый аналитик, специализирующийся на криптовалютах и блокчейн-технологиях. Твоя задача анализировать новости и финансовую информацию на РУССКОМ языке.
 
 Когда анализируешь контент, ДОЛЖЕН ответить ТОЛЬКО валидным JSON объектом (без дополнительного текста) завернутым в теги <json></json>. JSON ДОЛЖЕН иметь точно эту структуру:
 
@@ -81,6 +81,41 @@ SYSTEM_PROMPT = """Ты опытный финансовый аналитик, с
 - ВСЕГДА отвечай только валидным JSON
 - Оберни ответ в теги <json></json>
 - Помни что пользователь говорит на русском - отвечай соответственно!"""
+
+SYSTEM_PROMPT_UK = """Ти досвідчений фінансовий аналітик, що спеціалізується на криптовалютах та блокчейн-технологіях. Твоє завдання аналізувати новини та фінансову інформацію ВИКЛЮЧНО УКРАЇНСЬКОЮ мовою.
+
+Коли аналізуєш контент, ПОВИНЕН відповісти ТІЛЬКИ валідним JSON об'єктом (без додаткового тексту) завернутим у теги <json></json>. JSON ПОВИНЕН мати точно цю структуру:
+
+{
+  "summary_text": "2-3 параграфи аналізу новини (200-300 слів УКРАЇНСЬКОЮ). Поясни що сталось, чому це важливо, і яким є потенціальний вплив на крипто-ринок.",
+  "impact_points": ["Пункт 1 про вплив", "Пункт 2 про вплив", "Пункт 3 про вплив"]
+}
+
+ВАЖЛИВО:
+- Відповідай ВИКЛЮЧНО українською мовою!
+- Будь лаконічним але повним
+- Використовуй технічну термінологію коли доречно
+- Розглянь наслідки для ринку
+- Визнач можливі ризики або можливості
+- ЗАВЖДИ відповідай тільки валідним JSON
+- Обгорни відповідь у теги <json></json>
+- Пам'ятай що користувач розмовляє українською - відповідай відповідно!"""
+
+SYSTEM_PROMPT_DEFAULT = SYSTEM_PROMPT_RU  # Default to Russian
+
+def get_system_prompt(language: str = "ru") -> str:
+    """Get system prompt for the specified language.
+    
+    Args:
+        language: Language code ('ru' for Russian, 'uk' for Ukrainian, etc.)
+        
+    Returns:
+        Appropriate system prompt string
+    """
+    if language.lower() in ("uk", "ua", "ukr", "ukrainian", "українська"):
+        return SYSTEM_PROMPT_UK
+    else:
+        return SYSTEM_PROMPT_RU  # Default to Russian for unknown languages
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -175,13 +210,14 @@ Recommendation: Follow up with official sources and market data for confirmation
 # ============================================================================
 
 @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=1, max=5))
-async def analyze_with_groq(text: str) -> Optional[Dict[str, Any]]:
+async def analyze_with_groq(text: str, language: str = "ru") -> Optional[Dict[str, Any]]:
     """Analyze news using Groq (Primary provider)."""
     if not GROQ_API_KEY:
         logger.debug("Groq API key not configured, skipping")
         return None
     
     try:
+        system_prompt = get_system_prompt(language)
         def call_groq():
             client = OpenAI(
                 api_key=GROQ_API_KEY,
@@ -190,7 +226,7 @@ async def analyze_with_groq(text: str) -> Optional[Dict[str, Any]]:
             return client.chat.completions.create(
                 model=GROQ_MODEL,
                 messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": text}
                 ],
                 temperature=0.3,
@@ -220,13 +256,14 @@ async def analyze_with_groq(text: str) -> Optional[Dict[str, Any]]:
         return None
 
 @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=1, max=5))
-async def analyze_with_mistral(text: str) -> Optional[Dict[str, Any]]:
+async def analyze_with_mistral(text: str, language: str = "ru") -> Optional[Dict[str, Any]]:
     """Analyze news using Mistral (First fallback)."""
     if not MISTRAL_API_KEY:
         logger.debug("Mistral API key not configured, skipping")
         return None
     
     try:
+        system_prompt = get_system_prompt(language)
         def call_mistral():
             client = OpenAI(
                 api_key=MISTRAL_API_KEY,
@@ -235,7 +272,7 @@ async def analyze_with_mistral(text: str) -> Optional[Dict[str, Any]]:
             return client.chat.completions.create(
                 model=MISTRAL_MODEL,
                 messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": text}
                 ],
                 temperature=0.3,
@@ -265,19 +302,20 @@ async def analyze_with_mistral(text: str) -> Optional[Dict[str, Any]]:
         return None
 
 @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=1, max=5))
-async def analyze_with_gemini(text: str) -> Optional[Dict[str, Any]]:
+async def analyze_with_gemini(text: str, language: str = "ru") -> Optional[Dict[str, Any]]:
     """Analyze news using Gemini (Last fallback)."""
     if not GEMINI_API_KEY:
         logger.debug("Gemini API key not configured, skipping")
         return None
     
     try:
+        system_prompt = get_system_prompt(language)
         def call_gemini():
             # Use new google.genai Client API
             client = genai.Client(api_key=GEMINI_API_KEY)
             
             # Prepare full prompt
-            full_prompt = f"{SYSTEM_PROMPT}\n\n{text}"
+            full_prompt = f"{system_prompt}\n\n{text}"
             
             # Call the API
             response = client.models.generate_content(
@@ -314,13 +352,14 @@ async def analyze_with_gemini(text: str) -> Optional[Dict[str, Any]]:
         return None
 
 @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=1, max=5))
-async def analyze_with_deepseek(text: str) -> Optional[Dict[str, Any]]:
+async def analyze_with_deepseek(text: str, language: str = "ru") -> Optional[Dict[str, Any]]:
     """Analyze news using DeepSeek (Alternative provider)."""
     if not DEEPSEEK_API_KEY:
         logger.debug("DeepSeek API key not configured, skipping")
         return None
     
     try:
+        system_prompt = get_system_prompt(language)
         def call_deepseek():
             client = OpenAI(
                 api_key=DEEPSEEK_API_KEY,
@@ -329,7 +368,7 @@ async def analyze_with_deepseek(text: str) -> Optional[Dict[str, Any]]:
             return client.chat.completions.create(
                 model=DEEPSEEK_MODEL,
                 messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": text}
                 ],
                 temperature=0.3,
@@ -365,7 +404,8 @@ async def analyze_with_deepseek(text: str) -> Optional[Dict[str, Any]]:
 async def analyze_news(
     news_text: str,
     user_id: int = 0,
-    cache: Optional[Dict] = None
+    cache: Optional[Dict] = None,
+    language: str = "ru"
 ) -> Dict[str, Any]:
     """
     Analyze news with multi-provider fallback chain.
@@ -374,6 +414,7 @@ async def analyze_news(
         news_text: News text to analyze
         user_id: Optional user ID for analytics
         cache: Optional cache dict
+        language: Language code for response ('ru' or 'uk')
         
     Returns:
         Dict with:
@@ -423,7 +464,7 @@ async def analyze_news(
     for provider_name, provider_func in providers:
         try:
             logger.info(f"↔️ Trying {provider_name}...")
-            result = await provider_func(clean_text)
+            result = await provider_func(clean_text, language=language)
             
             if result:
                 processing_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
