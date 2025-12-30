@@ -8361,15 +8361,19 @@ async def _launch_teaching_lesson(update: Update, context: ContextTypes.DEFAULT_
     except Exception as e:
         logger.error(f"Ошибка в _launch_teaching_lesson: {e}")
         try:
+            language = update.effective_user.language_code or "ru"
+            error_msg = await get_text("lesson.create_error_try_later", update.effective_user.id, language)
             await status_msg.edit_text(
-                f"❌ Ошибка при создании урока.\n\nПопробуйте позже или выберите другую тему.",
+                error_msg,
                 parse_mode=ParseMode.HTML
             )
         except:
             if query:
                 await query.answer(f"❌ Ошибка: {str(e)[:50]}", show_alert=True)
             else:
-                await update.message.reply_text("❌ Ошибка при создании урока.")
+                language = update.effective_user.language_code or "ru"
+                error_msg = await get_text("lesson.create_error", update.effective_user.id, language)
+                await update.message.reply_text(error_msg)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
