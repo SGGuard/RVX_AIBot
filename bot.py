@@ -8699,23 +8699,46 @@ async def admin_stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     if stats['total_requests'] > 0:
         cache_hit_rate = (stats['cache_hits'] / stats['total_requests']) * 100
     
+    user_id = update.effective_user.id
+    language = update.effective_user.language_code or "ru"
+    
+    title = await get_text("admin.stats_title", user_id, language)
+    users_header = await get_text("admin.stats_users_header", user_id, language)
+    users_total = await get_text("admin.stats_users_total", user_id, language, count=stats['total_users'])
+    users_active = await get_text("admin.stats_users_active", user_id, language, count=active_users)
+    users_banned = await get_text("admin.stats_users_banned", user_id, language, count=banned_count)
+    
+    requests_header = await get_text("admin.stats_requests_header", user_id, language)
+    requests_total = await get_text("admin.stats_requests_total", user_id, language, count=stats['total_requests'])
+    requests_errors = await get_text("admin.stats_requests_errors", user_id, language, count=error_count)
+    requests_avg = await get_text("admin.stats_requests_avg_time", user_id, language, time=stats['avg_processing_time'])
+    
+    cache_header = await get_text("admin.stats_cache_header", user_id, language)
+    cache_size = await get_text("admin.stats_cache_size", user_id, language, size=stats['cache_size'])
+    cache_hits = await get_text("admin.stats_cache_hits", user_id, language, count=stats['cache_hits'])
+    cache_rate = await get_text("admin.stats_cache_rate", user_id, language, rate=cache_hit_rate)
+    
+    feedback_header = await get_text("admin.stats_feedback_header", user_id, language)
+    feedback_helpful = await get_text("admin.stats_feedback_helpful", user_id, language, count=stats['helpful'])
+    feedback_not_helpful = await get_text("admin.stats_feedback_not_helpful", user_id, language, count=stats['not_helpful'])
+    
     admin_text = (
-        "👑 **Админская статистика**\n\n"
-        f"👥 **Пользователи:**\n"
-        f"• Всего: {stats['total_users']}\n"
-        f"• Активных (7д): {active_users}\n"
-        f"• Заблокированных: {banned_count}\n\n"
-        f"📊 **Запросы:**\n"
-        f"• Всего: {stats['total_requests']}\n"
-        f"• Ошибок: {error_count}\n"
-        f"• Среднее время: {stats['avg_processing_time']}ms\n\n"
-        f"💾 **Кэш:**\n"
-        f"• Размер: {stats['cache_size']}\n"
-        f"• Попадания: {stats['cache_hits']}\n"
-        f"• Hit rate: {cache_hit_rate:.1f}%\n\n"
-        f"📈 **Фидбек:**\n"
-        f"• 👍 Полезно: {stats['helpful']}\n"
-        f"• 👎 Не помогло: {stats['not_helpful']}\n"
+        f"{title}\n\n"
+        f"{users_header}\n"
+        f"{users_total}\n"
+        f"{users_active}\n"
+        f"{users_banned}\n\n"
+        f"{requests_header}\n"
+        f"{requests_total}\n"
+        f"{requests_errors}\n"
+        f"{requests_avg}\n\n"
+        f"{cache_header}\n"
+        f"{cache_size}\n"
+        f"{cache_hits}\n"
+        f"{cache_rate}\n\n"
+        f"{feedback_header}\n"
+        f"{feedback_helpful}\n"
+        f"{feedback_not_helpful}\n"
     )
     
     await update.message.reply_text(admin_text, parse_mode=ParseMode.MARKDOWN)
@@ -8732,7 +8755,11 @@ async def ban_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     
     try:
         target_user_id = int(context.args[0])
-        reason = " ".join(context.args[1:]) if len(context.args) > 1 else "Нарушение правил"
+        user_id = update.effective_user.id
+        language = update.effective_user.language_code or "ru"
+        
+        default_reason = await get_text("admin.ban_default_reason", user_id, language)
+        reason = " ".join(context.args[1:]) if len(context.args) > 1 else default_reason
         
         with get_db() as conn:
             cursor = conn.cursor()
@@ -8742,10 +8769,8 @@ async def ban_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 WHERE user_id = ?
             """, (reason, target_user_id))
         
-        await update.message.reply_text(
-            f"✅ Пользователь {target_user_id} заблокирован\n\n"
-            f"Причина: {reason}"
-        )
+        ban_success_msg = await get_text("admin.ban_success", user_id, language, user_id=target_user_id, reason=reason)
+        await update.message.reply_text(ban_success_msg)
         
         log_analytics_event("user_banned", update.effective_user.id, {
             "target_user": target_user_id,
@@ -8801,6 +8826,9 @@ async def unban_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 @log_command
 async def clear_cache_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Очистка кэша."""
+    user_id = update.effective_user.id
+    language = update.effective_user.language_code or "ru"
+    
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM cache")
@@ -8808,9 +8836,8 @@ async def clear_cache_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         
         cursor.execute("DELETE FROM cache")
     
-    await update.message.reply_text(
-        f"🗑️ **Кэш очищен**\n\nУдалено записей: {cache_size}"
-    )
+    cache_cleared_msg = await get_text("admin.cache_cleared", user_id, language, count=cache_size)
+    await update.message.reply_text(cache_cleared_msg)
     
     log_analytics_event("cache_cleared", update.effective_user.id, {
         "records_deleted": cache_size
