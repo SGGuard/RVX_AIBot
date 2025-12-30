@@ -14409,7 +14409,8 @@ def main() -> None:
                 
                 drops = data.get("drops", [])
                 if not drops:
-                    await status_msg.edit_text("😔 Сейчас нет активных дропов. Проверь позже!")
+                    msg = await get_text("drops.no_active_drops", user_id, language)
+                    await status_msg.edit_text(msg)
                     return
                 
                 text = "📦 <b>АКТУАЛЬНЫЕ NFT ДРОПЫ</b>\n\n"
@@ -14520,7 +14521,8 @@ def main() -> None:
                 
                 drops = data.get("drops", [])
                 if not drops:
-                    await status_msg.edit_text("😔 Сейчас нет трендовых токенов")
+                    msg = await get_text("tokens.no_trending", user_id, language)
+                    await status_msg.edit_text(msg)
                     return
                 
                 text = "📈 <b>ВИРУСНЫЕ ТОКЕНЫ (TRENDING)</b>\n\n"
