@@ -8617,11 +8617,13 @@ async def teach_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     
     # Валидация
     if topic not in TEACHING_TOPICS:
-        await update.message.reply_text(f"❌ Неизвестная тема: `{topic}`", parse_mode=ParseMode.MARKDOWN)
+        msg = await get_text("error.unknown_topic", user_id, "ru", topic=topic)
+        await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
         return
     
     if difficulty not in DIFFICULTY_LEVELS:
-        await update.message.reply_text(f"❌ Неизвестный уровень: `{difficulty}`", parse_mode=ParseMode.MARKDOWN)
+        msg = await get_text("error.unknown_level", user_id, "ru", difficulty=difficulty)
+        await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
         return
     
     logger.info(f"📚 Автоматическая сложность для {user_id}: {difficulty} (XP: {user_xp})")
@@ -13176,7 +13178,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     
     # Flood control
     if not await bot_state.check_flood(user.id):
-        await update.message.reply_text(f"⏱️ Подождите {FLOOD_COOLDOWN_SECONDS} секунд между запросами")
+        language = user.language_code or "ru"
+        msg = await get_text("error.flood_cooldown", user.id, language, cooldown=FLOOD_COOLDOWN_SECONDS)
+        await update.message.reply_text(msg)
         return
     
     try:
@@ -14505,7 +14509,8 @@ def main() -> None:
         
         can_proceed, limit_info = check_daily_limit(user_id)
         if not can_proceed:
-            await update.message.reply_text(f"⚠️ Лимит исчерпан: {limit_info}")
+            msg = await get_text("error.daily_limit_exceeded", user_id, language)
+            await update.message.reply_text(f"{msg}\n\n{limit_info}")
             return
         
         language = user.language_code or "ru"
