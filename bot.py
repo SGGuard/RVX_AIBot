@@ -14600,7 +14600,7 @@ def main() -> None:
             
         except Exception as e:
             logger.error(f"Ошибка при получении подписок: {e}")
-            language = user.language_code or "ru"
+            language = update.effective_user.language_code or "ru"
             error_msg = await get_text("drops.subscriptions_error", user_id, language)
             await update.message.reply_text(error_msg)
     
