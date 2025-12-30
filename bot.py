@@ -9092,7 +9092,9 @@ async def drops_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     """Получить свежие NFT дропы"""
     is_callback = update.callback_query is not None
     query = update.callback_query if is_callback else None
-    user_id = update.effective_user.id
+    user = update.effective_user
+    user_id = user.id
+    language = user.language_code or "ru"
     
     # Проверка лимита запросов
     has_limit, _ = check_daily_limit(user_id)
