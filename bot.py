@@ -56,7 +56,7 @@ def cleanup_stale_bot_processes() -> None:
         
         # Try to use psutil if available, otherwise skip process killing
         try:
-            import psutil
+            import psutil  # type: ignore
             
             # Kill processes matching patterns
             for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
@@ -14614,7 +14614,7 @@ def main() -> None:
     
     # Try psutil-based cleanup
     try:
-        import psutil
+        import psutil  # type: ignore
         current_pid = os.getpid()
         for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
             try:
@@ -14904,7 +14904,7 @@ def main() -> None:
         # CRITICAL: Before starting polling, kill ALL other bot processes one more time
         print("🔧 PRE-POLLING CLEANUP: Killing any competing bot instances...")
         try:
-            import psutil
+            import psutil  # type: ignore
             current_pid = os.getpid()
             for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
                 try:
