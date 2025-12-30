@@ -13343,7 +13343,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     
     except Exception as e:
         logger.error(f"Ошибка обработки фото: {e}", exc_info=True)
-        error_msg = await get_text("error.image_processing", user_id)
+        user_id = update.effective_user.id
+        language = update.effective_user.language_code or "ru"
+        error_msg = await get_text("error.image_processing", user_id, language)
         await update.message.reply_text(error_msg)
 
 
@@ -14381,7 +14383,8 @@ def main() -> None:
     
     async def drops_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Показывает свежие NFT дропы."""
-        user_id = update.effective_user.id
+        user = update.effective_user
+        user_id = user.id
         
         # Проверяем лимиты
         can_proceed, limit_info = check_daily_limit(user_id)
@@ -14439,7 +14442,8 @@ def main() -> None:
     
     async def activities_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Показывает активности в топ-проектах."""
-        user_id = update.effective_user.id
+        user = update.effective_user
+        user_id = user.id
         
         can_proceed, limit_info = check_daily_limit(user_id)
         if not can_proceed:
@@ -14495,7 +14499,8 @@ def main() -> None:
     
     async def trending_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Показывает трендовые (вирусные) токены."""
-        user_id = update.effective_user.id
+        user = update.effective_user
+        user_id = user.id
         
         can_proceed, limit_info = check_daily_limit(user_id)
         if not can_proceed:
