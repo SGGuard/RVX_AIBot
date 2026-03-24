@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """
-🚀 РЕАЛЬНЫЙ ИИ ДИАЛОГ v0.24 - GROQ + MISTRAL + GEMINI с МЕТРИКАМИ
+🚀 РЕАЛЬНЫЙ ИИ ДИАЛОГ v0.25 - OLLAMA + GROQ + MISTRAL + GEMINI с МЕТРИКАМИ
 
-v0.24 - Полностью бесплатные провайдеры + мониторинг:
-✅ Groq - PRIMARY (самый быстрый, 100ms!)
-✅ Mistral - FALLBACK 1 (тоже бесплатный)
-✅ Gemini - FALLBACK 2 (20 запросов/день)
+v0.25 - Локальная Ollama + облачные провайдеры:
+✅ Ollama - PRIMARY (локальная LLM, без интернета!)
+✅ Groq - FALLBACK 1 (самый быстрый облачный, 100ms!)
+✅ Mistral - FALLBACK 2 (тоже бесплатный)
+✅ Gemini - FALLBACK 3 (20 запросов/день)
 ✅ МЕТРИКИ - подробное отслеживание всех запросов
 
-НИКАКИХ ПЛАТЕЖЕЙ, НИКАКИХ ЛИМИТОВ!
+ПОЛНОСТЬЮ БЕСПЛАТНО И С ЛОКАЛЬНОЙ ПОДДЕРЖКОЙ!
 """
 
 import httpx
@@ -20,6 +21,17 @@ import time
 from datetime import datetime
 from collections import defaultdict
 from threading import Lock
+import asyncio
+
+# 🎯 OLLAMA LOCAL LLM
+try:
+    import sys
+    # Пытаемся импортировать async версию
+    from ollama_client import get_ollama_client
+    OLLAMA_AVAILABLE = True
+except ImportError:
+    OLLAMA_AVAILABLE = False
+    def get_ollama_client(): return None
 
 # ✅ Calendar processing mode v1.0
 try:
@@ -36,7 +48,13 @@ logger = logging.getLogger(__name__)
 
 # ==================== КОНФИГУРАЦИЯ ====================
 
-# Groq (PRIMARY)
+# 🎯 OLLAMA (PRIMARY - уровень 0)
+OLLAMA_ENABLED = os.getenv("OLLAMA_ENABLED", "true").lower() == "true"
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "60"))
+
+# Groq (PRIMARY if no Ollama)
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -219,6 +237,13 @@ def check_ai_rate_limit(user_id: int) -> Tuple[bool, int, str]:
 
 dialogue_metrics = {
     "total_requests": 0,
+    
+    "ollama_requests": 0,
+    "ollama_success": 0,
+    "ollama_errors": 0,
+    "ollama_timeouts": 0,
+    "ollama_total_time": 0.0,
+    
     "groq_requests": 0,
     "groq_success": 0,
     "groq_errors": 0,
@@ -241,7 +266,7 @@ dialogue_metrics = {
     "last_updated": None
 }
 
-logger.info(f"🚀 AI Dialogue v0.24 (METRICS): GROQ={GROQ_MODEL}, MISTRAL={MISTRAL_MODEL}, GEMINI={GEMINI_MODEL}")
+logger.info(f"🚀 AI Dialogue v0.25 (METRICS): OLLAMA={OLLAMA_MODEL}, GROQ={GROQ_MODEL}, MISTRAL={MISTRAL_MODEL}, GEMINI={GEMINI_MODEL}")
 
 
 # ==================== ФУНКЦИИ МЕТРИК ====================
@@ -252,7 +277,17 @@ def update_metrics(provider: str, success: bool, response_time: float, error_typ
     
     dialogue_metrics["total_requests"] += 1
     
-    if provider == "groq":
+    if provider == "ollama":
+        dialogue_metrics["ollama_requests"] += 1
+        if success:
+            dialogue_metrics["ollama_success"] += 1
+            dialogue_metrics["ollama_total_time"] += response_time
+        elif error_type == "timeout":
+            dialogue_metrics["ollama_timeouts"] += 1
+        else:
+            dialogue_metrics["ollama_errors"] += 1
+    
+    elif provider == "groq":
         dialogue_metrics["groq_requests"] += 1
         if success:
             dialogue_metrics["groq_success"] += 1
@@ -801,10 +836,64 @@ def get_ai_response_sync(
     # Формируем полный промпт с контекстом диалога (RVX context уже в system_prompt)
     full_prompt = f"{system_prompt}\n\n{context_str}Пользователь: {user_message}"
     
+    # ==================== ПОПЫТКА 0: OLLAMA (ПРИОРИТЕТ 1 - ЛОКАЛЬНАЯ!) ====================
+    if OLLAMA_ENABLED:
+        provider_start = time.time()
+        logger.info(f"🎯 Ollama (локальная): Получаем ответ...")
+        try:
+            # Используем sync обёртку на asyncio
+            ollama_client = get_ollama_client()
+            
+            if ollama_client and ollama_client.is_available:
+                # Создаём event loop для async функции если его нет
+                try:
+                    loop = asyncio.get_event_loop()
+                except RuntimeError:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                
+                # Вызываем async generate
+                ai_response = loop.run_until_complete(
+                    ollama_client.generate(
+                        prompt=f"{context_str}Пользователь: {user_message}",
+                        system_prompt=system_prompt,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        stream=False
+                    )
+                )
+                
+                provider_time = time.time() - provider_start
+                
+                if ai_response:
+                    # ✅ Проверяем и удаляем галлюцинации
+                    ai_response = clean_hallucinations(ai_response)
+                    
+                    # ✅ v0.31: Динамическое обрезание ответа по лимиту режима
+                    ai_response = trim_response_to_limit(ai_response, ai_mode)
+                    
+                    update_metrics("ollama", True, provider_time)
+                    logger.info(f"✅ Ollama OK ({len(ai_response)} символов, {provider_time:.2f}s)")
+                    logger.info(f"   ⚡ БЕЗ интернета! Работает локально на qwen2.5")
+                    return ai_response
+                else:
+                    logger.warning(f"⚠️  Ollama: пустой ответ")
+                    update_metrics("ollama", False, provider_time)
+            else:
+                logger.warning(f"⚠️  Ollama клиент не инициализирован или недоступен")
+                update_metrics("ollama", False, 0)
+                    
+        except Exception as e:
+            provider_time = time.time() - provider_start
+            logger.warning(f"❌ Ollama ошибка: {type(e).__name__}: {str(e)[:100]}")
+            update_metrics("ollama", False, provider_time)
+    else:
+        logger.debug("ℹ️  OLLAMA_ENABLED=false, пропускаем локальную LLM")
+    
     # ==================== ПОПЫТКА 1: GROQ ====================
     if GROQ_API_KEY:
         provider_start = time.time()
-        logger.info(f"🔄 Groq: Получаем ответ...")
+        logger.info(f"🔄 Groq (облачная): Получаем ответ...")
         try:
             with httpx.Client(verify=True) as client:  # ✅ CRITICAL FIX #7: Explicit TLS verification
                 response = client.post(
