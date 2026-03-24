@@ -32,6 +32,9 @@ import httpx
 from openai import OpenAI
 from google import genai
 
+# 🎯 OLLAMA LOCAL LLM (v1.0) - локальная LLM без интернета!
+from ollama_client import initialize_ollama, get_ollama_client
+
 # TIER 1 Optimizations (v0.22.0)
 from tier1_optimizations import cache_manager, structured_logger
 
@@ -90,6 +93,14 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 DEEPSEEK_TEMPERATURE = float(os.getenv("DEEPSEEK_TEMPERATURE", "0.3"))
 DEEPSEEK_MAX_TOKENS = int(os.getenv("DEEPSEEK_MAX_TOKENS", "1500"))
+
+# 🎯 OLLAMA конфигурация (локальная LLM без интернета - ПРИОРИТЕТ 1!)
+OLLAMA_ENABLED = os.getenv("OLLAMA_ENABLED", "true").lower() == "true"
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5")
+OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "60"))
+OLLAMA_TEMPERATURE = float(os.getenv("OLLAMA_TEMPERATURE", "0.3"))
+OLLAMA_MAX_TOKENS = int(os.getenv("OLLAMA_MAX_TOKENS", "1500"))
 
 # Gemini конфигурация (резервный провайдер)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -1106,10 +1117,29 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     
     # Startup
     logger.info("=" * 70)
-    logger.info("🚀 Запуск RVX AI Backend API v3.1 (с DeepSeek)")
+    logger.info("🚀 Запуск RVX AI Backend API v3.2 (с Ollama + DeepSeek)")
     logger.info("=" * 70)
     
-    # Инициализируем DeepSeek (основной провайдер)
+    # ====================================================================
+    # 🎯 Инициализируем OLLAMA (ПРИОРИТЕТ 1 - локальная LLM)
+    # ====================================================================
+    if OLLAMA_ENABLED:
+        try:
+            await initialize_ollama(
+                base_url=OLLAMA_BASE_URL,
+                model=OLLAMA_MODEL,
+                timeout=OLLAMA_TIMEOUT
+            )
+            logger.info(f"✅ Ollama клиент инициализирован (модель: {OLLAMA_MODEL})")
+            logger.info(f"   URL: {OLLAMA_BASE_URL}")
+            logger.info(f"   ⚡ Ollama будет использоваться в ПРИОРИТЕТЕ перед облачными сервисами!")
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка инициализации Ollama: {e}")
+            logger.warning(f"   Система переключится на облачные провайдеры (Groq/Mistral/Gemini)")
+    else:
+        logger.warning("⚠️ OLLAMA_ENABLED=false, используем только облачные провайдеры")
+    
+    # Инициализируем DeepSeek (приоритет 2)
     if DEEPSEEK_API_KEY:
         try:
             deepseek_client = OpenAI(
@@ -1135,12 +1165,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     else:
         logger.warning("⚠️ GEMINI_API_KEY не найден")
     
-    logger.info("📋 Конфигурация:")
-    logger.info(f"  • DEEPSEEK_MODEL: {DEEPSEEK_MODEL}")
-    logger.info(f"  • GEMINI_MODEL: {GEMINI_MODEL}")
-    logger.info(f"  • TEMPERATURE: {DEEPSEEK_TEMPERATURE}")
-    logger.info(f"  • MAX_TOKENS: {DEEPSEEK_MAX_TOKENS}")
-    logger.info(f"  • TIMEOUT: {GEMINI_TIMEOUT}s")
+    logger.info("📋 Конфигурация AI Providers:")
+    logger.info(f"  1️⃣  OLLAMA (локальная): {OLLAMA_MODEL} @ {OLLAMA_BASE_URL}")
+    logger.info(f"  2️⃣  DEEPSEEK_MODEL: {DEEPSEEK_MODEL}")
+    logger.info(f"  3️⃣  GEMINI_MODEL: {GEMINI_MODEL}")
+    logger.info(f"  • TEMPERATURE: {OLLAMA_TEMPERATURE}")
+    logger.info(f"  • MAX_TOKENS: {OLLAMA_MAX_TOKENS}")
+    logger.info(f"  • TIMEOUT: {OLLAMA_TIMEOUT}s")
     logger.info(f"  • CACHE_ENABLED: {CACHE_ENABLED}")
     
     if RATE_LIMIT_ENABLED:

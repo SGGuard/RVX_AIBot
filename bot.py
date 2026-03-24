@@ -10463,6 +10463,40 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await help_command(update, context)
         return
     
+    # ============ SETTINGS MENU (v0.43.0) ============
+    if data == "settings_menu":
+        user_id = user.id
+        user_language = get_user_lang(user_id, default="ru")
+        
+        logger.info(f"⚙️ Settings menu for user {user_id}, current language: {user_language}")
+        
+        try:
+            settings_text = await get_text("settings.menu_title", user_id)
+            lang_select_text = await get_text("settings.language_select", user_id)
+            back_text = await get_text("menu.back_button", user_id)
+            
+            # Меню выбора языка
+            keyboard = [
+                [
+                    InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru"),
+                    InlineKeyboardButton("🇺🇦 Українська", callback_data="lang_uk")
+                ],
+                [InlineKeyboardButton(back_text, callback_data="back_to_start")]
+            ]
+            
+            message = f"<b>{settings_text}</b>\n\n{lang_select_text}"
+            
+            await query.edit_message_text(
+                message,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode=ParseMode.HTML
+            )
+            logger.info(f"✅ Settings menu shown to user {user_id}")
+        except Exception as e:
+            logger.error(f"❌ Error in settings_menu: {e}", exc_info=True)
+            await query.answer("❌ Ошибка загрузки меню", show_alert=True)
+        return
+    
     # ============ LESSON SELECTION (Interactive Mode) ============
     if data.startswith("lesson_"):
         # Парсим: lesson_<course_name>_<lesson_num>
