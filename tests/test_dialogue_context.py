@@ -49,7 +49,7 @@ def conversation_manager():
     # Cleanup after test
     try:
         manager.clear_history(12345)
-    except:
+    except Exception:
         pass
 
 

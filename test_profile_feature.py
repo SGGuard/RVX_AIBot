@@ -96,7 +96,8 @@ def test_profile_functions():
                             WHERE user_id = ? AND completed_at IS NOT NULL
                         """, (sample_user_id,))
                         lessons = cursor.fetchone()[0] or 0
-                    except:
+                    except Exception as e:
+                        print(f"   Error fetching lessons: {e}")
                         lessons = 0
                     print(f"   Lessons completed: {lessons}")
                     
@@ -108,8 +109,8 @@ def test_profile_functions():
                         """, (sample_user_id,))
                         test_data = cursor.fetchone()
                         print(f"   Tests: {test_data['perfect'] or 0}/{test_data['total'] or 0} perfect")
-                    except:
-                        print(f"   Tests: No table")
+                    except Exception as e:
+                        print(f"   Tests: Error - {e}")
                     
                     # Check badges
                     try:
@@ -118,8 +119,8 @@ def test_profile_functions():
                         print(f"   Badges: {len(badges)}")
                         if badges:
                             print(f"   Badge types: {', '.join(badges)}")
-                    except:
-                        print(f"   Badges: 0")
+                    except Exception as e:
+                        print(f"   Badges: Error - {e}")
                         
                 else:
                     print(f"❌ Failed to retrieve user data")
@@ -162,8 +163,8 @@ def test_profile_functions():
                     else:
                         print(f"✅ {table_name}: All required columns present")
                         
-                except:
-                    print(f"⚠️  {table_name}: Table not found (optional)")
+                except Exception as e:
+                    print(f"⚠️  {table_name}: Error checking table - {e}")
         
     except Exception as e:
         print(f"❌ Table check error: {e}")

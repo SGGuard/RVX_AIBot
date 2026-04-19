@@ -164,7 +164,7 @@ class CacheManager:
                 if value:
                     try:
                         return json.loads(value)
-                    except:
+                    except (json.JSONDecodeError, TypeError):
                         return value
             except Exception as e:
                 print(f"⚠️ Redis GET error: {e}")
@@ -234,8 +234,8 @@ class CacheManager:
                 info = self.redis_client.info()
                 stats["redis_used_memory"] = info.get("used_memory", 0)
                 stats["redis_keys"] = self.redis_client.dbsize()
-            except:
-                pass
+            except Exception as e:
+                print(f"⚠️ Redis stats error: {e}")
         
         return stats
 
