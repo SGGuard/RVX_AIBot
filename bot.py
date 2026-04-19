@@ -9922,7 +9922,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await query.edit_message_text(
-                await get_text("subscription.required", user_id, language),
+                await get_text("subscription.required", user_id, get_user_lang(user_id, "ru")),
                 reply_markup=reply_markup,
                 parse_mode=ParseMode.HTML
             )
@@ -9970,7 +9970,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     ]
                     reply_markup = InlineKeyboardMarkup(keyboard)
                     
-                    thankyou_msg = await get_text("subscription.thankyou", user_id, language)
+                    thankyou_msg = await get_text("subscription.thankyou", user_id, user_language or "ru")
                     await query.edit_message_text(
                         thankyou_msg,
                         reply_markup=reply_markup,
@@ -9989,7 +9989,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     ]
                     reply_markup = InlineKeyboardMarkup(keyboard)
                     
-                    confirmed_msg = await get_text("subscription.thankyou_confirmed", user_id, language)
+                    confirmed_msg = await get_text("subscription.thankyou_confirmed", user_id, user_language or "ru")
                     await query.edit_message_text(
                         confirmed_msg,
                         reply_markup=reply_markup,
@@ -10016,7 +10016,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
-                not_verified_msg = await get_text("subscription.not_verified", user_id, language)
+                not_verified_msg = await get_text("subscription.not_verified", user_id, "ru")
                 await query.edit_message_text(
                     not_verified_msg,
                     reply_markup=reply_markup,
@@ -10038,7 +10038,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 logger.error(f"Could not send alert to user {user_id}: {alert_error}")
             
             try:
-                error_msg = await get_text("subscription.error", user_id, language)
+                error_msg = await get_text("subscription.error", user_id, get_user_lang(user_id, "ru"))
                 await query.edit_message_text(
                     error_msg,
                 )
@@ -10959,14 +10959,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             success = remove_bookmark(user.id, bookmark_id)
             
             if success:
-                msg = await get_text("callback.bookmark_removed", user_id, language)
+                msg = await get_text("callback.bookmark_removed", user_id, get_user_lang(user_id, "ru"))
                 await query.answer(msg, show_alert=True)
                 await query.edit_message_text(
-                    await get_text("bookmark.deleted", user_id, language),
+                    await get_text("bookmark.deleted", user_id, get_user_lang(user_id, "ru")),
                     parse_mode=ParseMode.HTML
                 )
             else:
-                msg = await get_text("callback.bookmark_remove_error", user_id, language)
+                msg = await get_text("callback.bookmark_remove_error", user_id, get_user_lang(user_id, "ru"))
                 await query.answer(msg, show_alert=True)
         
         except ValueError:
@@ -11021,7 +11021,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # Кнопка "Задать вопрос" (из ограничений регенерации и других мест)
     if data == "ask_question":
         await query.edit_message_text(
-            await get_text("menu.ask_question", user_id, language),
+            await get_text("menu.ask_question", user_id, get_user_lang(user_id, "ru")),
             parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]])
         )
@@ -11046,7 +11046,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         ]
         try:
             await query.edit_message_text(
-                await get_text("menu.main", user_id, language),
+                await get_text("menu.main", user_id, get_user_lang(user_id, "ru")),
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode=ParseMode.HTML
             )
