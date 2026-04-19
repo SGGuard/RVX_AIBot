@@ -5618,10 +5618,10 @@ def get_user_profile_data(user_id: int) -> dict:
         
         user_id, username, first_name, xp, level, created_at, total_requests, badges_json, lessons_completed, perfect_tests, total_tests, questions_asked = result
         
-        # Парсим бейджи
+        # Parse badges
         try:
             badges = json.loads(badges_json) if badges_json else []
-        except:
+        except (json.JSONDecodeError, TypeError):
             badges = []
         
         days_active = 1  # Минимум 1 день
@@ -6103,8 +6103,8 @@ async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE, p
                 await query.answer(f"❌ {error_text}", show_alert=True)
             else:
                 await update.message.reply_text(f"❌ {error_text}")
-        except:
-            logger.error(f"Не удалось отправить ошибку пользователю")
+        except Exception as e:
+            logger.error(f"Не удалось отправить ошибку пользователю: {e}")
 
 
 @log_command
@@ -8363,9 +8363,8 @@ async def _launch_teaching_lesson(update: Update, context: ContextTypes.DEFAULT_
                     error_text,
                     parse_mode=ParseMode.HTML
                 )
-            except:
-                error_msg = await get_text("lesson.create_error", user_id, language)
-                await update.message.reply_text(error_msg)
+            except Exception:
+                logger.debug("Could not edit message (already deleted)")
             return
         
         # Обновляем ежедневную задачу по обучению (v0.11.0)
@@ -9532,7 +9531,7 @@ async def show_quiz_question(update: Update, context: ContextTypes.DEFAULT_TYPE)
         logger.error(f"Ошибка в show_quiz_question: {e}", exc_info=True)
         try:
             await query.answer(f"❌ Ошибка: {str(e)}", show_alert=True)
-        except:
+        except Exception:
             pass
 
 
@@ -11142,9 +11141,13 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             try:
                 error_text = await get_text("lesson.load_error", user.id, user.language)
                 await query.edit_message_text(error_text, parse_mode=ParseMode.HTML)
-            except:
-                error_msg = await get_text("lesson.load_error", user.id, user.language)
-                await query.answer(error_msg, show_alert=True)
+            except Exception as e2:
+                logger.debug(f"Could not edit message: {e2}")
+                try:
+                    error_msg = await get_text("lesson.load_error", user.id, user.language)
+                    await query.answer(error_msg, show_alert=True)
+                except Exception as e3:
+                    logger.debug(f"Could not send alert: {e3}")
         
         return
     
@@ -11228,8 +11231,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             logger.error(f"Ошибка в next_lesson_: {e}", exc_info=True)
             try:
                 await query.answer("❌ Ошибка загрузки урока", show_alert=True)
-            except:
-                pass
+            except Exception:
+                logger.debug("Could not send alert")
         
         return
     
@@ -11248,8 +11251,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             logger.error(f"Ошибка в ask_related_: {e}")
             try:
                 await query.answer("Ошибка при загрузке вопроса", show_alert=True)
-            except:
-                pass
+            except Exception:
+                logger.debug("Could not send alert")
         
         return
     
@@ -11341,8 +11344,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             try:
                 error_msg = await get_text("error.guide_open", query.from_user.id)
                 await query.answer(error_msg, show_alert=True)
-            except:
-                pass
+            except Exception:
+                logger.debug("Could not send alert")
         return
     
     # Урок 1: Что такое аирдроп
@@ -11970,8 +11973,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             logger.error(f"Ошибка в calc_token callback: {str(e)}", exc_info=True)
             try:
                 await query.answer("❌ Произошла ошибка. Попробуйте позже.", show_alert=True)
-            except:
-                pass
+            except Exception:
+                logger.debug("Could not send alert")
             return
     
     # Возврат к меню выбора токенов
@@ -12024,8 +12027,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             logger.error(f"Ошибка в calc_menu callback: {str(e)}", exc_info=True)
             try:
                 await query.answer("❌ Произошла ошибка. Попробуйте позже.", show_alert=True)
-            except:
-                pass
+            except Exception:
+                logger.debug("Could not send alert")
             return
     
     # Таблица цен в калькуляторе (v0.33.2)
@@ -12066,8 +12069,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             logger.error(f"Ошибка в calc_price_table callback: {str(e)}", exc_info=True)
             try:
                 await query.answer("❌ Произошла ошибка. Попробуйте позже.", show_alert=True)
-            except:
-                pass
+            except Exception:
+                logger.debug("Could not send alert")
             return
     
     # Выбор темы обучения
@@ -12308,8 +12311,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         
         try:
             await query.edit_message_text(recommendation_text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
-        except:
-            pass
+        except Exception:
+            logger.debug("Could not edit message (already deleted)")
         return
     
     if data.startswith("teach_question_"):
@@ -12350,8 +12353,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
-        except:
-            pass
+        except Exception:
+            logger.debug("Could not edit message (already deleted)")
         return
     
     # Обработчик "Смежные темы" - показать рекомендации
@@ -12387,8 +12390,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
-        except:
-            pass
+        except Exception:
+            logger.debug("Could not edit message (already deleted)")
         return
     
     # ============ ОРИГИНАЛЬНЫЕ КНОПКИ ============
@@ -13169,7 +13172,8 @@ async def get_smart_response(user_id: int, text: str, msg_type: str) -> str:
             courses_completed=user_profile.get('courses_completed', 0),
             tests_passed=user_profile.get('tests_count', 0)
         ) if user_profile else UserLevel.BEGINNER
-    except:
+    except Exception as e:
+        logger.error(f"Error analyzing user knowledge level: {e}")
         user_level = UserLevel.BEGINNER
         user_profile = {}
     
@@ -13856,11 +13860,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     thank_you_detail,
                     parse_mode=ParseMode.HTML
                 )
-            except:
+            except Exception as e:
+                logger.debug(f"Could not send detailed thank you: {e}")
                 try:
                     thank_you = await get_text("status.thank_you_question", user_id)
                     await update.message.reply_text(thank_you)
-                except:
+                except Exception as e2:
+                    logger.error(f"Could not send thank you message: {e2}")
                     pass
             return
     

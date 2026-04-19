@@ -153,7 +153,8 @@ def get_user_badges(cursor, user_id: int) -> List[str]:
     if row and row[0]:
         try:
             return json.loads(row[0])
-        except:
+        except (json.JSONDecodeError, TypeError):
+            logger.error(f"Error parsing JSON badges: {row[0]}")
             return []
     
     return []
@@ -337,8 +338,9 @@ def add_question_to_faq(cursor, question: str, answer: str, category: str = "gen
             VALUES (?, ?, ?)
         """, (question, answer, category))
         return True
-    except:
-        # Вопрос уже в FAQ
+    except Exception as e:
+        # Question already in FAQ or other constraint violation
+        logger.debug(f"Could not add FAQ entry: {e}")
         return False
 
 
