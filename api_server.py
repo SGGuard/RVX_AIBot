@@ -45,6 +45,17 @@ from limited_cache import LimitedCache
 # AI Quality Fixer - улучшение качества ответов AI (v0.1.0)
 from ai_quality_fixer import AIQualityValidator, get_improved_system_prompt
 
+# PHASE 6b: Prometheus Metrics (Issue #20)
+from prometheus_client import (
+    Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST, CollectorRegistry
+)
+from prometheus_metrics import (
+    record_request, record_error, record_cache_hit, record_cache_miss,
+    record_rate_limit, record_fallback,
+    set_provider_availability, record_provider_latency, set_uptime, set_cache_size,
+    MetricsTracker
+)
+
 # Drops Tracker - для информации о дропах и активностях (v0.15.0)
 from drops_tracker import (
     get_trending_tokens, get_nft_drops, get_activities,
@@ -1058,7 +1069,20 @@ async def call_deepseek_with_retry(
     user_message: str,
     max_retries: int = 3
 ) -> Optional[str]:
-    """Вызов DeepSeek API с автоматическими повторами."""
+    """
+    Call DeepSeek API with automatic retry logic.
+    
+    Uses exponential backoff to handle transient failures.
+    Protected by asyncio.Lock (CRITICAL FIX #1).
+    
+    Args:
+        system_prompt: System-level instructions for the model
+        user_message: User query/request
+        max_retries: Maximum retry attempts (default: 3)
+        
+    Returns:
+        Model response text, or None if all retries exhausted
+    """
     
     if not deepseek_client:
         logger.error("❌ DeepSeek клиент не инициализирован")
@@ -1102,7 +1126,22 @@ async def call_gemini_with_retry(
     config: dict,
     max_retries: int = 3
 ) -> Any:
-    """Вызов Gemini с автоматическими повторами при ошибках (резервный)."""
+    """
+    Call Gemini API with retry, timeout, and fallback logic.
+    
+    Protected by asyncio.Lock (CRITICAL FIX #1) for thread-safe initialization.
+    Runs blocking call in thread pool to avoid blocking event loop.
+    
+    Args:
+        client: Initialized Gemini client
+        model: Model ID (e.g., 'gemini-2.0-flash')
+        contents: Message contents to send
+        config: Generation config (temperature, max_tokens, etc.)
+        max_retries: Retry attempts (default: 3)
+        
+    Returns:
+        Model response object, or None on all failures
+    """
     
     for attempt in range(max_retries):
         try:
@@ -1149,7 +1188,25 @@ start_time = datetime.now(timezone.utc)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Управление жизненным циклом приложения."""
+    """
+    Application lifecycle manager - startup and shutdown hooks.
+    
+    Handles:
+    - Initialize asyncio locks for thread-safety (CRITICAL FIX #1, #2, #3)
+    - Initialize AI clients (Gemini, DeepSeek, Ollama)
+    - Validate configuration on startup
+    - Start background cleanup task for cache and rate limiter
+    - Graceful shutdown with proper cleanup
+    
+    Args:
+        app: FastAPI application instance
+        
+    Yields:
+        None (context manager pattern)
+        
+    Raises:
+        ValueError: If critical configuration is missing
+    """
     global client, deepseek_client, _client_lock, _deepseek_client_lock, _rate_limit_lock
     
     # CRITICAL FIX #1 & #2: Инициализировать asyncio.Lock для потокобезопасности
@@ -1584,6 +1641,7 @@ async def health_check() -> HealthResponse:
         - No database queries
         - Only in-memory checks
     """
+    start_time_health = datetime.now(timezone.utc)
     uptime = (datetime.now(timezone.utc) - start_time).total_seconds()
     
     # CRITICAL FIX #12: Use try-except instead of hasattr() for proper error handling
@@ -1593,7 +1651,7 @@ async def health_check() -> HealthResponse:
         logger.debug(f"Could not retrieve cache stats: {e}")
         cache_stats = {}
     
-    return HealthResponse(
+    health_response = HealthResponse(
         status="healthy" if client else "degraded",
         gemini_available=client is not None,
         requests_total=request_counter["total"],
@@ -1604,6 +1662,48 @@ async def health_check() -> HealthResponse:
         cache_size=cache_stats.get('size', 0),
         uptime_seconds=round(uptime, 2)
     )
+    
+    # PHASE 6b: Record health check metrics
+    duration_ms = (datetime.now(timezone.utc) - start_time_health).total_seconds() * 1000
+    record_request(
+        endpoint="/health",
+        method="GET",
+        status=200,
+        response_time_ms=duration_ms,
+        provider="internal"
+    )
+    # Update system gauges
+    set_uptime(uptime)
+    if cache_stats:
+        set_cache_size("response", cache_stats.get('size_bytes', 0))
+    
+    return health_response
+
+# PHASE 6b: Prometheus metrics endpoint
+@app.get("/metrics")
+async def metrics() -> Response:
+    """
+    Prometheus metrics endpoint for monitoring.
+    
+    Exports all collected metrics in Prometheus text format.
+    
+    Returns:
+        Response: Metrics in Prometheus format (text/plain)
+        
+    Usage:
+        curl http://localhost:8000/metrics
+        
+    Grafana Integration:
+        Add data source: http://localhost:8000/metrics
+    """
+    try:
+        # Generate Prometheus metrics in text format
+        from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+        metrics_output = generate_latest()
+        return Response(content=metrics_output, media_type=CONTENT_TYPE_LATEST)
+    except Exception as e:
+        logger.error(f"❌ Error generating Prometheus metrics: {e}")
+        return Response(content=b"Error generating metrics", status_code=500)
 
 # =============================================================================
 # SECURITY: AUTHENTICATION ENDPOINTS
@@ -1787,6 +1887,15 @@ async def explain_news(payload: NewsPayload, request: Request) -> JSONResponse:
         if cached:
             duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
             logger.info(f"💾 Кэш HIT для {text_hash[:8]} ({duration_ms:.0f}ms)")
+            # PHASE 6b: Record cache hit metric
+            record_cache_hit("response")
+            record_request(
+                endpoint="/explain_news",
+                method="POST",
+                status=200,
+                response_time_ms=duration_ms,
+                provider="cache"
+            )
             structured_logger.log_request(
                 user_id=user_id if isinstance(user_id, int) else 0,
                 endpoint="/explain_news",
@@ -1859,6 +1968,15 @@ async def explain_news(payload: NewsPayload, request: Request) -> JSONResponse:
             request_counter["success"] += 1
             duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
             
+            # PHASE 6b: Record success metrics
+            record_request(
+                endpoint="/explain_news",
+                method="POST",
+                status=200,
+                response_time_ms=duration_ms,
+                provider="groq"
+            )
+            
             structured_logger.log_request(
                 user_id=user_id if isinstance(user_id, int) else 0,
                 endpoint="/explain_news",
@@ -1883,8 +2001,16 @@ async def explain_news(payload: NewsPayload, request: Request) -> JSONResponse:
         logger.error(f"❌ Ошибка в ai_dialogue: {type(e).__name__}: {str(e)}")
         request_counter["errors"] += 1
         
+        # PHASE 6b: Record error metrics
+        error_type = type(e).__name__
+        record_error(
+            endpoint="/explain_news",
+            error_type=error_type,
+            severity="error"
+        )
+        
         structured_logger.log_error(
-            error_type=type(e).__name__,
+            error_type=error_type,
             message=str(e),
             user_id=user_id if isinstance(user_id, int) else 0,
             endpoint="/explain_news"
@@ -1897,6 +2023,16 @@ async def explain_news(payload: NewsPayload, request: Request) -> JSONResponse:
             duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
             
             request_counter["fallback"] += 1
+            
+            # PHASE 6b: Record fallback metrics
+            record_fallback(endpoint="/explain_news", reason="ai_dialogue_failed")
+            record_request(
+                endpoint="/explain_news",
+                method="POST",
+                status=200,
+                response_time_ms=duration_ms,
+                provider="fallback"
+            )
             
             structured_logger.log_request(
                 user_id=user_id if isinstance(user_id, int) else 0,
@@ -1919,6 +2055,20 @@ async def explain_news(payload: NewsPayload, request: Request) -> JSONResponse:
             # ПОСЛЕДНИЙ ВАРИАНТ: Очень простой анализ или сообщение об ошибке
             request_counter["errors"] += 1
             duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
+            
+            # PHASE 6b: Record final fallback failure metrics
+            record_error(
+                endpoint="/explain_news",
+                error_type="fallback_failure",
+                severity="critical"
+            )
+            record_request(
+                endpoint="/explain_news",
+                method="POST",
+                status=500,
+                response_time_ms=duration_ms,
+                provider="error"
+            )
             
             structured_logger.log_error(
                 error_type="fallback_failure",
@@ -1969,6 +2119,8 @@ async def analyze_image(payload: ImagePayload, request: Request) -> JSONResponse
         if not rate_limiter.is_allowed(client_ip):
             logger.warning(f"⚠️ Rate limit exceeded for IP: {client_ip}")
             request_counter["rate_limited"] += 1
+            # PHASE 6b: Record rate limit metric
+            record_rate_limit("/analyze_image")
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="Слишком много запросов. Попробуйте позже."
@@ -2087,6 +2239,15 @@ async def analyze_image(payload: ImagePayload, request: Request) -> JSONResponse
             duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
             request_counter["success"] += 1
             
+            # PHASE 6b: Record success metrics
+            record_request(
+                endpoint="/analyze_image",
+                method="POST",
+                status=200,
+                response_time_ms=duration_ms,
+                provider="gemini"
+            )
+            
             return ImageAnalysisResponse(
                 analysis=analysis_data.get("analysis", ""),
                 asset_type=analysis_data.get("asset_type", "other"),
@@ -2103,10 +2264,29 @@ async def analyze_image(payload: ImagePayload, request: Request) -> JSONResponse
             error_id = get_error_id()
             logger.error(f"❌ Ошибка при вызове Gemini [ID: {error_id}]")
             logger.debug(f"Details: {e}", exc_info=True)
+            
+            # PHASE 6b: Record error metrics
+            error_type = type(e).__name__
+            record_error(
+                endpoint="/analyze_image",
+                error_type=error_type,
+                severity="warning"
+            )
+            
             # Используем fallback анализ вместо ошибки
             try:
                 fallback_data = fallback_image_analysis("other")
                 duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
+                
+                # PHASE 6b: Record fallback metrics
+                record_fallback(endpoint="/analyze_image", reason="gemini_error")
+                record_request(
+                    endpoint="/analyze_image",
+                    method="POST",
+                    status=200,
+                    response_time_ms=duration_ms,
+                    provider="fallback"
+                )
                 
                 return ImageAnalysisResponse(
                     analysis=fallback_data["analysis"],
@@ -2120,6 +2300,21 @@ async def analyze_image(payload: ImagePayload, request: Request) -> JSONResponse
             except Exception as fallback_error:
                 logger.error(f"❌ Fallback также не сработал: {fallback_error}")
                 request_counter["errors"] += 1
+                
+                # PHASE 6b: Record fallback failure metrics
+                record_error(
+                    endpoint="/analyze_image",
+                    error_type="fallback_failure",
+                    severity="critical"
+                )
+                record_request(
+                    endpoint="/analyze_image",
+                    method="POST",
+                    status=500,
+                    response_time_ms=(datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000,
+                    provider="error"
+                )
+                
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Ошибка при анализе изображения"
@@ -2132,6 +2327,15 @@ async def analyze_image(payload: ImagePayload, request: Request) -> JSONResponse
         logger.error(f"❌ Неожиданная ошибка [ID: {error_id}]")
         logger.debug(f"Details: {e}", exc_info=True)
         request_counter["errors"] += 1
+        
+        # PHASE 6b: Record error metrics
+        error_type = type(e).__name__
+        record_error(
+            endpoint="/analyze_image",
+            error_type=error_type,
+            severity="critical"
+        )
+        
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Ошибка сервера. ID: {error_id}"
@@ -2173,6 +2377,16 @@ async def teach_lesson(payload: TeachingPayload) -> JSONResponse:
                 duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
                 request_counter["fallback"] += 1
                 
+                # PHASE 6b: Record fallback metrics
+                record_fallback(endpoint="/teach_lesson", reason="topic_not_found")
+                record_request(
+                    endpoint="/teach_lesson",
+                    method="POST",
+                    status=200,
+                    response_time_ms=duration_ms,
+                    provider="fallback"
+                )
+                
                 return TeachingResponse(
                     lesson_title="Выбор темы обучения",
                     content=f"Тема '{topic}' недоступна. Доступные темы: {', '.join(available_topics)}. Пожалуйста, выберите одну из предложенных тем.",
@@ -2197,6 +2411,15 @@ async def teach_lesson(payload: TeachingPayload) -> JSONResponse:
             duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
             request_counter["success"] += 1
             
+            # PHASE 6b: Record success metrics
+            record_request(
+                endpoint="/teach_lesson",
+                method="POST",
+                status=200,
+                response_time_ms=duration_ms,
+                provider="embedded"
+            )
+            
             return TeachingResponse(
                 lesson_title=embedded_lesson.lesson_title,
                 content=embedded_lesson.content,
@@ -2216,6 +2439,16 @@ async def teach_lesson(payload: TeachingPayload) -> JSONResponse:
         duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
         request_counter["fallback"] += 1
         
+        # PHASE 6b: Record fallback metrics
+        record_fallback(endpoint="/teach_lesson", reason="embedded_lesson_not_found")
+        record_request(
+            endpoint="/teach_lesson",
+            method="POST",
+            status=200,
+            response_time_ms=duration_ms,
+            provider="fallback"
+        )
+        
         return TeachingResponse(
             lesson_title="Выбор темы обучения",
             content=f"Тема '{topic}' недоступна. Доступные темы: {', '.join(available_topics)}. Пожалуйста, выберите одну из предложенных тем.",
@@ -2231,6 +2464,21 @@ async def teach_lesson(payload: TeachingPayload) -> JSONResponse:
         request_counter["errors"] += 1
         
         duration_ms = (datetime.now(timezone.utc) - start_time_request).total_seconds() * 1000
+        
+        # PHASE 6b: Record error metrics
+        error_type = type(e).__name__
+        record_error(
+            endpoint="/teach_lesson",
+            error_type=error_type,
+            severity="error"
+        )
+        record_request(
+            endpoint="/teach_lesson",
+            method="POST",
+            status=500,
+            response_time_ms=duration_ms,
+            provider="error"
+        )
         
         return TeachingResponse(
             lesson_title="Ошибка загрузки урока",
