@@ -519,8 +519,11 @@ def require_channel_subscription(func: Callable) -> Callable:
 UPDATE_CHANNEL_ID = os.getenv("UPDATE_CHANNEL_ID", "")  # Канал для постов об обновлениях
 BOT_VERSION = "0.21.0"  # v0.21.0 - Production Ready (Health checks, Graceful shutdown, DB optimization)
 
-# База данных
-DB_PATH = os.getenv("DB_PATH", "rvx_bot.db")
+# CRITICAL FIX #4: База данных - использовать валидированный путь из конфига
+from config import DATABASE_PATH
+
+# DB_PATH для обратной совместимости указывает на валидированный DATABASE_PATH
+DB_PATH = DATABASE_PATH
 DB_BACKUP_INTERVAL = int(os.getenv("DB_BACKUP_INTERVAL", "86400"))  # 24 часа
 
 # Connection pooling configuration (SERIOUS FIX: Performance optimization)
@@ -700,25 +703,25 @@ class BotResponse(BaseModel):
         )
 
 # =============================================================================
-# IP-BASED RATE LIMITING (v0.39.0 - QUICK WIN #3)
+# IP-BASED RATE LIMITING (v0.39.0 - CRITICAL FIX #3: AsyncIO-safe version)
 # =============================================================================
 
 from collections import defaultdict
-from threading import Lock
+import asyncio
 
 class IPRateLimiter:
     """
-    IP-based rate limiter for DDoS protection.
+    IP-based rate limiter for DDoS protection - ASYNC-SAFE VERSION.
     
     Features:
         - Per-IP rate limiting (configurable requests per time window)
         - Automatic cleanup of old entries
-        - Thread-safe operations
+        - Asyncio-safe operations (uses asyncio.Lock instead of threading.Lock)
         - Integration with logging
     
     Usage:
         limiter = IPRateLimiter(max_requests=30, window_seconds=60)
-        if limiter.check_rate_limit(user_ip):
+        if await limiter.check_rate_limit(user_ip):  # Note: async
             # Process request
         else:
             # Too many requests
@@ -741,15 +744,15 @@ class IPRateLimiter:
         # IP -> list of timestamps (in seconds)
         self.request_times: Dict[str, List[float]] = defaultdict(list)
         
-        # Lock for thread-safe operations
-        self.lock = Lock()
+        # CRITICAL FIX #3: Использовать asyncio.Lock вместо threading.Lock для async контекста
+        self.lock = asyncio.Lock()
         
         # Cleanup tracking
         self.last_cleanup = time.time()
     
-    def check_rate_limit(self, ip_address: str) -> bool:
+    async def check_rate_limit(self, ip_address: str) -> bool:
         """
-        Check if request from IP should be allowed.
+        Check if request from IP should be allowed - ASYNC VERSION.
         
         Args:
             ip_address: Client IP address (string)
@@ -757,7 +760,7 @@ class IPRateLimiter:
         Returns:
             True if request is allowed, False if rate limit exceeded
         """
-        with self.lock:
+        async with self.lock:
             current_time = time.time()
             
             # Auto-cleanup old entries periodically
@@ -785,9 +788,9 @@ class IPRateLimiter:
             self.request_times[ip_address].append(current_time)
             return True
     
-    def get_remaining_requests(self, ip_address: str) -> int:
+    async def get_remaining_requests(self, ip_address: str) -> int:
         """
-        Get remaining requests for IP address.
+        Get remaining requests for IP address - ASYNC VERSION.
         
         Args:
             ip_address: Client IP address
@@ -795,7 +798,7 @@ class IPRateLimiter:
         Returns:
             Number of remaining requests before hitting limit
         """
-        with self.lock:
+        async with self.lock:
             current_time = time.time()
             window_start = current_time - self.window_seconds
             
@@ -806,16 +809,16 @@ class IPRateLimiter:
             
             return max(0, self.max_requests - recent_requests)
     
-    def reset_ip(self, ip_address: str) -> None:
-        """Reset rate limit for specific IP (admin only)."""
-        with self.lock:
+    async def reset_ip(self, ip_address: str) -> None:
+        """Reset rate limit for specific IP (admin only) - ASYNC VERSION."""
+        async with self.lock:
             if ip_address in self.request_times:
                 del self.request_times[ip_address]
                 logger.info(f"Rate limit reset for IP {ip_address}")
     
-    def get_stats(self) -> Dict[str, Any]:
-        """Get rate limiter statistics."""
-        with self.lock:
+    async def get_stats(self) -> Dict[str, Any]:
+        """Get rate limiter statistics - ASYNC VERSION."""
+        async with self.lock:
             total_ips = len(self.request_times)
             blocked_ips = sum(
                 1 for requests in self.request_times.values()
@@ -4045,7 +4048,7 @@ def search_user_requests(user_id: int, search_text: str) -> List[Tuple]:
 
 # --- Статистика ---
 
-def get_global_stats() -> dict:
+def get_global_stats() -> Dict[str, Any]:
     """Получает глобальную статистику.
     
     v0.43.1: OPTIMIZED - Reduced from 8 queries to 2 (4x speedup)
@@ -5150,7 +5153,7 @@ def log_command(func: Callable) -> Callable:
 # ФУНКЦИИ УМНОГО ОБЩЕНИЯ (v0.20.0)
 # =============================================================================
 
-async def get_user_intelligent_profile(user_id: int) -> Dict:
+async def get_user_intelligent_profile(user_id: int) -> Optional[Dict[str, Any]]:
     """
     Получает полный профиль пользователя для умного общения.
     
@@ -5430,7 +5433,7 @@ async def quest_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 # LEADERBOARD - РЕЙТИНГОВАЯ СИСТЕМА (v0.17.0)
 # =============================================================================
 
-def get_leaderboard_data(period: str = "all", limit: int = 50) -> Tuple[List[Tuple], Optional[int]]:
+def get_leaderboard_data(period: str = "all", limit: int = 50) -> Tuple[List[Tuple[str, str, int, int]], Optional[int]]:
     """
     Получает данные рейтинга из кэша или БД.
     
@@ -5579,7 +5582,7 @@ def get_user_rank(user_id: int, period: str = "all") -> Optional[Tuple[int, int,
 # USER PROFILE SYSTEM v0.37.15
 # =============================================================================
 
-def get_user_profile_data(user_id: int) -> dict:
+def get_user_profile_data(user_id: int) -> Optional[Dict[str, Any]]:
     """Собирает все данные профиля пользователя.
     
     v0.43.1: OPTIMIZED - Reduced from 5 queries to 1 (5x speedup)
@@ -14442,6 +14445,15 @@ async def graceful_shutdown(application) -> None:
 
 def main() -> None:
     """Запуск бота."""
+    # ✅ CRITICAL FIX #5: Валидировать конфигурацию при запуске
+    try:
+        from config import validate_config
+        validate_config()
+        logger.info("✅ Конфигурация валидна")
+    except Exception as e:
+        logger.critical(f"❌ Ошибка валидации конфигурации: {e}")
+        return
+    
     # ✅ CRITICAL: Ensure we're running in worker dyno on Railway
     # Prevent double-polling that causes "Conflict: terminated by other getUpdates"
     dyno_type = os.getenv("DYNO", "").split(".")[0] if os.getenv("DYNO") else ""

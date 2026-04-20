@@ -125,6 +125,11 @@ request_counter = {"total": 0, "success": 0, "errors": 0, "fallback": 0, "rate_l
 response_cache = LimitedCache(max_size=1000, ttl_seconds=3600)  # ✅ ИСПРАВЛЕНО: LRU + TTL
 ip_request_history: Dict[str, list] = {}  # Для rate limiting по IP
 
+# CRITICAL FIX #1 & #2: Asyncio locks для синхронизации глобального состояния в async контексте
+_client_lock: asyncio.Lock = None  # Инициализируется в lifespan
+_deepseek_client_lock: asyncio.Lock = None  # Инициализируется в lifespan
+_rate_limit_lock: asyncio.Lock = None  # Инициализируется в lifespan
+
 # Security middleware instances
 rate_limiter = RateLimiter(requests_per_minute=100, window_seconds=60)
 
@@ -281,41 +286,45 @@ class RateLimiter:
         self.requests_per_window = requests_per_window
         self.window_seconds = window_seconds
     
-    def is_allowed(self, ip: str) -> bool:
-        """Check if request from IP is allowed."""
+    async def is_allowed(self, ip: str) -> bool:
+        """Check if request from IP is allowed - async version with proper locking."""
         if not RATE_LIMIT_ENABLED or not RATE_LIMIT_PER_IP:
             return True
         
-        now = datetime.now()
-        cutoff_time = now - timedelta(seconds=self.window_seconds)
-        
-        # Инициализируем список для IP если его нет
-        if ip not in ip_request_history:
-            ip_request_history[ip] = []
-        
-        # Удаляем старые запросы вне окна
-        ip_request_history[ip] = [
-            timestamp for timestamp in ip_request_history[ip]
-            if timestamp > cutoff_time
-        ]
-        
-        # Проверяем лимит
-        if len(ip_request_history[ip]) >= self.requests_per_window:
-            return False
-        
-        # Добавляем текущий запрос
-        ip_request_history[ip].append(now)
-        return True
+        # CRITICAL FIX #2: Использовать asyncio.Lock для синхронизации
+        async with _rate_limit_lock:
+            now = datetime.now()
+            cutoff_time = now - timedelta(seconds=self.window_seconds)
+            
+            # Инициализируем список для IP если его нет
+            if ip not in ip_request_history:
+                ip_request_history[ip] = []
+            
+            # Удаляем старые запросы вне окна
+            ip_request_history[ip] = [
+                timestamp for timestamp in ip_request_history[ip]
+                if timestamp > cutoff_time
+            ]
+            
+            # Проверяем лимит
+            if len(ip_request_history[ip]) >= self.requests_per_window:
+                return False
+            
+            # Добавляем текущий запрос
+            ip_request_history[ip].append(now)
+            return True
     
-    def get_retry_after(self, ip: str) -> int:
-        """Get seconds to retry after for rate limited IP."""
-        if ip not in ip_request_history or not ip_request_history[ip]:
-            return 0
-        
-        oldest_request = min(ip_request_history[ip])
-        retry_time = oldest_request + timedelta(seconds=self.window_seconds)
-        seconds_to_wait = max(0, int((retry_time - datetime.now()).total_seconds()))
-        return seconds_to_wait
+    async def get_retry_after(self, ip: str) -> int:
+        """Get seconds to retry after for rate limited IP - async version with locking."""
+        # CRITICAL FIX #2: Использовать asyncio.Lock для синхронизации
+        async with _rate_limit_lock:
+            if ip not in ip_request_history or not ip_request_history[ip]:
+                return 0
+            
+            oldest_request = min(ip_request_history[ip])
+            retry_time = oldest_request + timedelta(seconds=self.window_seconds)
+            seconds_to_wait = max(0, int((retry_time - datetime.now()).total_seconds()))
+            return seconds_to_wait
 
 rate_limiter = RateLimiter(RATE_LIMIT_REQUESTS, RATE_LIMIT_WINDOW)
 
@@ -1113,7 +1122,21 @@ start_time = datetime.now(timezone.utc)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Управление жизненным циклом приложения."""
-    global client, deepseek_client
+    global client, deepseek_client, _client_lock, _deepseek_client_lock, _rate_limit_lock
+    
+    # CRITICAL FIX #1 & #2: Инициализировать asyncio.Lock для потокобезопасности
+    _client_lock = asyncio.Lock()
+    _deepseek_client_lock = asyncio.Lock()
+    _rate_limit_lock = asyncio.Lock()
+    logger.debug("🔒 Asyncio locks инициализированы для синхронизации глобального состояния")
+    
+    # CRITICAL FIX #5: Вызвать валидацию конфигурации при запуске
+    try:
+        from config import validate_config
+        validate_config()
+        logger.info("✅ Конфигурация валидна")
+    except Exception as e:
+        logger.warning(f"⚠️ Предупреждение валидации конфигурации: {e}")
     
     # Startup
     logger.info("=" * 70)
@@ -1139,14 +1162,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     else:
         logger.warning("⚠️ OLLAMA_ENABLED=false, используем только облачные провайдеры")
     
-    # Инициализируем DeepSeek (приоритет 2)
+    # CRITICAL FIX #1: Инициализируем DeepSeek с asyncio.Lock для потокобезопасности
     if DEEPSEEK_API_KEY:
         try:
-            deepseek_client = OpenAI(
-                api_key=DEEPSEEK_API_KEY,
-                base_url="https://api.deepseek.com",
-                timeout=30.0
-            )
+            async with _deepseek_client_lock:
+                deepseek_client = OpenAI(
+                    api_key=DEEPSEEK_API_KEY,
+                    base_url="https://api.deepseek.com",
+                    timeout=30.0
+                )
             logger.info(f"✅ Клиент DeepSeek успешно инициализирован (key: {mask_secret(DEEPSEEK_API_KEY)})")
         except Exception as e:
             logger.error(f"❌ Ошибка инициализации DeepSeek: {e}")
@@ -1154,10 +1178,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     else:
         logger.warning("⚠️ DEEPSEEK_API_KEY не найден, используем Gemini")
     
-    # Инициализируем Gemini (резервный провайдер)
+    # CRITICAL FIX #1: Инициализируем Gemini с asyncio.Lock для потокобезопасности
     if GEMINI_API_KEY:
         try:
-            client = genai.Client(api_key=GEMINI_API_KEY)
+            async with _client_lock:
+                client = genai.Client(api_key=GEMINI_API_KEY)
             logger.info(f"✅ Клиент Gemini успешно инициализирован (key: {mask_secret(GEMINI_API_KEY)})")
         except Exception as e:
             logger.error(f"❌ Ошибка инициализации Gemini: {e}")
