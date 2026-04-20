@@ -354,6 +354,110 @@ def get_metrics_summary() -> Dict:
     return summary
 
 
+def detect_scam_red_flags(text: str) -> dict:
+    """
+    Обнаруживает признаки скамов и красные флаги в тексте.
+    
+    Возвращает словарь с обнаруженными рисками и рекомендациями.
+    """
+    import re
+    
+    text_lower = text.lower()
+    
+    # Признаки скамов
+    scam_indicators = {
+        'guaranteed_listing': r'(гарантирован(ный|ая)\s+листинг|guaranteed\s+listing)',
+        'moon_promises': r'(\d+x\s+(потенциал|рост|прибыль)|1000x|100x|moon)',
+        'insider_info': r'(инсайд|приватн\w*\s+информ|insider|private\s+info|приватн\w*\s+сведения)',
+        'urgency_fomo': r'(успей.*не\s+поздно|потом|будет\s+поздно|успейте|не\s+ждите|цена\s+(растёт|растет)\s+каждый)',
+        'exclusive': r'(только\s+для.*избранн|эксклюзив|приватн(ый|ом|ая|ы)\s+чат)',
+        'partnership_lies': r'(партн[её]р\s+(amazon|google|visa|binance|coinbase)|одобрен\s+(amazon|google))',
+        'silent_team': r'(команда\s+(молчит|скрывает|не\s+говорит)|security\s+reasons)',
+        'min_max_promise': r'(минимальн.*инвест.*максимальн.*доход|min\s+investment.*max\s+profit)',
+        'private_chat': r'(давайте.*в.*чат|get.*private.*chat|dm|direct)'
+    }
+    
+    # Фразы создающие срочность
+    urgency_phrases = {
+        'time_pressure': r'(успей|не\s+поздно|последний\s+день|последняя\s+неделя|скоро\s+(цена|взлет|рост))',
+        'scarcity': r'(только\s+\d+\s+мест|ограниченн|осталось\s+\d+)',
+        'fomo': r'(все\s+уже\s+знают|пока\s+не\s+поздно|упустишь|пропустишь)',
+    }
+    
+    detected_risks = {
+        'scam_indicators': [],
+        'urgency_phrases': [],
+        'risk_level': 'low',
+        'recommendation': ''
+    }
+    
+    # Проверяем признаки скамов
+    for indicator_name, pattern in scam_indicators.items():
+        if re.search(pattern, text_lower):
+            detected_risks['scam_indicators'].append(indicator_name)
+    
+    # Проверяем фразы создающие срочность
+    for urgency_name, pattern in urgency_phrases.items():
+        if re.search(pattern, text_lower):
+            detected_risks['urgency_phrases'].append(urgency_name)
+    
+    # Определяем уровень риска
+    num_scam_indicators = len(detected_risks['scam_indicators'])
+    num_urgency = len(detected_risks['urgency_phrases'])
+    
+    if num_scam_indicators >= 3 or (num_scam_indicators >= 2 and num_urgency >= 1):
+        detected_risks['risk_level'] = 'critical'
+        detected_risks['recommendation'] = 'ВЫСОЧАЙШИЙ РИСК - ВЕРОЯТНЕЕ ВСЕГО МОШЕННИЧЕСТВО'
+    elif num_scam_indicators >= 2 or num_urgency >= 2:
+        detected_risks['risk_level'] = 'high'
+        detected_risks['recommendation'] = 'ВЫСОКИЙ РИСК - ПРОВЕРЬТЕ ВНИМАТЕЛЬНО'
+    elif num_scam_indicators >= 1 or num_urgency >= 1:
+        detected_risks['risk_level'] = 'medium'
+        detected_risks['recommendation'] = 'СРЕДНИЙ РИСК - БУДЬТЕ ОСТОРОЖНЫ'
+    
+    return detected_risks
+
+
+def add_scam_warning_if_needed(user_message: str, ai_response: str) -> str:
+    """
+    Если в пользовательском сообщении обнаружены признаки скама,
+    добавляет предупреждение в начало ответа ИИ.
+    """
+    risks = detect_scam_red_flags(user_message)
+    
+    if risks['risk_level'] in ['critical', 'high', 'medium']:
+        warning_emoji = '🚨' if risks['risk_level'] == 'critical' else '⚠️' if risks['risk_level'] == 'high' else '⚠️'
+        
+        warning = f"{warning_emoji} <b>{risks['recommendation']}</b>\n\n"
+        
+        if risks['scam_indicators']:
+            warning += "🚩 <b>Обнаруженные признаки:</b>\n"
+            indicator_names = {
+                'guaranteed_listing': 'Гарантированный листинг (невозможно)',
+                'moon_promises': 'Обещание вхуллитивных доходов (пирамида)',
+                'insider_info': 'Инсайды и приватная информация (манипуляция)',
+                'urgency_fomo': 'Создание срочности (давление)',
+                'exclusive': 'Эксклюзивность и приватные чаты',
+                'partnership_lies': 'Лживые партнёрства (Amazon, Google, Binance)',
+                'silent_team': 'Молчаливая команда (подозрительно)',
+                'min_max_promise': 'Минимальный вклад = максимальный доход',
+                'private_chat': 'Приватные чаты (скрытие информации)'
+            }
+            for indicator in risks['scam_indicators']:
+                if indicator in indicator_names:
+                    warning += f"- {indicator_names[indicator]}\n"
+            warning += "\n"
+        
+        if risks['urgency_phrases']:
+            warning += f"⏰ <b>Создание срочности обнаружено!</b> Это типичная тактика мошенников.\n\n"
+        
+        warning += f"💡 <b>Совет:</b> Хороший инвест не требует спешки. Если проект реально хороший - он не исчезнет за неделю.\n\n"
+        warning += f"<b>Вот мой анализ:</b>\n\n"
+        
+        return warning + ai_response
+    
+    return ai_response
+
 
 def build_dialogue_system_prompt() -> str:
     """
@@ -440,11 +544,61 @@ def build_dialogue_system_prompt() -> str:
 Если твой ответ < 400 символов - это СЛИШКОМ КОРОТКО.
 Если твой ответ 1000+ символов - это ИДЕАЛЬНО (показывает глубину знаний).
 
+� ОБНАРУЖЕНИЕ СКАМОВ И КРАСНЫХ ФЛАГОВ - КРИТИЧЕСКИ ВАЖНО:
+
+ЕСЛИ В ТЕКСТЕ ВИЖУ ЭТИ ПРИЗНАКИ СКАМА - ОБЯЗАТЕЛЬНО ДАЁМ ПРЕДУПРЕЖДЕНИЕ:
+
+🚩 ТИПИЧНЫЕ RED FLAGS:
+❌ "Гарантированный листинг" - никто не гарантирует листинги, это 100% лажа
+❌ "1000x потенциал" - обещание вхуллитивных доходов = признак пирамиды
+❌ "Инсайды", "приватная информация", "только для избранных" - манипуляция эксклюзивностью
+❌ "Успей, пока не поздно" / "Цена растёт каждый день" - ненависимое создание паники
+❌ "Одобрено партнёрами" (Amazon, Google, Visa) - 99% лежит, биг компании не приватно партнеряют крипто стартапы
+❌ "Наша команда молчит из соображений безопасности" - если нельзя проверить, значит это мошенничество
+❌ "Минимальный инвест - максимальный доход" - пирамида по определению
+❌ "Давайте в приватный чат" - вывод из открытого канала = попытка скрыть информацию
+
+КОГДА ВИДИШЬ RED FLAGS:
+1️⃣ НЕ СКРЫВАЙ, НЕ СМЯГЧАЙ - выскажи напрямо
+2️⃣ ПРИВЕДИ КОНКРЕТНЫЕ ПРИМЕРЫ (Onecoin потеряла людей на $4B, Luna потеряла $40B в 2022)
+3️⃣ ОБЪЯСНИ МЕХАНИКУ МОШЕННИЧЕСТВА (как именно это работает как пирамида/rug pull)
+4️⃣ ДАЙТЕ АДЕКВАТНЫЙ СОВЕТ (как не потерять деньги)
+
+ПРИМЕР ТВОЕГО ОТВЕТА НА СКАМ:
+Юзер: "Вот крутой проект, 2000% APY на стейк, гарантированный листинг на Binance"
+ТЫ: "🚨 СТОП! Это имеет ВСЕ признаки скама:
+- 2000% = 20x в год - это невозможно даже для лучших трейдеров. Это 100% пирамида или rug pull
+- 'Гарантированный листинг' - на Binance листинг решает Binance, никто их не берет в компанию
+- Скорее всего это произойдет: ранние инвесторы продадут и дампят цену, новички потеряют
+
+РЕАЛЬНЫЕ ПРИМЕРЫ:
+- Bitconnect обещал 40% месячных (480% в год) в 2017 → collapse, люди потеряли $2B
+- Onecoin обещала рост → оказалась понтоном, $4B потеряно
+- Luna обещала 20% на стейк → collapse в 2022, $40B испарилось
+
+ДЕЙСТВИЕ: Вложи максимум столько сколько готов потерять. В крипто лучше потерять $100 и выучить урок,
+чем потерять $10,000 потому что поверил обещаниям."
+
+🎬 ФРАЗЫ СОЗДАЮЩИЕ СРОЧНОСТЬ - БИТЬ ПО ТОРМОЗАМ:
+
+ЕСЛИ ВИДИШЬ ФРАЗЫ:
+- "Успей, пока не поздно" → НЕ ПРОСТО ОБЪЯСНЯЙ, БЕЙ ПО ТОРМОЗАМ
+- "Цена скоро взлетит" → ВОПРОС: "А на чём основана твоя гипотеза?"
+- "Все уже знают про это" → КРАСНЫЙ ФЛАГ: создание FOMO (fear of missing out)
+- "Это последний день / неделя" → Это давление, тактика мошенников
+- "Не говори никому, это приватное" → СТОП, это красный флаг
+
+КАК ОТВЕЧАТЬ:
+❌ НЕ ГОВОРИ: "Да, может быть неплохо посмотреть"
+✅ ГОВОРИ: "Вот давайте разберемся. Хороший инвестор смотрит на фундаментал, а не на срочность.
+Что случится если ты подождешь 1 неделю? Если это реально хороший проект - цена не упадет в 2 раза за неделю.
+Если она упадет - значит это была спекуляция, а не инвестиция."
+
 🔄 КОНТЕКСТ:
 Учитываю ВСЮ историю разговора. Если уже обсуждали тему - не повторяю, а углубляюсь.
 "Как я уже говорил, DeFi это... но вот что нужно добавить..." или просто переходу к новому аспекту.
 
-ЯЗЫК: Русский, технический, много примеров, конкретные цифры, реальные кейсы. Авторитетный но не скучный."""
+ЯЗЫК: Русский, технический, много примеров, конкретные цифры, реальные кейсы. Авторитетный, как опытный брокер-наставник, а не Википедия."""
 
 
 def build_geopolitical_analysis_prompt() -> str:
@@ -872,6 +1026,9 @@ def get_ai_response_sync(
                     # ✅ v0.31: Динамическое обрезание ответа по лимиту режима
                     ai_response = trim_response_to_limit(ai_response, ai_mode)
                     
+                    # ✅ 🚨 ДОБАВЛЯЕМ ПРЕДУПРЕЖДЕНИЕ О СКАМАХ если нужно
+                    ai_response = add_scam_warning_if_needed(user_message, ai_response)
+                    
                     update_metrics("ollama", True, provider_time)
                     logger.info(f"✅ Ollama OK ({len(ai_response)} символов, {provider_time:.2f}s)")
                     logger.info(f"   ⚡ БЕЗ интернета! Работает локально на qwen2.5")
@@ -928,6 +1085,9 @@ def get_ai_response_sync(
                             
                             # ✅ v0.31: Динамическое обрезание ответа по лимиту режима
                             ai_response = trim_response_to_limit(ai_response, ai_mode)
+                            
+                            # ✅ 🚨 ДОБАВЛЯЕМ ПРЕДУПРЕЖДЕНИЕ О СКАМАХ если нужно
+                            ai_response = add_scam_warning_if_needed(user_message, ai_response)
                             
                             update_metrics("groq", True, provider_time)
                             logger.info(f"✅ Groq OK ({len(ai_response)} символов, {provider_time:.2f}s)")
@@ -992,6 +1152,9 @@ def get_ai_response_sync(
                             # ✅ v0.31: Динамическое обрезание ответа по лимиту режима
                             ai_response = trim_response_to_limit(ai_response, ai_mode)
                             
+                            # ✅ 🚨 ДОБАВЛЯЕМ ПРЕДУПРЕЖДЕНИЕ О СКАМАХ если нужно
+                            ai_response = add_scam_warning_if_needed(user_message, ai_response)
+                            
                             update_metrics("mistral", True, provider_time)
                             logger.info(f"✅ Mistral OK ({len(ai_response)} символов, {provider_time:.2f}s)")
                             return ai_response
@@ -1052,6 +1215,9 @@ def get_ai_response_sync(
                             
                             # ✅ v0.31: Динамическое обрезание ответа по лимиту режима
                             ai_response = trim_response_to_limit(ai_response, ai_mode)
+                            
+                            # ✅ 🚨 ДОБАВЛЯЕМ ПРЕДУПРЕЖДЕНИЕ О СКАМАХ если нужно
+                            ai_response = add_scam_warning_if_needed(user_message, ai_response)
                             
                             update_metrics("gemini", True, provider_time)
                             logger.info(f"✅ Gemini OK ({len(ai_response)} символов, {provider_time:.2f}s)")
