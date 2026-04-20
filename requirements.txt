@@ -1,51 +1,53 @@
 # ============================================
 # RVX AI Backend - Python Dependencies
 # ============================================
+# CRITICAL FIX #10: Add version constraints for production stability
+# All major dependencies pinned to prevent breaking changes
 
-# Core Framework
-fastapi==0.115.5
-uvicorn[standard]==0.32.1
-pydantic==2.10.3
-python-dotenv==1.0.1
+# Core Framework (with upper bounds to prevent breaking changes)
+fastapi>=0.115.5,<0.116  # Pinned to 0.115.x minor version
+uvicorn[standard]>=0.32.1,<0.33
+pydantic>=2.10.3,<3.0  # Major version bump could break models
+python-dotenv>=1.0.1,<2.0
 
-# Telegram Bot (с поддержкой job queue)
-python-telegram-bot[job-queue]==21.9
+# Telegram Bot (with upper bounds)
+python-telegram-bot[job-queue]>=21.9,<22.0  # Major version bump could break API
 
-# Google Gemini AI
-google-genai==1.52.0
+# Google Gemini AI (with upper bounds)
+google-genai>=1.52.0,<2.0  # Major version bump expected soon
 
-# Groq AI (PRIMARY)
-groq==0.9.0
+# Groq AI (PRIMARY - with upper bounds)
+groq>=0.9.0,<1.0
 
-# Mistral AI (FALLBACK 1)
-mistralai==0.4.2
+# Mistral AI (FALLBACK 1 - with upper bounds)
+mistralai>=0.4.2,<0.5
 
-# DeepSeek AI (OpenAI compatible)
-openai==2.14.0
+# DeepSeek AI (OpenAI compatible - with upper bounds)
+openai>=2.14.0,<3.0
 
-# HTTP & Networking
-httpx==0.28.1
-aiohttp==3.11.10
+# HTTP & Networking (with upper bounds)
+httpx>=0.28.1,<1.0
+aiohttp>=3.11.10,<4.0
 
-# Retry & Resilience
-tenacity==9.0.0
+# Retry & Resilience (with upper bounds)
+tenacity>=9.0.0,<10.0
 
-# Caching (v0.22.0 - TIER 1 optimization)
-redis==5.1.1
+# Caching (v0.22.0 - TIER 1 optimization - with upper bounds)
+redis>=5.1.1,<6.0
 
-# Monitoring & Logging (v0.22.0 - TIER 1 optimization)
-prometheus-client==0.21.0
-python-json-logger==2.0.7
+# Monitoring & Logging (v0.22.0 - TIER 1 optimization - with upper bounds)
+prometheus-client>=0.21.0,<1.0
+python-json-logger>=2.0.7,<3.0
 
-# Testing (опционально)
-pytest==8.3.4
-pytest-asyncio==0.24.0
-pytest-cov==6.0.0
+# Testing (опционально - with upper bounds)
+pytest>=8.3.4,<9.0
+pytest-asyncio>=0.24.0,<1.0
+pytest-cov>=6.0.0,<7.0
 
-# Code Quality (опционально для разработки)
-black==24.10.0
-flake8==7.1.1
-mypy==1.13.0
+# Code Quality (опционально для разработки - with upper bounds)
+black>=24.10.0,<25.0
+flake8>=7.1.1,<8.0
+mypy>=1.13.0,<2.0
 
 # Security
 cryptography==44.0.0

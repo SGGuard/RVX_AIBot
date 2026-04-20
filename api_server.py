@@ -6,6 +6,7 @@ import re
 import hashlib
 import asyncio
 import base64
+import time
 from typing import Optional, Any, Dict, List, AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
@@ -1205,25 +1206,79 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     
     logger.info("=" * 70)
     
-    # Background cache cleanup (SERIOUS FIX: Prevent memory leak)
-    async def cleanup_cache():
-        """Periodically clean up old cache entries."""
+    # CRITICAL FIX #6: Background cache and rate limiter cleanup (prevent memory leak)
+    async def cleanup_cache_and_rate_limiter():
+        """
+        Periodically clean up old cache entries and stale IP rate limit tracking.
+        
+        Issues fixed:
+        - Cache entries with expired TTL
+        - IP addresses with no recent requests (stale entries)
+        - Memory leaks from unbounded dictionaries
+        """
+        cleanup_interval = CACHE_CLEANUP_INTERVAL
+        last_rate_limit_cleanup = 0
+        
         while True:
             try:
-                await asyncio.sleep(CACHE_CLEANUP_INTERVAL)
-                if not CACHE_ENABLED:
-                    continue
+                await asyncio.sleep(cleanup_interval)
                 
-                # LimitedCache uses TTL internally, so we just monitor utilization
-                # The cache automatically expires items when accessed
-                cache_stats = response_cache.get_stats()
-                if cache_stats['size'] > cache_stats['max_size'] * 0.8:
-                    logger.warning(f"⚠️ Cache utilization high: {cache_stats['utilization_percent']:.1f}%")
+                # 1. Cache cleanup
+                if CACHE_ENABLED:
+                    try:
+                        cache_stats = response_cache.get_stats()
+                        if cache_stats['size'] > cache_stats['max_size'] * 0.8:
+                            logger.warning(
+                                f"⚠️ Cache utilization high: {cache_stats['utilization_percent']:.1f}% "
+                                f"({cache_stats['size']}/{cache_stats['max_size']})"
+                            )
+                    except Exception as e:
+                        logger.debug(f"Cache stats retrieval error: {e}")
+                
+                # 2. CRITICAL FIX #6: Rate limiter cleanup (unbounded memory fix)
+                current_time = datetime.now()
+                if RATE_LIMIT_ENABLED and RATE_LIMIT_PER_IP:
+                    try:
+                        async with _rate_limit_lock:
+                            # Remove IPs with no recent activity
+                            cutoff_time = current_time - timedelta(seconds=RATE_LIMIT_WINDOW * 10)
+                            ips_to_remove = []
+                            
+                            for ip, timestamps in ip_request_history.items():
+                                # Check if any requests are recent
+                                recent = any(ts > cutoff_time for ts in timestamps)
+                                if not recent:
+                                    ips_to_remove.append(ip)
+                            
+                            # Remove stale entries
+                            for ip in ips_to_remove:
+                                del ip_request_history[ip]
+                            
+                            if ips_to_remove:
+                                logger.debug(
+                                    f"🧹 Rate limiter cleanup: removed {len(ips_to_remove)} stale IPs, "
+                                    f"total tracked: {len(ip_request_history)}"
+                                )
+                    except Exception as e:
+                        logger.error(f"❌ Rate limiter cleanup error: {type(e).__name__}: {e}")
+                
+                last_rate_limit_cleanup = time.time()
+                
+            except asyncio.CancelledError:
+                logger.debug("Cleanup task cancelled")
+                break
             except Exception as e:
-                logger.error(f"Cache cleanup error: {e}")
+                logger.error(f"❌ Unexpected cleanup error: {type(e).__name__}: {e}", exc_info=False)
+                # Continue despite errors
+                await asyncio.sleep(1)
     
-    # Start background cleanup task
-    cleanup_task = asyncio.create_task(cleanup_cache())
+    # Start background cleanup task with proper error handling
+    try:
+        cleanup_task = asyncio.create_task(cleanup_cache_and_rate_limiter())
+        logger.info("✅ Background cleanup task started")
+    except Exception as e:
+        logger.error(f"❌ Failed to start cleanup task: {e}")
+        cleanup_task = None
     
     # ========================================================================
     # 🔐 SECURITY INITIALIZATION (v1.0)
@@ -1245,8 +1300,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     
     yield
     
-    # Shutdown
-    cleanup_task.cancel()
+    # Shutdown - CRITICAL FIX #9: Proper error handling for cleanup task
+    if cleanup_task and not cleanup_task.done():
+        cleanup_task.cancel()
+        try:
+            await asyncio.wait_for(asyncio.shield(cleanup_task), timeout=2.0)
+        except (asyncio.CancelledError, asyncio.TimeoutError):
+            logger.debug("Cleanup task cancelled during shutdown")
+        except Exception as e:
+            logger.warning(f"⚠️ Error cancelling cleanup task: {e}")
+    
     logger.info("🛑 Остановка API")
     logger.info(f"📊 Финальная статистика:")
     logger.info(f"  • Всего запросов: {request_counter['total']}")
@@ -2242,7 +2305,7 @@ async def get_activities_endpoint() -> Dict[str, Any]:
 
 
 @app.get("/get_trending", response_model=DropsResponse, tags=["Drops"])
-async def get_trending_endpoint(limit: int = 10):
+async def get_trending_endpoint(limit: int = 10) -> DropsResponse:
     """
     Получить список трендовых (вирусных) токенов за последние 24ч.
     
@@ -2279,7 +2342,7 @@ async def get_trending_endpoint(limit: int = 10):
 
 
 @app.get("/get_token_info/{token_id}", response_model=TokenInfoResponse, tags=["Drops"])
-async def get_token_info_endpoint(token_id: str):
+async def get_token_info_endpoint(token_id: str) -> TokenInfoResponse:
     """
     Получить подробную информацию о конкретном токене.
     
@@ -2382,7 +2445,7 @@ async def get_leaderboard_endpoint(
 # =============================================================================
 
 @app.get("/dialogue_metrics")
-async def get_dialogue_metrics():
+async def get_dialogue_metrics() -> dict:
     """
     📊 Получить метрики системы ИИ диалога.
     
@@ -2414,7 +2477,7 @@ async def get_dialogue_metrics():
 # =============================================================================
 
 @app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
+async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
     """Обработка HTTP ошибок с единообразным форматом."""
     return JSONResponse(
         status_code=exc.status_code,
@@ -2426,7 +2489,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     )
 
 @app.exception_handler(Exception)
-async def general_exception_handler(request: Request, exc: Exception):
+async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Обработка всех необработанных исключений."""
     logger.error(f"🔥 Необработанное исключение: {exc}", exc_info=True)
     
