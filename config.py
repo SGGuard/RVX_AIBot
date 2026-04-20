@@ -3,6 +3,7 @@
 # Version: 0.25.0
 
 import os
+import pathlib
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -52,9 +53,64 @@ AI_PROVIDERS = {
 }
 
 # ============================================================================
-# DATABASE CONFIGURATION
+# DATABASE CONFIGURATION - CRITICAL FIX #4: Валидировать путь БД
 # ============================================================================
-DATABASE_PATH = os.getenv("DATABASE_PATH", "./rvx_bot.db")
+_raw_db_path = os.getenv("DATABASE_PATH", "./rvx_bot.db")
+
+def _validate_and_resolve_db_path(path_str: str) -> str:
+    """
+    Валидирует и резолвит путь к БД для защиты от path traversal атак.
+    
+    Гарантирует что путь:
+    - Разрешается полностью (без .., etc)
+    - Находится в текущей рабочей директории или безопасном месте
+    - Имеет расширение .db
+    
+    Args:
+        path_str: Путь из переменной окружения
+        
+    Returns:
+        Валидированный абсолютный путь
+        
+    Raises:
+        ValueError: Если путь небезопасен
+    """
+    try:
+        # Резолвим путь (удаляем .., ., etc)
+        resolved = pathlib.Path(path_str).resolve()
+        
+        # Проверяем что путь имеет расширение .db
+        if resolved.suffix != '.db':
+            raise ValueError(f"Database path must have .db extension: {path_str}")
+        
+        # Проверяем что путь находится в безопасном месте
+        # Разрешаем: текущая директория, /tmp (для тестов), home директория
+        cwd = pathlib.Path.cwd().resolve()
+        
+        # Если путь не в текущей директории, должен быть в home или /tmp
+        is_in_cwd = str(resolved).startswith(str(cwd))
+        is_in_home = str(resolved).startswith(str(pathlib.Path.home()))
+        is_in_tmp = str(resolved).startswith('/tmp')
+        
+        if not (is_in_cwd or is_in_home or is_in_tmp):
+            # Дополнительный check для относительных путей которые не выходят из cwd
+            try:
+                resolved.relative_to(cwd)
+            except ValueError:
+                raise ValueError(f"Database path is outside safe directories: {resolved}")
+        
+        return str(resolved)
+    except ValueError:
+        raise
+    except Exception as e:
+        raise ValueError(f"Invalid database path '{path_str}': {e}")
+
+# Применяем валидацию (исключение при неправильном пути)
+try:
+    DATABASE_PATH = _validate_and_resolve_db_path(_raw_db_path)
+except ValueError as e:
+    raise ValueError(f"DATABASE_PATH validation failed: {e}")
+
 DATABASE_POOL_SIZE = int(os.getenv("DATABASE_POOL_SIZE", "5"))
 DATABASE_TIMEOUT = int(os.getenv("DATABASE_TIMEOUT", "30"))
 
