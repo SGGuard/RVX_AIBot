@@ -1028,6 +1028,51 @@ async def log_error(
             logger.error(f"Failed to log error to audit: {e}")
 
 # =============================================================================
+# FORMATTING HELPERS - Convert Markdown to HTML for better Telegram readability
+# =============================================================================
+
+def markdown_to_html(text: str) -> str:
+    """
+    Конвертирует Markdown форматирование в HTML для Telegram (ParseMode.HTML).
+    
+    Преобразования:
+    - **текст** → <b>текст</b> (жирный)
+    - __текст__ → <u>текст</u> (подчеркивание)
+    - ~~текст~~ → <s>текст</s> (зачеркивание)
+    - *текст* → <i>текст</i> (курсив) - если не часть **
+    - `код` → <code>код</code> (моноширинный)
+    
+    Args:
+        text: Текст с Markdown форматированием
+        
+    Returns:
+        Текст с HTML форматированием для Telegram
+    """
+    import re
+    
+    if not text or not isinstance(text, str):
+        return text
+    
+    # Обрабатываем **жирный текст**
+    text = re.sub(r'\*\*([^\*]+?)\*\*', r'<b>\1</b>', text)
+    
+    # Обрабатываем __подчеркнутый текст__
+    text = re.sub(r'__([^_]+?)__', r'<u>\1</u>', text)
+    
+    # Обрабатываем ~~зачеркнутый текст~~
+    text = re.sub(r'~~([^~]+?)~~', r'<s>\1</s>', text)
+    
+    # Обрабатываем `код` (но не ```блоки кода```)
+    text = re.sub(r'`([^`]+?)`', r'<code>\1</code>', text)
+    
+    # Обрабатываем *курсив* (если это не часть **) - осторожно!
+    # Ищем одиночные * окруженные пробелом или в начале/конце
+    text = re.sub(r'(?<!\*)\*([^\*]+?)\*(?!\*)', r'<i>\1</i>', text)
+    
+    return text
+
+
+# =============================================================================
 # MESSAGE BUILDER - CRITICAL FIX #11: Eliminate code duplication in send_* functions
 # =============================================================================
 
@@ -5109,10 +5154,8 @@ def validate_api_response(api_response: dict) -> Optional[str]:
         
         simplified_text = simplified_text.strip()
         
-        # Очищаем от markdown маркеров
-        simplified_text = simplified_text.replace("**", "")  # Убираем жирное
-        simplified_text = simplified_text.replace("__", "")  # Убираем двойное подчеркивание
-        simplified_text = simplified_text.replace("~~", "")  # Убираем зачеркивание
+        # Конвертируем Markdown в HTML для лучшей читаемости в Telegram
+        simplified_text = markdown_to_html(simplified_text)
         
         if len(simplified_text) < 5:
             logger.warning(f"Слишком короткий ответ: {len(simplified_text)} символов")
@@ -12745,8 +12788,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                         else:
                             exploration_response = truncated + "..."
                 
-                # Очищаем markdown
-                exploration_response = exploration_response.replace("**", "").replace("__", "").replace("--", "").replace("~~", "")
+                # Конвертируем Markdown в HTML для лучшей читаемости
+                exploration_response = markdown_to_html(exploration_response)
                 
                 # Сохраняем ответ для следующего клика
                 if exploration_response not in previous_answers:
@@ -13838,8 +13881,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                         else:
                             ai_response = truncated + "..."
                 
-                # Очищаем markdown символы (**, __, --, ~~) которые ИИ может добавить
-                ai_response = ai_response.replace("**", "").replace("__", "").replace("--", "").replace("~~", "")
+                # Конвертируем Markdown в HTML для лучшей читаемости в Telegram
+                ai_response = markdown_to_html(ai_response)
                 
                 # ✅ Проверяем нужно ли упомянуть разработчика (в ключевых случаях)
                 from ai_dialogue import should_mention_developer
