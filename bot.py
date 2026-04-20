@@ -12764,10 +12764,13 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             )
             
             dialogue_context = None
+            # ✅ v0.44: Получаем язык пользователя и передаём в AI
+            user_language = get_user_lang(user_id) if user_id else "ru"
             exploration_response = get_ai_response_sync(
                 exploration_question,
                 dialogue_context,
-                user_id=user_id
+                user_id=user_id,
+                language=user_language
             )
             
             if exploration_response:
@@ -13850,11 +13853,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             add_user_message(user.id, user_text, intent)
             
             # ✅ Получаем ИИ ответ с rate limiting (передаем user_id для проверки лимитов)
+            # ✅ v0.44: Получаем язык пользователя и передаём в AI
+            user_language = get_user_lang(user.id) if user.id else "ru"
             ai_response = get_ai_response_sync(
                 user_text,
                 dialogue_context,
                 user_id=user.id,
-                message_context=msg_context  # ✅ v0.27: Pass message context for prompt selection
+                message_context=msg_context,  # ✅ v0.27: Pass message context for prompt selection
+                language=user_language  # ✅ v0.44: Pass user's language preference
             )
             
             if ai_response:
