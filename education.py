@@ -7,8 +7,9 @@ import os
 import json
 import re
 import logging
+import sqlite3
 from datetime import datetime
-from typing import Optional, List, Tuple, Dict
+from typing import Optional, List, Tuple, Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,7 @@ BADGES = {
 }
 
 
-def load_courses_to_db(cursor):
+def load_courses_to_db(cursor: sqlite3.Cursor) -> None:
     """Загружает курсы из markdown файлов в БД (если не загружены)."""
     cursor.execute("SELECT COUNT(*) FROM courses")
     if cursor.fetchone()[0] > 0:
@@ -123,7 +124,7 @@ def get_user_knowledge_level(cursor, user_id: int) -> str:
     return 'unknown'  # Нужно провести assessment
 
 
-def calculate_user_level_and_xp(cursor, user_id: int) -> Tuple[int, int]:
+def calculate_user_level_and_xp(cursor: sqlite3.Cursor, user_id: int) -> Tuple[int, int]:
     """Рассчитывает уровень пользователя на основе XP."""
     cursor.execute("SELECT xp FROM users WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
@@ -136,7 +137,7 @@ def calculate_user_level_and_xp(cursor, user_id: int) -> Tuple[int, int]:
     return 1, xp
 
 
-def add_xp_to_user(cursor, user_id: int, xp_amount: int, reason: str = ""):
+def add_xp_to_user(cursor: sqlite3.Cursor, user_id: int, xp_amount: int, reason: str = "") -> None:
     """Добавляет XP пользователю и обновляет уровень."""
     cursor.execute("UPDATE users SET xp = xp + ? WHERE user_id = ?", (xp_amount, user_id))
     
@@ -145,7 +146,7 @@ def add_xp_to_user(cursor, user_id: int, xp_amount: int, reason: str = ""):
     cursor.execute("UPDATE users SET level = ? WHERE user_id = ?", (level, user_id))
 
 
-def get_user_badges(cursor, user_id: int) -> List[str]:
+def get_user_badges(cursor: sqlite3.Cursor, user_id: int) -> List[str]:
     """Получает список бейджей пользователя."""
     cursor.execute("SELECT badges FROM users WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
@@ -306,7 +307,7 @@ def extract_quiz_from_lesson(lesson_content: str, lesson_number: Optional[int] =
     return questions
 
 
-def get_faq_by_keyword(cursor, keyword: str) -> Optional[Tuple[str, str, int]]:
+def get_faq_by_keyword(cursor: sqlite3.Cursor, keyword: str) -> Optional[Tuple[str, str, int]]:
     """Получает FAQ по ключевому слову."""
     cursor.execute("""
         SELECT question, answer, id FROM faq
@@ -322,7 +323,7 @@ def get_faq_by_keyword(cursor, keyword: str) -> Optional[Tuple[str, str, int]]:
     return None
 
 
-def save_question_to_db(cursor, user_id: int, question: str, answer: str, source: str = "gemini"):
+def save_question_to_db(cursor: sqlite3.Cursor, user_id: int, question: str, answer: str, source: str = "gemini") -> bool:
     """Сохраняет вопрос и ответ в БД."""
     cursor.execute("""
         INSERT INTO user_questions (user_id, question, answer, source)
@@ -344,7 +345,7 @@ def add_question_to_faq(cursor, question: str, answer: str, category: str = "gen
         return False
 
 
-def get_user_course_progress(cursor, user_id: int, course_name: str) -> Dict:
+def get_user_course_progress(cursor: sqlite3.Cursor, user_id: int, course_name: str) -> Dict[str, Any]:
     """Получает прогресс пользователя по курсу.
     
     v0.43.1: OPTIMIZED - Reduced from 2 queries to 1 (2x speedup)
@@ -385,7 +386,7 @@ def get_user_course_progress(cursor, user_id: int, course_name: str) -> Dict:
     return progress
 
 
-def get_all_tools_db() -> List[Dict]:
+def get_all_tools_db() -> List[Dict[str, Any]]:
     """Возвращает предопределенный список инструментов."""
     return [
         {
@@ -781,7 +782,7 @@ def build_user_context_prompt(cursor, user_id: int, base_prompt: str) -> str:
         return base_prompt
 
 
-def get_user_course_summary(cursor, user_id: int) -> str:
+def get_user_course_summary(cursor: sqlite3.Cursor, user_id: int) -> str:
     """Получает краткое резюме прогресса пользователя по курсам.
     
     v0.43.1: OPTIMIZED - Reduced from N queries (one per course) to 1 (N+1 → 1 speedup)
@@ -884,7 +885,7 @@ def get_remaining_requests(cursor, user_id: int) -> Tuple[int, int, str]:
         return 0, 20, "🌱 Новичок"
 
 
-def check_daily_limit(cursor, user_id: int) -> Tuple[bool, str]:
+def check_daily_limit(cursor: sqlite3.Cursor, user_id: int) -> Tuple[bool, str]:
     """
     Проверить не превышен ли дневной лимит.
     Возвращает: (allowed, message)
