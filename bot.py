@@ -400,51 +400,41 @@ async def check_channel_subscription(user_id: int, context: ContextTypes.DEFAULT
     # ВАЖНО: Если MANDATORY_CHANNEL_ID не установлен - БЛОКИРУЕМ ВСЕ
     # Это значит что пока бот не в production режиме
     if not MANDATORY_CHANNEL_ID:
-        print(f"DEBUG: MANDATORY_CHANNEL_ID is falsy! Blocking all access.")
+        logger.warning("⚠️ MANDATORY_CHANNEL_ID not set - blocking all access")
         return False  # Если канал не задан, блокируем всем
-    
-    print(f"DEBUG: MANDATORY_CHANNEL_ID is set to {MANDATORY_CHANNEL_ID}")
     
     # Проверяем кэш
     current_time = time.time()
     if user_id in _subscription_cache:
         is_subscribed, cache_time = _subscription_cache[user_id]
         if current_time - cache_time < _SUBSCRIPTION_CACHE_TTL:
-            print(f"DEBUG: Cache hit for user {user_id}: {is_subscribed}")
-            logger.debug(f"🔄 Cache hit for user {user_id}: {is_subscribed}")
+            # CRITICAL FIX #13: Don't log every cache hit (hot path optimization)
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"🔄 Cache hit for user {user_id}: {is_subscribed}")
             return is_subscribed  # Возвращаем закэшированный результат
     
     try:
-        print(f"DEBUG: Calling context.bot.get_chat_member for user {user_id} in channel {MANDATORY_CHANNEL_ID}")
         logger.debug(f"🔍 Checking subscription for user {user_id} in channel {MANDATORY_CHANNEL_ID}")
         
         # Проверяем статус члена в канале
         member = await context.bot.get_chat_member(MANDATORY_CHANNEL_ID, user_id)
-        print(f"DEBUG: Got member info, status={member.status}")
-        logger.debug(f"Member info: status={member.status}, user_id={user_id}")
         
         # Пользователь является членом если статус: member, administrator, creator
         is_subscribed = member.status in ["member", "administrator", "creator"]
-        print(f"DEBUG: is_subscribed = {is_subscribed} (status={member.status})")
         
         # Кэшируем результат
         _subscription_cache[user_id] = (is_subscribed, current_time)
-        print(f"DEBUG: Cached result for user {user_id}: {is_subscribed}")
-        logger.debug(f"✅ Cached result for user {user_id}: {is_subscribed}")
         
         if is_subscribed:
-            print(f"DEBUG: RETURNING TRUE - User {user_id} IS subscribed")
-            logger.info(f"✅ User {user_id} is subscribed to mandatory channel (status: {member.status})")
+            logger.info(f"✅ User {user_id} is subscribed (status: {member.status})")
             return True
         else:
-            print(f"DEBUG: RETURNING FALSE - User {user_id} is NOT subscribed")
-            logger.info(f"❌ User {user_id} is NOT subscribed to mandatory channel (status: {member.status})")
+            logger.info(f"❌ User {user_id} is NOT subscribed (status: {member.status})")
             return False
         
     except Exception as e:
         error_msg = str(e)
-        print(f"DEBUG: Exception caught: {error_msg}")
-        logger.error(f"❌ Error checking subscription for user {user_id}: {error_msg}")
+        logger.error(f"❌ Subscription check error for user {user_id}: {error_msg}")
         
         # Если ошибка 400 или "user not a member" - пользователь не подписан
         if "user is not a member" in error_msg.lower() or "not found" in error_msg.lower() or "400" in error_msg:
@@ -1033,6 +1023,72 @@ async def log_error(
             )
         except Exception as e:
             logger.error(f"Failed to log error to audit: {e}")
+
+# =============================================================================
+# MESSAGE BUILDER - CRITICAL FIX #11: Eliminate code duplication in send_* functions
+# =============================================================================
+
+class MessageBuilder:
+    """
+    Unified message builder for all send_* functions to eliminate duplication.
+    
+    Provides common patterns for HTML formatting with sections, bullet points,
+    code blocks, etc. Replaces 15+ nearly-identical send_* implementations.
+    
+    Usage:
+        msg = MessageBuilder("📚 My Topic")
+        msg.add_paragraph("Main explanation")
+        msg.add_section("💡 Key Points", ["Point 1", "Point 2"])
+        msg.add_code("example_code")
+        await send_html_message(update, str(msg))
+    """
+    
+    def __init__(self, title: str = "") -> None:
+        """Initialize builder with optional title."""
+        self.parts: List[str] = []
+        if title:
+            self.add_title(title)
+    
+    def add_title(self, title: str) -> "MessageBuilder":
+        """Add bold title section."""
+        self.parts.append(f"<b>{title}</b>")
+        return self
+    
+    def add_paragraph(self, text: str) -> "MessageBuilder":
+        """Add paragraph of text."""
+        if text:
+            self.parts.append(text)
+        return self
+    
+    def add_section(self, header: str, items: Optional[List[str]] = None) -> "MessageBuilder":
+        """Add section with optional bullet points."""
+        if header:
+            self.parts.append(f"\n<b>{header}</b>")
+        if items:
+            for item in items:
+                if item:  # Skip empty items
+                    self.parts.append(f"  • {item}")
+        return self
+    
+    def add_code(self, code: str, language: str = "") -> "MessageBuilder":
+        """Add code block."""
+        if code:
+            self.parts.append(f"\n<code>{code}</code>")
+        return self
+    
+    def add_divider(self, char: str = "━") -> "MessageBuilder":
+        """Add visual divider."""
+        self.parts.append(f"{char * 20}")
+        return self
+    
+    def add_spacer(self) -> "MessageBuilder":
+        """Add blank line."""
+        self.parts.append("")
+        return self
+    
+    def __str__(self) -> str:
+        """Join all parts into final message."""
+        return "\n".join(self.parts)
 
 # =============================================================================
 # ФУНКЦИИ ДЛЯ ПУБЛИКАЦИИ ПОСТОВ В КАНАЛ
@@ -3787,12 +3843,12 @@ def ensure_conversation_history_columns() -> None:
     ⚠️ ВАЖНО: Вызывается ПЕРЕД основной инициализацией!
     TIER 1 v0.23.0: Enhanced with default values and data consistency fixes.
     TIER 1 v0.24.0: More aggressive migration to fix Railway deployment issues.
+    CRITICAL FIX #14: Use validated DATABASE_PATH from config instead of raw os.getenv()
     """
     import sqlite3
     try:
-        # Открываем БД напрямую (не через пул) - используем правильную переменную
-        db_path = os.getenv("DB_PATH", "rvx_bot.db")
-        conn = sqlite3.connect(db_path)
+        # CRITICAL FIX #14: Открываем БД используя валидированный путь из конфига
+        conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         conn.execute("PRAGMA foreign_keys=OFF")  # Отключаем внешние ключи во время миграции
         

@@ -1558,7 +1558,13 @@ async def health_check() -> HealthResponse:
         - Only in-memory checks
     """
     uptime = (datetime.now(timezone.utc) - start_time).total_seconds()
-    cache_stats = response_cache.get_stats() if hasattr(response_cache, 'get_stats') else {}
+    
+    # CRITICAL FIX #12: Use try-except instead of hasattr() for proper error handling
+    try:
+        cache_stats = response_cache.get_stats()
+    except (AttributeError, Exception) as e:
+        logger.debug(f"Could not retrieve cache stats: {e}")
+        cache_stats = {}
     
     return HealthResponse(
         status="healthy" if client else "degraded",
