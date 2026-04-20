@@ -17,6 +17,7 @@ import logging
 import json
 import sqlite3
 import time
+import asyncio
 from queue import Queue
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timedelta
@@ -245,64 +246,208 @@ cache_manager = CacheManager(use_redis=True)
 
 
 # ============================================================================
-# 3️⃣  CONNECTION POOLING
+# 3️⃣  CONNECTION POOLING (ASYNC-SAFE v0.44.0)
 # ============================================================================
 
 class DatabaseConnectionPool:
-    """Connection pool for SQLite database connections."""
+    """
+    Async-safe connection pool for SQLite database connections.
+    CRITICAL FIX #16: Use asyncio.Queue instead of threading.Queue for proper async support.
+    
+    Features:
+        - Async-safe operations with asyncio.Queue
+        - Pre-populated connection pool
+        - Connection reuse to avoid reconnections
+        - Statistics tracking
+        - WAL mode for concurrent access
+    """
     
     def __init__(self, db_path: str, pool_size: int = 10):
-        """Initialize connection pool."""
+        """Initialize async-safe connection pool.
+        
+        Args:
+            db_path: Path to SQLite database file
+            pool_size: Number of connections to maintain (default: 10)
+        """
         self.db_path = db_path
         self.pool_size = pool_size
-        self.pool: Queue = Queue(maxsize=pool_size)
+        
+        # CRITICAL FIX #16: Use asyncio.Queue instead of threading.Queue
+        self.pool: asyncio.Queue = None  # Initialized in async context
+        self._initialized = False
+        
         self.stats = {
             "created": 0,
             "total_get": 0,
             "total_return": 0,
-            "errors": 0
+            "errors": 0,
+            "timeouts": 0
         }
+    
+    async def _initialize_pool(self) -> None:
+        """Initialize asyncio.Queue and pre-populate with connections (call once at startup)."""
+        if self._initialized:
+            return
+        
+        # Create async queue
+        self.pool = asyncio.Queue(maxsize=self.pool_size)
         
         # Pre-populate pool with connections
-        for _ in range(pool_size):
+        for _ in range(self.pool_size):
             try:
-                conn = sqlite3.connect(db_path, check_same_thread=False)
+                conn = sqlite3.connect(self.db_path, check_same_thread=False)
                 conn.row_factory = sqlite3.Row
                 conn.execute("PRAGMA journal_mode=WAL")
-                self.pool.put(conn)
+                conn.execute("PRAGMA synchronous=NORMAL")  # Faster writes with less durability
+                await self.pool.put(conn)
                 self.stats["created"] += 1
             except Exception as e:
                 print(f"⚠️ Failed to create connection: {e}")
                 self.stats["errors"] += 1
+        
+        self._initialized = True
+        print(f"✅ Database connection pool initialized with {self.stats['created']} connections")
     
-    def get_connection(self, timeout: int = 5) -> Optional[sqlite3.Connection]:
-        """Get connection from pool."""
+    async def get_connection(self, timeout: int = 5) -> Optional[sqlite3.Connection]:
+        """
+        Get connection from pool (ASYNC VERSION).
+        
+        Args:
+            timeout: Timeout in seconds to wait for available connection
+        
+        Returns:
+            SQLite connection or None on timeout/error
+        """
+        # Lazy initialization on first use
+        if not self._initialized:
+            await self._initialize_pool()
+        
         try:
-            conn = self.pool.get(timeout=timeout)
+            conn = await asyncio.wait_for(self.pool.get(), timeout=timeout)
             self.stats["total_get"] += 1
             return conn
+        except asyncio.TimeoutError:
+            print(f"⚠️ Database connection pool timeout after {timeout}s")
+            self.stats["timeouts"] += 1
+            return None
         except Exception as e:
             print(f"⚠️ Failed to get connection from pool: {e}")
             self.stats["errors"] += 1
             return None
     
-    def return_connection(self, conn: Optional[sqlite3.Connection]) -> None:
-        """Return connection to pool."""
+    async def return_connection(self, conn: Optional[sqlite3.Connection]) -> None:
+        """
+        Return connection to pool (ASYNC VERSION).
+        
+        Args:
+            conn: SQLite connection to return
+        """
         if conn:
             try:
-                self.pool.put(conn)
+                await self.pool.put(conn)
                 self.stats["total_return"] += 1
             except Exception as e:
                 print(f"⚠️ Failed to return connection to pool: {e}")
                 self.stats["errors"] += 1
+                try:
+                    conn.close()
+                except:
+                    pass
     
-    def get_stats(self) -> Dict[str, Any]:
-        """Get pool statistics."""
+    async def get_stats(self) -> Dict[str, Any]:
+        """Get pool statistics (ASYNC VERSION)."""
+        if not self._initialized:
+            return {"status": "not_initialized"}
+        
         return {
             **self.stats,
             "pool_size": self.pool_size,
-            "available": self.pool.qsize()
+            "available": self.pool.qsize(),
+            "utilization": 100 - (self.pool.qsize() / self.pool_size * 100) if self.pool_size > 0 else 0
         }
+    
+    def get_connection_sync(self, timeout: int = 5) -> Optional[sqlite3.Connection]:
+        """
+        Get connection from pool (SYNC WRAPPER for backward compatibility).
+        
+        Note: Still async under the hood but provides sync interface.
+        Use this for existing sync code.
+        
+        Args:
+            timeout: Timeout in seconds
+        
+        Returns:
+            SQLite connection or None on timeout/error
+        """
+        if not self._initialized:
+            # Manual initialization for sync context
+            self.pool = asyncio.Queue(maxsize=self.pool_size)
+            for _ in range(self.pool_size):
+                try:
+                    conn = sqlite3.connect(self.db_path, check_same_thread=False)
+                    conn.row_factory = sqlite3.Row
+                    conn.execute("PRAGMA journal_mode=WAL")
+                    conn.execute("PRAGMA synchronous=NORMAL")
+                    self.pool.put_nowait(conn)
+                    self.stats["created"] += 1
+                except Exception as e:
+                    print(f"⚠️ Failed to create connection: {e}")
+                    self.stats["errors"] += 1
+            self._initialized = True
+        
+        try:
+            conn = self.pool.get_nowait()
+            self.stats["total_get"] += 1
+            return conn
+        except asyncio.QueueEmpty:
+            print(f"⚠️ Database connection pool empty (all {self.pool_size} in use)")
+            self.stats["timeouts"] += 1
+            return None
+        except Exception as e:
+            print(f"⚠️ Failed to get connection from pool: {e}")
+            self.stats["errors"] += 1
+            return None
+    
+    def return_connection_sync(self, conn: Optional[sqlite3.Connection]) -> None:
+        """
+        Return connection to pool (SYNC WRAPPER for backward compatibility).
+        
+        Args:
+            conn: SQLite connection to return
+        """
+        if conn:
+            try:
+                self.pool.put_nowait(conn)
+                self.stats["total_return"] += 1
+            except asyncio.QueueFull:
+                print(f"⚠️ Connection pool is full, closing connection")
+                try:
+                    conn.close()
+                except:
+                    pass
+            except Exception as e:
+                print(f"⚠️ Failed to return connection to pool: {e}")
+                self.stats["errors"] += 1
+                try:
+                    conn.close()
+                except:
+                    pass
+    
+    async def close_all(self) -> None:
+        """Close all connections in pool (call at shutdown)."""
+        if not self._initialized or not self.pool:
+            return
+        
+        closed_count = 0
+        while not self.pool.empty():
+            try:
+                conn = self.pool.get_nowait()
+                conn.close()
+                closed_count += 1
+            except:
+                pass
+        
+        print(f"✅ Closed {closed_count} database connections")
 
 
 # ============================================================================

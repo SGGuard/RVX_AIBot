@@ -356,16 +356,19 @@ def require_auth(required_level: AuthLevel) -> Callable:
     return decorator
 
 # Обязательная подписка на канал
-MANDATORY_CHANNEL_ID = -1003228919683  # Канал для обязательной подписки (преобразовано из 3228919683)
-MANDATORY_CHANNEL_LINK = os.getenv("MANDATORY_CHANNEL_LINK", "https://t.me/RVX_AI")  # Ссылка на канал для подписки
+# CRITICAL FIX #17: Extract hardcoded constants to environment variables
+MANDATORY_CHANNEL_ID = int(os.getenv("MANDATORY_CHANNEL_ID", "-1003228919683"))  # Channel ID for mandatory subscription
+MANDATORY_CHANNEL_LINK = os.getenv("MANDATORY_CHANNEL_LINK", "https://t.me/RVX_AI")  # Link to channel for subscription
+MAX_MESSAGE_LENGTH = int(os.getenv("MAX_MESSAGE_LENGTH", "4096"))  # Telegram message length limit
+NOTIFICATION_BATCH_SIZE = int(os.getenv("NOTIFICATION_BATCH_SIZE", "100"))  # Messages to send before pausing
 
 # =============================================================================
 # CHANNEL SUBSCRIPTION CHECK (v0.42.1 Mandatory Subscription)
 # =============================================================================
 
-# Кэш для результатов проверки подписки (user_id -> (is_subscribed, timestamp))
+# CRITICAL FIX #17: Extract cache TTL to env var
 _subscription_cache = {}
-_SUBSCRIPTION_CACHE_TTL = 300  # 5 минут
+_SUBSCRIPTION_CACHE_TTL = int(os.getenv("SUBSCRIPTION_CACHE_TTL", "300"))  # Subscription check cache TTL (seconds)
 
 async def clear_subscription_cache(user_id: int = None) -> None:
     """Очищает кэш подписки для пользователя или всех пользователей"""
@@ -1954,6 +1957,7 @@ def get_db() -> contextmanager:
     Гарантирует закрытие соединения даже при исключениях.
     Предотвращает утечку ресурсов (memory leak ~500KB/day в production).
     
+    CRITICAL FIX #16: Using async-safe DatabaseConnectionPool with get_connection_sync() wrapper.
     v0.26.0: Добавлен retry mechanism для "database is locked" ошибок с exponential backoff.
     """
     conn = None
@@ -1963,9 +1967,9 @@ def get_db() -> contextmanager:
     
     while attempt < max_retries:
         try:
-            # Получаем соединение из пула или создаем новое
+            # CRITICAL FIX #16: Use sync wrapper for backward compatibility
             if db_pool:
-                conn = db_pool.get_connection()
+                conn = db_pool.get_connection_sync()
             else:
                 conn = sqlite3.connect(DB_PATH, timeout=10.0, check_same_thread=False)
             
@@ -2018,9 +2022,9 @@ def get_db() -> contextmanager:
             logger.error(f"Неожиданная ошибка БД: {e}", exc_info=True)
             raise
         finally:
-            # Возвращаем соединение в пул (TIER 1 v0.22.0)
+            # CRITICAL FIX #16: Use sync wrapper to return connection to async-safe pool
             if conn and db_pool:
-                db_pool.return_connection(conn)
+                db_pool.return_connection_sync(conn)
 
 def check_column_exists(cursor: sqlite3.Cursor, table: str, column: str) -> bool:
     """Проверяет существование колонки в таблице.
@@ -3526,8 +3530,9 @@ def format_lesson_for_telegram(lesson_content: str, course_title: str, lesson_nu
     )
     
     # Первые 2300 символов контента (оставляем место для кнопок и заголовка)
-    # Telegram лимит = 4096, минус заголовок (~250), минус место для кнопок (~300)
-    max_content_length = 2300
+    # CRITICAL FIX #17: Extract max content length to env var
+    # Telegram limit = 4096 chars/message - header (~250) - buttons (~300) = ~2300
+    max_content_length = int(os.getenv("MAX_MESSAGE_CONTENT_LENGTH", "2300"))
     
     if len(clean_content) > max_content_length:
         # Урок слишком длинный - разбиваем
@@ -4877,8 +4882,9 @@ def get_cache_key(text: str) -> str:
 # =============================================================================
 
 BACKUP_DIR: str = os.path.join(os.path.dirname(__file__), 'backups')
-BACKUP_RETENTION_DAYS: int = 30  # Хранить резервные копии 30 дней
-MAX_BACKUP_SIZE_MB: int = 500  # Максимальный размер одного бэкапа
+# CRITICAL FIX #17: Extract backup constants to env vars
+BACKUP_RETENTION_DAYS: int = int(os.getenv("BACKUP_RETENTION_DAYS", "30"))  # Retention period for backups
+MAX_BACKUP_SIZE_MB: int = int(os.getenv("MAX_BACKUP_SIZE_MB", "500"))  # Maximum single backup size
 
 def ensure_backup_dir() -> None:
     """Создает директорию для бэкапов если её нет."""

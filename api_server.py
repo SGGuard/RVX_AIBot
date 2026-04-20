@@ -23,7 +23,7 @@ if os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('RAILWAY_PROJECT_ID'):
 from fastapi import FastAPI, HTTPException, Request, status, Query
 from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, root_validator
 from dotenv import load_dotenv
 from starlette.concurrency import run_in_threadpool
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -265,6 +265,33 @@ class ImagePayload(BaseModel):
     image_url: Optional[str] = Field(None, description="URL изображения")
     image_base64: Optional[str] = Field(None, description="Изображение в формате base64")
     context: Optional[str] = Field(None, description="Дополнительный контекст", max_length=500)
+    
+    @root_validator(mode='before')
+    @classmethod
+    def validate_image_source(cls, values: dict) -> dict:
+        """CRITICAL FIX #15: Ensure at least one image source is provided."""
+        image_url = values.get('image_url')
+        image_base64 = values.get('image_base64')
+        
+        if not image_url and not image_base64:
+            raise ValueError("Either image_url or image_base64 must be provided")
+        
+        # Validate URL format if provided
+        if image_url:
+            if not isinstance(image_url, str) or len(image_url) > 2048:
+                raise ValueError("Invalid image_url: must be string and <= 2048 chars")
+            if not (image_url.startswith('http://') or image_url.startswith('https://')):
+                raise ValueError("Invalid image_url: must start with http:// or https://")
+        
+        # Validate base64 format if provided
+        if image_base64:
+            if not isinstance(image_base64, str) or len(image_base64) > 5_000_000:
+                raise ValueError("Invalid image_base64: must be string and <= 5MB")
+            # Basic base64 validation
+            if not all(c in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/= \n\t' for c in image_base64):
+                raise ValueError("Invalid image_base64: contains invalid characters")
+        
+        return values
 
 class ImageAnalysisResponse(BaseModel):
     """Ответ API с анализом изображения."""
