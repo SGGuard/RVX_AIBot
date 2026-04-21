@@ -188,27 +188,67 @@ PORT = int(os.getenv("PORT", "8000"))
 # VALIDATION
 # ============================================================================
 def validate_config():
-    """Проверить критические значения конфигурации"""
+    """
+    Проверить критические значения конфигурации.
+    
+    Гарантирует:
+    - Все обязательные переменные окружения установлены
+    - HTTPS используется для remote URLs
+    - Хотя бы один AI провайдер доступен
+    
+    Raises:
+        ValueError: Если критические параметры отсутствуют или невалидны
+    """
+    import logging
+    logger = logging.getLogger("config")
     errors = []
+    warnings = []
     
-    if not TELEGRAM_BOT_TOKEN:
-        errors.append("❌ TELEGRAM_BOT_TOKEN не установлен")
+    # CRITICAL CHECKS
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_BOT_TOKEN.strip():
+        errors.append("❌ TELEGRAM_BOT_TOKEN не установлен или пустой")
     
-    if not GEMINI_API_KEY:
-        errors.append("❌ GEMINI_API_KEY не установлен")
+    # Check at least one AI provider is configured
+    providers_configured = sum([
+        bool(AI_PROVIDERS["groq"].get("api_key", "").strip()),
+        bool(AI_PROVIDERS["mistral"].get("api_key", "").strip()),
+        bool(GEMINI_API_KEY.strip()),
+    ])
     
-    if not API_URL_NEWS or API_URL_NEWS == "http://localhost:8000":
-        if ENVIRONMENT == "production":
-            errors.append("⚠️ API_URL_NEWS использует localhost (может быть проблема в продакшене)")
+    if providers_configured == 0:
+        errors.append("❌ Ни один AI провайдер не настроен (требуется GROQ_API_KEY, MISTRAL_API_KEY или GEMINI_API_KEY)")
     
+    # HTTPS CHECK for remote APIs
+    if API_URL_NEWS and not API_URL_NEWS.startswith(("http://localhost", "http://127.0.0.1")):
+        if not API_URL_NEWS.startswith("https://"):
+            errors.append(f"❌ SECURITY: API_URL_NEWS должен использовать HTTPS для remote URLs: {API_URL_NEWS}")
+    
+    # PRODUCTION CHECKS
+    if ENVIRONMENT == "production":
+        if not GEMINI_API_KEY or not GEMINI_API_KEY.strip():
+            warnings.append("⚠️ PRODUCTION: GEMINI_API_KEY не установлен (fallback использует другие провайдеры)")
+        
+        if DEBUG_MODE:
+            warnings.append("⚠️ PRODUCTION: DEBUG_MODE включен (отключить для продакшена)")
+    
+    # Log errors and warnings
+    if errors or warnings:
+        logger.warning("\n" + "="*70)
+        if errors:
+            logger.error("❌ КРИТИЧЕСКИЕ ОШИБКИ КОНФИГУРАЦИИ:")
+            for error in errors:
+                logger.error(f"  {error}")
+        if warnings:
+            logger.warning("⚠️ ПРЕДУПРЕЖДЕНИЯ КОНФИГУРАЦИИ:")
+            for warning in warnings:
+                logger.warning(f"  {warning}")
+        logger.warning("="*70 + "\n")
+    
+    # Raise on critical errors
     if errors:
-        print("\n⚠️ КОНФИГУРАЦИЯ ИМЕЕТ ПРОБЛЕМЫ:\n")
-        for error in errors:
-            print(f"  {error}")
-        if ENVIRONMENT == "production":
-            raise ValueError("Критические параметры конфигурации отсутствуют!")
+        raise ValueError(f"Конфигурация невалидна. Найдено {len(errors)} критических ошибок.")
     
-    return len(errors) == 0
+    return True
 
 # ============================================================================
 # EXPORT
