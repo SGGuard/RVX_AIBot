@@ -85,6 +85,20 @@ logger = logging.getLogger("RVX_API")
 
 load_dotenv()
 
+# ✅ CRITICAL FIX #3: Validate configuration on API startup
+# =============================================================================
+try:
+    from config import validate_config, ENVIRONMENT
+    validate_config()
+    logger.info("✅ API Configuration validation PASSED")
+except ValueError as e:
+    logger.critical(f"❌ Configuration validation FAILED: {e}")
+    logger.critical("🛑 API cannot start with invalid configuration. Fix the errors above and retry.")
+    sys.exit(1)
+except Exception as e:
+    logger.error(f"⚠️ Unexpected error during config validation: {e}")
+    # Continue anyway - don't force exit on unexpected errors
+
 # =============================================================================
 # SECURITY UTILITIES (Critical Fix #2: Mask secrets in logs)
 # =============================================================================

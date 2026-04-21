@@ -395,10 +395,8 @@ async def check_channel_subscription(user_id: int, context: ContextTypes.DEFAULT
     Returns:
         True если пользователь подписан, False если нет
     """
-    print(f"\n{'='*50}")
-    print(f"DEBUG: check_channel_subscription called for user {user_id}")
-    print(f"DEBUG: MANDATORY_CHANNEL_ID = {MANDATORY_CHANNEL_ID}")
-    print(f"DEBUG: Type of MANDATORY_CHANNEL_ID: {type(MANDATORY_CHANNEL_ID)}")
+    logger.debug(f"check_channel_subscription called for user {user_id}")
+    logger.debug(f"MANDATORY_CHANNEL_ID = {MANDATORY_CHANNEL_ID} (type: {type(MANDATORY_CHANNEL_ID).__name__})")
     
     # ВАЖНО: Если MANDATORY_CHANNEL_ID не установлен - БЛОКИРУЕМ ВСЕ
     # Это значит что пока бот не в production режиме
@@ -441,13 +439,13 @@ async def check_channel_subscription(user_id: int, context: ContextTypes.DEFAULT
         
         # Если ошибка 400 или "user not a member" - пользователь не подписан
         if "user is not a member" in error_msg.lower() or "not found" in error_msg.lower() or "400" in error_msg:
-            print(f"DEBUG: User not a member error, RETURNING FALSE")
+            logger.debug(f"User not a member error, returning False")
             logger.info(f"⚠️ User {user_id} is not a member of the channel (API confirmed)")
             _subscription_cache[user_id] = (False, current_time)  # Кэшируем что не подписан
             return False
         
         # При других ошибках - требуем подписку (лучше требовать по ошибке чем разрешать)
-        print(f"DEBUG: API error (not member error), RETURNING FALSE")
+        logger.debug(f"API error (not member error), returning False")
         logger.warning(f"⚠️ Subscription check API error for user {user_id}, blocking access until retry: {error_msg}")
         # Не кэшируем ошибки - пусть пользователь сможет попробовать еще раз
         return False  # Блокируем доступ при ошибке API
@@ -595,6 +593,20 @@ def setup_logger(name: Optional[str] = None, level: int = logging.INFO) -> loggi
 
 
 logger = setup_logger(__name__)
+
+# ✅ CRITICAL FIX #2: Validate configuration on startup
+# =============================================================================
+try:
+    from config import validate_config
+    validate_config()
+    logger.info("✅ Configuration validation PASSED")
+except ValueError as e:
+    logger.critical(f"❌ Configuration validation FAILED: {e}")
+    logger.critical("🛑 Bot cannot start with invalid configuration. Fix the errors above and retry.")
+    sys.exit(1)
+except Exception as e:
+    logger.error(f"⚠️ Unexpected error during config validation: {e}")
+    # Continue anyway - don't force exit on unexpected errors
 
 # =============================================================================
 # PYDANTIC MODELS FOR API RESPONSE VALIDATION (FIX #5: XSS/Injection Protection)
@@ -6403,15 +6415,15 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     
     # ✅ v0.42.1: Проверяем подписку на обязательный канал
     logger.info(f"📋 Checking mandatory channel subscription for user {user_id}...")
-    print(f"DEBUG: About to call check_channel_subscription")
+    logger.debug(f"About to call check_channel_subscription")
     is_subscribed = await check_channel_subscription(user_id, context)
-    print(f"DEBUG: check_channel_subscription returned: {is_subscribed}")
+    logger.debug(f"check_channel_subscription returned: {is_subscribed}")
     logger.info(f"✅ Subscription check result for user {user_id}: {is_subscribed}")
     
-    print(f"DEBUG: Checking if not is_subscribed: {not is_subscribed}")
+    logger.debug(f"Checking if not is_subscribed: {not is_subscribed}")
     
     if not is_subscribed:
-        print(f"DEBUG: User is NOT subscribed, showing subscription prompt")
+        logger.debug(f"User is NOT subscribed, showing subscription prompt")
         
         # Отправляем сообщение с кнопкой для подписки
         keyboard = [
@@ -9897,33 +9909,33 @@ async def handle_language_selection(update: Update, context: ContextTypes.DEFAUL
         selected_language = query.data.replace("lang_", "")
         
         logger.info(f"🌐 LANGUAGE SELECTION: User {user_id} selected {selected_language}")
-        print(f"DEBUG: Language selection for user {user_id}: {selected_language}")
+        logger.debug(f"Language selection callback data received")
         
         # Подтверждаем нажатие кнопки
         await query.answer()
-        print(f"DEBUG: Confirmed button click")
+        logger.debug(f"Button click confirmed")
         
         # Валидируем язык
         if selected_language not in ["ru", "uk"]:
             logger.warning(f"❌ Invalid language by user {user_id}: {selected_language}")
-            print(f"DEBUG: Invalid language!")
+            logger.debug(f"Invalid language detected")
             await query.answer("❌ Неизвестный язык", show_alert=False)
             return
         
-        print(f"DEBUG: Language valid, setting in DB...")
+        logger.debug(f"Language valid, setting in database")
         
         # Сохраняем выбор в БД
         logger.info(f"💾 Saving language {selected_language} for user {user_id}...")
         success = await set_user_language(user_id, selected_language)
-        print(f"DEBUG: set_user_language returned: {success}")
+        logger.debug(f"set_user_language returned: {success}")
         
         if success:
             logger.info(f"✅ User {user_id} language saved: {selected_language}")
-            print(f"DEBUG: Language saved successfully!")
+            logger.debug(f"Language saved successfully")
             
             # Показываем сообщение с главным меню вместо вызова start_command
             logger.info(f"🎯 Showing main menu to user {user_id} in language {selected_language}")
-            print(f"DEBUG: Editing message with main menu...")
+            logger.debug(f"Editing message with main menu")
             
             # Получаем главное меню и тексты кнопок на выбранном языке
             main_menu_text = await get_text("menu.main_greeting", user_id, language=selected_language)
@@ -9954,16 +9966,16 @@ async def handle_language_selection(update: Update, context: ContextTypes.DEFAUL
                 reply_markup=reply_markup,
                 parse_mode=ParseMode.HTML
             )
-            print(f"DEBUG: Menu sent successfully!")
+            logger.debug(f"Menu sent successfully")
             logger.info(f"✅ Main menu shown to user {user_id} in language {selected_language}")
         else:
             logger.error(f"❌ Failed to set language for user {user_id}")
-            print(f"DEBUG: set_user_language FAILED!")
+            logger.debug(f"set_user_language operation failed")
             await query.answer("❌ Ошибка при установке языка", show_alert=True)
     
     except Exception as e:
         logger.error(f"❌ ERROR in handle_language_selection: {type(e).__name__}: {e}", exc_info=True)
-        print(f"DEBUG: Exception: {type(e).__name__}: {e}")
+        logger.debug(f"Exception details: {type(e).__name__}")
         try:
             await query.answer(f"❌ Ошибка: {str(e)[:50]}", show_alert=True)
         except Exception as answer_error:
