@@ -6631,6 +6631,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     activities_btn = await get_text("menu.activities", user_id)
     history_btn = await get_text("menu.history", user_id)
     settings_btn = await get_text("menu.settings", user_id)
+    help_btn = await get_text("menu.help_button", user_id)
     
     keyboard = [
         [
@@ -6658,7 +6659,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             InlineKeyboardButton(history_btn, callback_data="start_history")
         ],
         [
-            InlineKeyboardButton(settings_btn, callback_data="start_menu")
+            InlineKeyboardButton(settings_btn, callback_data="settings_menu"),
+            InlineKeyboardButton(help_btn, callback_data="help_menu")
         ]
     ]
     
