@@ -6410,6 +6410,13 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         )
         return  # Выходим, дальше пользователь выбирает язык и мы снова вызовем start_command
     
+    # ✅ v0.45: Гарантируем что user_language всегда имеет значение
+    if not user_language or user_language not in ["ru", "uk"]:
+        user_language = "ru"
+        logger.warning(f"Invalid language {user_language} for user {user_id}, using default 'ru'")
+    
+    logger.info(f"📝 User {user_id} language: {user_language}")
+    
     # Очищаем кэш для этого пользователя при каждом /start (чтобы всегда проверять актуальный статус)
     await clear_subscription_cache(user_id)
     
@@ -6546,28 +6553,29 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     welcome_text = ""
     
     # Получаем все текстовые строки с локализацией
-    title = await get_text("start.title", user_id)
-    subtitle = await get_text("start.subtitle", user_id)
-    greeting = await get_text("start.greeting", user_id, greeting=adaptive_greeting)
-    path_header = await get_text("start.path_header", user_id)
-    feature_analyze = await get_text("start.feature_analyze", user_id)
-    feature_learn = await get_text("start.feature_learn", user_id)
-    feature_tasks = await get_text("start.feature_tasks", user_id)
-    feature_leaderboard = await get_text("start.feature_leaderboard", user_id)
-    profile_header = await get_text("start.profile_header", user_id)
-    limits_text = await get_text("start.limits", user_id, remaining=remaining, max_requests=MAX_REQUESTS_PER_DAY)
-    level_text = await get_text("start.level", user_id, level=level_name, xp=user_xp)
-    progress_text = await get_text("start.progress", user_id, courses=courses_completed, tests=tests_passed)
-    benefits_header = await get_text("start.benefits_header", user_id)
-    benefit_1 = await get_text("start.benefit_1", user_id)
-    benefit_2 = await get_text("start.benefit_2", user_id)
-    benefit_3 = await get_text("start.benefit_3", user_id)
-    benefit_4 = await get_text("start.benefit_4", user_id)
-    benefit_5 = await get_text("start.benefit_5", user_id)
-    cta_header = await get_text("start.cta_header", user_id)
-    cta_text = await get_text("start.cta_text", user_id)
-    cta_help = await get_text("start.cta_help", user_id)
-    bonus = await get_text("start.bonus", user_id, channel_link=MANDATORY_CHANNEL_LINK) if MANDATORY_CHANNEL_ID else None
+    # ✅ v0.45: Передаём язык явно при загрузке всех текстов
+    title = await get_text("start.title", user_id, language=user_language)
+    subtitle = await get_text("start.subtitle", user_id, language=user_language)
+    greeting = await get_text("start.greeting", user_id, language=user_language, greeting=adaptive_greeting)
+    path_header = await get_text("start.path_header", user_id, language=user_language)
+    feature_analyze = await get_text("start.feature_analyze", user_id, language=user_language)
+    feature_learn = await get_text("start.feature_learn", user_id, language=user_language)
+    feature_tasks = await get_text("start.feature_tasks", user_id, language=user_language)
+    feature_leaderboard = await get_text("start.feature_leaderboard", user_id, language=user_language)
+    profile_header = await get_text("start.profile_header", user_id, language=user_language)
+    limits_text = await get_text("start.limits", user_id, language=user_language, remaining=remaining, max_requests=MAX_REQUESTS_PER_DAY)
+    level_text = await get_text("start.level", user_id, language=user_language, level=level_name, xp=user_xp)
+    progress_text = await get_text("start.progress", user_id, language=user_language, courses=courses_completed, tests=tests_passed)
+    benefits_header = await get_text("start.benefits_header", user_id, language=user_language)
+    benefit_1 = await get_text("start.benefit_1", user_id, language=user_language)
+    benefit_2 = await get_text("start.benefit_2", user_id, language=user_language)
+    benefit_3 = await get_text("start.benefit_3", user_id, language=user_language)
+    benefit_4 = await get_text("start.benefit_4", user_id, language=user_language)
+    benefit_5 = await get_text("start.benefit_5", user_id, language=user_language)
+    cta_header = await get_text("start.cta_header", user_id, language=user_language)
+    cta_text = await get_text("start.cta_text", user_id, language=user_language)
+    cta_help = await get_text("start.cta_help", user_id, language=user_language)
+    bonus = await get_text("start.bonus", user_id, language=user_language, channel_link=MANDATORY_CHANNEL_LINK) if MANDATORY_CHANNEL_ID else None
     
     # Формируем основной текст приветствия
     welcome_text = (
@@ -6599,17 +6607,18 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     # Добавляем квесты если есть
     if daily_quests:
         completed_count = len(completed_quests)
-        quests_header = await get_text("start.quests_header", user_id, completed=completed_count, total=5)
+        # ✅ v0.45: Передаём язык явно
+        quests_header = await get_text("start.quests_header", user_id, language=user_language, completed=completed_count, total=5)
         welcome_text += f"\n{quests_header}\n"
         for idx, quest in enumerate(daily_quests[:3], 1):
             quest_completed = "✅" if str(quest.get('id', '')) in completed_quests else "⭕"
             welcome_text += f"{quest_completed} {idx}. {quest['title']} <b>({quest['xp']} XP)</b>\n"
         
         if completed_count > 0:
-            earnings = await get_text("start.quest_earnings", user_id, xp=daily_xp_earned)
+            earnings = await get_text("start.quest_earnings", user_id, language=user_language, xp=daily_xp_earned)
             welcome_text += f"\n{earnings}"
         else:
-            hint = await get_text("start.quest_start_hint", user_id)
+            hint = await get_text("start.quest_start_hint", user_id, language=user_language)
             welcome_text += f"\n{hint}"
         welcome_text += "\n"
     
@@ -6618,20 +6627,21 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         welcome_text += f"\n{bonus}\n"
     
     # Интерактивные кнопки основных функций (v0.26.0 красивый дизайн)
-    teach_btn = await get_text("menu.teach", user_id)
-    learn_btn = await get_text("menu.learn", user_id)
-    stats_btn = await get_text("menu.stats", user_id)
-    leaderboard_btn = await get_text("menu.leaderboard", user_id)
-    profile_btn = await get_text("menu.profile", user_id)
-    quests_btn = await get_text("menu.quests", user_id)
-    resources_btn = await get_text("menu.resources", user_id)
-    bookmarks_btn = await get_text("menu.bookmarks", user_id)
-    calculator_btn = await get_text("menu.calculator", user_id)
-    airdrops_btn = await get_text("menu.airdrops", user_id)
-    activities_btn = await get_text("menu.activities", user_id)
-    history_btn = await get_text("menu.history", user_id)
-    settings_btn = await get_text("menu.settings", user_id)
-    help_btn = await get_text("menu.help_button", user_id)
+    # ✅ v0.45: Передаём язык явно при загрузке всех текстов кнопок
+    teach_btn = await get_text("menu.teach", user_id, language=user_language)
+    learn_btn = await get_text("menu.learn", user_id, language=user_language)
+    stats_btn = await get_text("menu.stats", user_id, language=user_language)
+    leaderboard_btn = await get_text("menu.leaderboard", user_id, language=user_language)
+    profile_btn = await get_text("menu.profile", user_id, language=user_language)
+    quests_btn = await get_text("menu.quests", user_id, language=user_language)
+    resources_btn = await get_text("menu.resources", user_id, language=user_language)
+    bookmarks_btn = await get_text("menu.bookmarks", user_id, language=user_language)
+    calculator_btn = await get_text("menu.calculator", user_id, language=user_language)
+    airdrops_btn = await get_text("menu.airdrops", user_id, language=user_language)
+    activities_btn = await get_text("menu.activities", user_id, language=user_language)
+    history_btn = await get_text("menu.history", user_id, language=user_language)
+    settings_btn = await get_text("menu.settings", user_id, language=user_language)
+    help_btn = await get_text("menu.help_button", user_id, language=user_language)
     
     keyboard = [
         [
@@ -9935,19 +9945,25 @@ async def handle_language_selection(update: Update, context: ContextTypes.DEFAUL
             logger.info(f"✅ User {user_id} language saved: {selected_language}")
             logger.debug(f"Language saved successfully")
             
+            # ✅ ВАЖНО: После сохранения языка, очищаем кэш чтобы получить свежий язык из БД
+            from i18n import _user_languages_cache
+            _user_languages_cache.pop(user_id, None)
+            logger.debug(f"Cleared language cache for user {user_id}")
+            
             # Показываем сообщение с главным меню вместо вызова start_command
             logger.info(f"🎯 Showing main menu to user {user_id} in language {selected_language}")
             logger.debug(f"Editing message with main menu")
             
             # Получаем главное меню и тексты кнопок на выбранном языке
+            # ✅ ВАЖНО: Передаём язык явно, чтобы избежать проблем с кэшем
             main_menu_text = await get_text("menu.main_greeting", user_id, language=selected_language)
-            teach_text = await get_text("menu.teach_button", user_id, language=selected_language)
+            teach_text = await get_text("menu.teach", user_id, language=selected_language)
             ask_text = await get_text("menu.ask_button", user_id, language=selected_language)
-            profile_text = await get_text("menu.profile_button", user_id, language=selected_language)
-            settings_text = await get_text("menu.settings_button", user_id, language=selected_language)
+            profile_text = await get_text("menu.profile", user_id, language=selected_language)
+            settings_text = await get_text("menu.settings", user_id, language=selected_language)
             courses_text = await get_text("menu.courses_button", user_id, language=selected_language)
-            quests_text = await get_text("menu.quests_button", user_id, language=selected_language)
-            leaderboard_text = await get_text("menu.leaderboard_button", user_id, language=selected_language)
+            quests_text = await get_text("menu.quests", user_id, language=selected_language)
+            leaderboard_text = await get_text("menu.leaderboard", user_id, language=selected_language)
             help_text = await get_text("menu.help_button", user_id, language=selected_language)
             
             # Получаем приветствие на выбранном языке
@@ -10694,14 +10710,17 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # ============ SETTINGS MENU (v0.43.0) ============
     if data == "settings_menu":
         user_id = user.id
-        user_language = get_user_lang(user_id, default="ru")
+        # ✅ ВАЖНО: Каждый раз читаем язык из БД напрямую, не из кэша
+        from i18n import get_user_language
+        user_language = get_user_language(user_id, default="ru")
         
         logger.info(f"⚙️ Settings menu for user {user_id}, current language: {user_language}")
         
         try:
-            settings_text = await get_text("settings.menu_title", user_id)
-            lang_select_text = await get_text("settings.language_select", user_id)
-            back_text = await get_text("menu.back_button", user_id)
+            # ✅ ВАЖНО: Передаём язык явно при загрузке текстов настроек
+            settings_text = await get_text("settings.menu_title", user_id, language=user_language)
+            lang_select_text = await get_text("settings.language_select", user_id, language=user_language)
+            back_text = await get_text("menu.back_button", user_id, language=user_language)
             
             # Меню выбора языка
             keyboard = [
