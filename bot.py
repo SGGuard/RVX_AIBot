@@ -2362,54 +2362,49 @@ def migrate_database() -> None:
         
         # ✅ NEW v0.30.0: Миграция conversation_history к унифицированной схеме
         # Конвертируем старую схему (message_type, created_at) в новую (role, timestamp)
-        try:
-            cursor.execute("PRAGMA table_info(conversation_history)")
-            columns = {row[1] for row in cursor.fetchall()}
-            
-            # Если таблица имеет старую схему, мигрируем её
-            if 'message_type' in columns and 'role' not in columns:
-                logger.warning("🔄 Миграция conversation_history к новой схеме...")
-                try:
-                    # Переименовываем старую таблицу
-                    cursor.execute("ALTER TABLE conversation_history RENAME TO conversation_history_old")
-                    
-                    # Создаём новую таблицу с правильной схемой
-                    cursor.execute("""
-                        CREATE TABLE conversation_history (
-                            id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            user_id INTEGER NOT NULL,
-                            role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
-                            content TEXT NOT NULL,
-                            intent TEXT,
-                            timestamp INTEGER DEFAULT (strftime('%s', 'now')),
-                            message_length INTEGER,
-                            tokens_estimate INTEGER,
-                            FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
-                        )
-                    """)
-                    
-                    # Создаём индексы
-                    cursor.execute("CREATE INDEX IF NOT EXISTS idx_conv_user_id ON conversation_history(user_id)")
-                    cursor.execute("CREATE INDEX IF NOT EXISTS idx_conv_timestamp ON conversation_history(timestamp)")
-                    cursor.execute("CREATE INDEX IF NOT EXISTS idx_conv_role ON conversation_history(role)")
-                    
-                    # Мигрируем данные со старой таблицы
-                    cursor.execute("""
-                        INSERT INTO conversation_history (id, user_id, role, content, intent, message_length)
-                        SELECT id, user_id, 
-                               CASE WHEN message_type = 'bot' THEN 'assistant' ELSE 'user' END as role,
-                               content, intent, LENGTH(content)
-                        FROM conversation_history_old
-                    """)
-                    
-                    # Удаляем старую таблицу
-                    cursor.execute("DROP TABLE conversation_history_old")
-                    logger.info(f"Таблица conversation_history успешно мигрирована")
-                    migrations_needed = True
-                except Exception as e:
-                    logger.error(f"Ошибка миграции conversation_history: {e}")
-        except Exception as e:
-            logger.debug(f"Не удалось проверить schema conversation_history: {e}")
+        cursor.execute("PRAGMA table_info(conversation_history)")
+        columns = {row[1] for row in cursor.fetchall()}
+
+        # Convert the legacy schema atomically so a failed copy leaves the original table intact.
+        if 'message_type' in columns and 'role' not in columns:
+            logger.warning("🔄 Миграция conversation_history к новой схеме...")
+            savepoint = "conversation_history_migration"
+            cursor.execute(f"SAVEPOINT {savepoint}")
+            try:
+                cursor.execute("ALTER TABLE conversation_history RENAME TO conversation_history_old")
+                cursor.execute("""
+                    CREATE TABLE conversation_history (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL,
+                        role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+                        content TEXT NOT NULL,
+                        intent TEXT,
+                        timestamp INTEGER DEFAULT (strftime('%s', 'now')),
+                        message_length INTEGER,
+                        tokens_estimate INTEGER,
+                        FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                    )
+                """)
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_conv_user_id ON conversation_history(user_id)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_conv_timestamp ON conversation_history(timestamp)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_conv_role ON conversation_history(role)")
+                cursor.execute("""
+                    INSERT INTO conversation_history (id, user_id, role, content, intent, message_length)
+                    SELECT id, user_id,
+                           CASE WHEN message_type = 'bot' THEN 'assistant' ELSE 'user' END as role,
+                           content, intent, LENGTH(content)
+                    FROM conversation_history_old
+                """)
+                cursor.execute("DROP TABLE conversation_history_old")
+                cursor.execute(f"RELEASE SAVEPOINT {savepoint}")
+            except Exception as e:
+                cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+                cursor.execute(f"RELEASE SAVEPOINT {savepoint}")
+                logger.error(f"Ошибка миграции conversation_history: {e}")
+                raise
+
+            logger.info("Таблица conversation_history успешно мигрирована")
+            migrations_needed = True
         
         # Migration v0.26: Fix conversation_stats schema to match conversation_context.py expectations
         try:
