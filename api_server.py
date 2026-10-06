@@ -7,9 +7,12 @@ import hashlib
 import asyncio
 import base64
 import time
+import ipaddress
+import socket
 from typing import Optional, Any, Dict, List, AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlsplit
 
 # ============================================================================
 # CRITICAL: Prevent API server from running in Railway
@@ -28,6 +31,7 @@ from dotenv import load_dotenv
 from starlette.concurrency import run_in_threadpool
 from tenacity import retry, stop_after_attempt, wait_exponential
 import httpx
+import aiohttp
 
 # DeepSeek AI (OpenAI compatible) + Google Gemini
 from openai import OpenAI
@@ -327,6 +331,121 @@ class ImageAnalysisResponse(BaseModel):
     simplified_text: str  # для совместимости с ботом
     cached: bool = False
     processing_time_ms: Optional[float] = None
+
+
+MAX_IMAGE_DOWNLOAD_BYTES = 5_000_000
+
+
+class PublicAddressResolver(aiohttp.abc.AbstractResolver):
+    """Resolve hostnames only to public addresses before aiohttp connects."""
+
+    def __init__(self, resolver=None):
+        self._resolver = resolver or aiohttp.resolver.DefaultResolver()
+
+    async def resolve(self, host, port=0, family=socket.AF_INET):
+        addresses = await self._resolver.resolve(host, port, family)
+        if not addresses:
+            raise OSError("Image host did not resolve to any addresses")
+
+        for address in addresses:
+            try:
+                resolved_ip = ipaddress.ip_address(address["host"])
+            except ValueError as error:
+                raise OSError("Image host resolved to an invalid IP address") from error
+            if not resolved_ip.is_global:
+                raise OSError("Image host resolved to a non-public IP address")
+
+        return addresses
+
+    async def close(self):
+        await self._resolver.close()
+
+
+def validate_image_download_url(image_url: str):
+    """Reject URL forms that could bypass public-address validation."""
+    try:
+        parsed = urlsplit(image_url)
+        parsed.port
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Некорректный URL изображения",
+        ) from error
+
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.fragment
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="URL изображения должен быть публичным HTTP(S) адресом",
+        )
+
+    return parsed
+
+
+async def fetch_image_from_url(image_url: str) -> tuple[bytes, str]:
+    """Fetch an image without allowing private-network targets or redirects."""
+    validate_image_download_url(image_url)
+    timeout = aiohttp.ClientTimeout(total=10)
+    connector = aiohttp.TCPConnector(
+        resolver=PublicAddressResolver(),
+        use_dns_cache=False,
+    )
+
+    try:
+        async with aiohttp.ClientSession(
+            connector=connector,
+            timeout=timeout,
+            trust_env=False,
+        ) as http_client:
+            async with http_client.get(image_url, allow_redirects=False) as response:
+                if response.status != 200:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Не удалось загрузить изображение по URL",
+                    )
+
+                mime_type = response.headers.get("content-type", "image/jpeg")
+                mime_type = mime_type.split(";", 1)[0].strip().lower()
+                if not mime_type.startswith("image/"):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="URL должен указывать на изображение",
+                    )
+                if response.content_length and response.content_length > MAX_IMAGE_DOWNLOAD_BYTES:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Размер изображения превышает допустимый предел",
+                    )
+
+                image_data = bytearray()
+                async for chunk in response.content.iter_chunked(64 * 1024):
+                    image_data.extend(chunk)
+                    if len(image_data) > MAX_IMAGE_DOWNLOAD_BYTES:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Размер изображения превышает допустимый предел",
+                        )
+
+                if not image_data:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Загруженное изображение пустое",
+                    )
+
+                return bytes(image_data), mime_type
+    except HTTPException:
+        raise
+    except (aiohttp.ClientError, asyncio.TimeoutError, OSError, ValueError) as error:
+        logger.warning(f"Не удалось безопасно загрузить изображение: {error}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Не удалось загрузить изображение по URL",
+        ) from error
 
 # =============================================================================
 # RATE LIMITING
@@ -2117,6 +2236,8 @@ async def analyze_image(payload: ImagePayload, request: Request) -> JSONResponse
     - image_base64: изображение в формате base64 (PNG, JPEG, GIF, WebP)
     - context: дополнительный контекст для анализа
     """
+    verify_api_key(request)
+
     start_time_request = datetime.now(timezone.utc)
     request_counter["total"] += 1
     
@@ -2143,21 +2264,7 @@ async def analyze_image(payload: ImagePayload, request: Request) -> JSONResponse
         # Формируем контент для Gemini Vision API
         if payload.image_url:
             logger.info(f"📸 Анализирую изображение по URL: {payload.image_url[:50]}...")
-            
-            async with httpx.AsyncClient() as http_client:
-                try:
-                    img_response = await http_client.get(payload.image_url, timeout=10.0)
-                    img_response.raise_for_status()
-                    image_data = img_response.content
-                    
-                    # Определяем MIME тип
-                    mime_type = img_response.headers.get("content-type", "image/jpeg")
-                except Exception as e:
-                    logger.error(f"❌ Ошибка при загрузке изображения по URL: {e}")
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Не удалось загрузить изображение по URL"
-                    )
+            image_data, mime_type = await fetch_image_from_url(payload.image_url)
         
         elif payload.image_base64:
             logger.info(f"📸 Анализирую изображение из base64 ({len(payload.image_base64)//1024}KB)...")
