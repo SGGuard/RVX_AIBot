@@ -93,9 +93,6 @@ def cleanup_stale_bot_processes() -> None:
     except Exception as e:
         init_logger.error(f"Cleanup warning: {e}")
 
-# Run cleanup BEFORE anything else - this is the very first thing that runs
-cleanup_stale_bot_processes()
-
 # Fix SQLite3 datetime adapter deprecation warning (Python 3.12+)
 def _adapt_datetime(val: datetime) -> str:
     """Adapter for datetime to ISO format string for SQLite3"""
@@ -2139,8 +2136,12 @@ def migrate_database() -> None:
             logger.warning("Пересоздаём таблицу users с полной схемой...")
             
             try:
-                # Сохраняем существующие данные
-                cursor.execute("SELECT user_id, username FROM users")
+                conn.execute("BEGIN IMMEDIATE")
+
+                # Keep every legacy value whose column exists in the new schema.
+                source_columns = [row[1] for row in cursor.execute("PRAGMA table_info(users)")]
+                preserved_columns = [column for column in source_columns if column in required_columns]
+                cursor.execute("SELECT * FROM users")
                 existing_users = cursor.fetchall()
                 logger.info(f"Сохранено {len(existing_users)} пользователей")
                 
@@ -2170,12 +2171,12 @@ def migrate_database() -> None:
                     )
                 """)
                 
-                # Мигрируем данные
-                for user_id, username in existing_users:
-                    cursor.execute("""
-                        INSERT INTO users (user_id, username, created_at)
-                        VALUES (?, ?, CURRENT_TIMESTAMP)
-                    """, (user_id, username))
+                # Copy legacy fields and let the new schema supply defaults for added columns.
+                columns_sql = ", ".join(preserved_columns)
+                placeholders = ", ".join("?" for _ in preserved_columns)
+                insert_sql = f"INSERT INTO users ({columns_sql}) VALUES ({placeholders})"
+                for user in existing_users:
+                    cursor.execute(insert_sql, tuple(user[column] for column in preserved_columns))
                 
                 # Удаляем старую таблицу
                 cursor.execute("DROP TABLE users_old")
@@ -4948,6 +4949,27 @@ def ensure_backup_dir() -> None:
     os.makedirs(BACKUP_DIR, exist_ok=True)
     logger.info(f"Директория бэкапов готова: {BACKUP_DIR}")
 
+
+def _create_database_backup_file(source_connection: sqlite3.Connection) -> str:
+    """Create a consistent SQLite snapshot, including committed WAL contents."""
+    ensure_backup_dir()
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    backup_path = os.path.join(BACKUP_DIR, f"rvx_bot_backup_{timestamp}.db")
+    backup_connection = sqlite3.connect(backup_path, timeout=10.0)
+    try:
+        source_connection.backup(backup_connection)
+        backup_connection.commit()
+    except Exception:
+        backup_connection.close()
+        try:
+            os.remove(backup_path)
+        except FileNotFoundError:
+            pass
+        raise
+    else:
+        backup_connection.close()
+    return backup_path
+
 async def create_database_backup() -> Tuple[bool, str]:
     """
     💾 Создает резервную копию базы данных.
@@ -4958,18 +4980,8 @@ async def create_database_backup() -> Tuple[bool, str]:
     ensure_backup_dir()
     
     try:
-        db_path = DB_PATH
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_path = os.path.join(BACKUP_DIR, f"rvx_bot_backup_{timestamp}.db")
-        
-        # Используем SQLite VACUUM INTO для безопасного копирования
         with get_db() as conn:
-            # Закрываем все соединения перед бэкапом
-            conn.execute("VACUUM")
-            
-            # Копируем файл с синхронизацией
-            import shutil
-            shutil.copy2(db_path, backup_path)
+            backup_path = _create_database_backup_file(conn)
         
         backup_size_mb = os.path.getsize(backup_path) / (1024 * 1024)
         logger.info(f"Бэкап создан: {backup_path} ({backup_size_mb:.2f} MB)")
@@ -14587,6 +14599,16 @@ async def graceful_shutdown(application) -> None:
     except Exception as e:
         logger.error(f"Ошибка во время graceful shutdown: {e}")
 
+def initialize_database_with_backup() -> None:
+    """Back up the database before running startup schema migrations."""
+    with get_db() as conn:
+        backup_path = _create_database_backup_file(conn)
+    logger.info(f"Создана резервная копия перед миграциями: {backup_path}")
+
+    ensure_conversation_history_columns()
+    init_database()
+
+
 def main() -> None:
     """Запуск бота."""
     # ✅ CRITICAL FIX #5: Валидировать конфигурацию при запуске
@@ -14649,14 +14671,12 @@ def main() -> None:
     print(f"✅ Analytics enabled: {FEATURE_ANALYTICS_ENABLED}")
     print("="*80 + "\n")
     
-    # 🔧 Сначала создаём БД, потом применяем миграции (order matters!)
-    ensure_conversation_history_columns()
-    
-    # Инициализация БД (создаёт все таблицы)
-    init_database()
-    
-    # Затем применяем миграции (после того как таблицы существуют)
-    migrate_database()  # ✅ v0.37.0: Миграция новых таблиц
+    # Back up before the first startup schema change; retain the existing init order.
+    try:
+        initialize_database_with_backup()
+    except Exception as e:
+        logger.critical(f"Не удалось создать резервную копию перед миграциями: {e}", exc_info=True)
+        return
     
     # ✅ v0.39.0: Verify database schema integrity
     schema_check = verify_database_schema()
