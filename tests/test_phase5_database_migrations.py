@@ -22,6 +22,8 @@ from contextlib import contextmanager
 from pathlib import Path
 import tempfile
 
+from bot import check_column_exists
+
 
 @contextmanager
 def get_test_db():
@@ -42,64 +44,33 @@ class TestCheckColumnExists:
     
     def test_column_exists(self):
         """Test detecting existing column."""
-        try:
-            with get_test_db() as conn:
-                cursor = conn.cursor()
-                
-                # Create test table
-                cursor.execute("""
-                    CREATE TABLE test_table (
-                        id INTEGER PRIMARY KEY,
-                        name TEXT
-                    )
-                """)
-                
-                # Check for existing column
-                cursor.execute("PRAGMA table_info(test_table)")
-                columns = {row[1] for row in cursor.fetchall()}
-                
-                assert "name" in columns
-        except Exception:
-            pass
+        with get_test_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                CREATE TABLE users (
+                    user_id INTEGER PRIMARY KEY,
+                    username TEXT
+                )
+            """)
+
+            assert check_column_exists(cursor, "users", "username")
     
     def test_column_does_not_exist(self):
         """Test detecting non-existing column."""
-        try:
-            with get_test_db() as conn:
-                cursor = conn.cursor()
-                
-                # Create test table
-                cursor.execute("""
-                    CREATE TABLE test_table (
-                        id INTEGER PRIMARY KEY
-                    )
-                """)
-                
-                # Check for non-existing column
-                cursor.execute("PRAGMA table_info(test_table)")
-                columns = {row[1] for row in cursor.fetchall()}
-                
-                assert "nonexistent" not in columns
-        except Exception:
-            pass
+        with get_test_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("CREATE TABLE users (user_id INTEGER PRIMARY KEY)")
+
+            assert not check_column_exists(cursor, "users", "nonexistent")
     
     def test_column_exists_case_sensitive(self):
         """Test column checking is case sensitive."""
-        try:
-            with get_test_db() as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    CREATE TABLE test (id INTEGER, Name TEXT)
-                """)
-                
-                cursor.execute("PRAGMA table_info(test)")
-                columns = {row[1] for row in cursor.fetchall()}
-                
-                assert "Name" in columns
-                # SQLite is case-insensitive for names, but stores as provided
-        except Exception:
-            pass
+        with get_test_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("CREATE TABLE users (user_id INTEGER, Name TEXT)")
+
+            assert check_column_exists(cursor, "users", "Name")
+            assert not check_column_exists(cursor, "users", "name")
 
 
 class TestAlterTableMigrations:
