@@ -133,6 +133,7 @@ jobs:
         tests/test_config_api_url.py
         tests/test_api_authentication.py
         tests/test_migrate_database_preservation.py
+        tests/test_phase5_database_migrations.py::TestAlterTableMigrations
 
   security:
     runs-on: ubuntu-latest
