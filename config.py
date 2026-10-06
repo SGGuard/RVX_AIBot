@@ -4,9 +4,59 @@
 
 import os
 import pathlib
+from urllib.parse import urlsplit, urlunsplit
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def resolve_api_url(raw_url: str | None = None) -> str:
+    """Normalize a backend URL to the final /explain_news endpoint."""
+    candidate = (raw_url or os.getenv("API_URL_NEWS") or os.getenv("API_URL") or "http://localhost:8000").strip()
+    if not candidate:
+        candidate = "http://localhost:8000"
+
+    parsed = urlsplit(candidate)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError("API URL must be an absolute HTTP(S) URL with a hostname")
+    if parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise ValueError("API URL must not contain credentials, a query, or a fragment")
+
+    path = parsed.path.rstrip("/")
+    if path.endswith("/health"):
+        path = path[:-len("/health")]
+    if not path.endswith("/explain_news"):
+        path = f"{path}/explain_news"
+
+    return urlunsplit((parsed.scheme, parsed.netloc, path, "", ""))
+
+
+def resolve_api_base_url(raw_url: str | None = None) -> str:
+    """Return the base API origin without the /explain_news route."""
+    return resolve_api_url(raw_url).removesuffix("/explain_news")
+
+
+def build_api_headers(user_id: int | None = None) -> dict[str, str]:
+    """Create authenticated headers for bot-to-backend requests."""
+    if not BOT_API_KEY.strip():
+        raise ValueError("BOT_API_KEY is required for authenticated backend requests")
+
+    headers = {"Authorization": f"Bearer {BOT_API_KEY.strip()}"}
+    if user_id is not None:
+        headers["X-User-ID"] = str(user_id)
+    return headers
+
+
+def validate_api_url(url: str, insecure_hosts: set[str] | None = None) -> None:
+    """Require HTTPS except for explicitly trusted local/private service hosts."""
+    parsed = urlsplit(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError("API URL must be an absolute HTTP(S) URL with a hostname")
+    if parsed.scheme == "http":
+        allowed_hosts = {"localhost", "127.0.0.1", "::1"}
+        allowed_hosts.update(host.lower() for host in (insecure_hosts or set()))
+        if parsed.hostname.lower() not in allowed_hosts:
+            raise ValueError("Remote API_URL_NEWS must use HTTPS")
 
 # ============================================================================
 # TELEGRAM CONFIGURATION
@@ -18,10 +68,13 @@ TELEGRAM_API_HASH = os.getenv("TELEGRAM_API_HASH", "")
 # ============================================================================
 # API SERVER CONFIGURATION
 # ============================================================================
-API_URL_NEWS = os.getenv("API_URL_NEWS", "http://localhost:8000")
-API_EXPLAIN_NEWS_ENDPOINT = f"{API_URL_NEWS}/explain_news"
-API_HEALTH_ENDPOINT = f"{API_URL_NEWS}/health"
+API_URL_NEWS = resolve_api_url(os.getenv("API_URL_NEWS") or os.getenv("API_URL"))
+API_BASE_URL = resolve_api_base_url(API_URL_NEWS)
+API_EXPLAIN_NEWS_ENDPOINT = API_URL_NEWS
+API_HEALTH_ENDPOINT = f"{API_BASE_URL}/health"
 API_TIMEOUT_SECONDS = int(float(os.getenv("API_TIMEOUT", "10")))
+
+BOT_API_KEY = os.getenv("BOT_API_KEY", "")
 
 # ============================================================================
 # AI MODEL CONFIGURATION
@@ -187,7 +240,7 @@ PORT = int(os.getenv("PORT", "8000"))
 # ============================================================================
 # VALIDATION
 # ============================================================================
-def validate_config():
+def validate_config(require_bot: bool = True):
     """
     Проверить критические значения конфигурации.
     
@@ -205,8 +258,11 @@ def validate_config():
     warnings = []
     
     # CRITICAL CHECKS
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_BOT_TOKEN.strip():
-        errors.append("❌ TELEGRAM_BOT_TOKEN не установлен или пустой")
+    if require_bot:
+        if not TELEGRAM_BOT_TOKEN or not TELEGRAM_BOT_TOKEN.strip():
+            errors.append("❌ TELEGRAM_BOT_TOKEN не установлен или пустой")
+        if not BOT_API_KEY.strip():
+            errors.append("❌ BOT_API_KEY не установлен или пустой")
     
     # Check at least one AI provider is configured
     providers_configured = sum([
@@ -219,9 +275,16 @@ def validate_config():
         errors.append("❌ Ни один AI провайдер не настроен (требуется GROQ_API_KEY, MISTRAL_API_KEY или GEMINI_API_KEY)")
     
     # HTTPS CHECK for remote APIs
-    if API_URL_NEWS and not API_URL_NEWS.startswith(("http://localhost", "http://127.0.0.1")):
-        if not API_URL_NEWS.startswith("https://"):
-            errors.append(f"❌ SECURITY: API_URL_NEWS должен использовать HTTPS для remote URLs: {API_URL_NEWS}")
+    if require_bot:
+        insecure_hosts = {
+            host.strip().lower()
+            for host in os.getenv("API_INSECURE_HOSTS", "").split(",")
+            if host.strip()
+        }
+        try:
+            validate_api_url(API_URL_NEWS, insecure_hosts=insecure_hosts)
+        except ValueError as e:
+            errors.append(f"❌ SECURITY: {e}")
     
     # PRODUCTION CHECKS
     if ENVIRONMENT == "production":
