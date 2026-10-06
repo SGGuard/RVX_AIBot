@@ -121,6 +121,75 @@ def test_migrate_database_preserves_existing_user_fields(migration_db):
     )
 
 
+def test_migrate_database_transitions_legacy_conversation_history(migration_db):
+    connection = sqlite3.connect(migration_db)
+    connection.execute(
+        """
+        CREATE TABLE conversation_history (
+            id INTEGER PRIMARY KEY,
+            user_id INTEGER,
+            message_type TEXT,
+            content TEXT,
+            intent TEXT,
+            created_at TEXT
+        )
+        """
+    )
+    connection.executemany(
+        """
+        INSERT INTO conversation_history
+            (id, user_id, message_type, content, intent, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (1, 42, "bot", "Bot response", "answer", "2024-02-03 04:05:06"),
+            (2, 42, "user", "User prompt", "question", "2024-02-03 04:06:07"),
+        ],
+    )
+    connection.commit()
+    connection.close()
+
+    bot.migrate_database()
+
+    connection = sqlite3.connect(migration_db)
+    try:
+        columns = {
+            row[1]
+            for row in connection.execute(
+                "PRAGMA table_info(conversation_history)"
+            ).fetchall()
+        }
+        rows = connection.execute(
+            """
+            SELECT id, user_id, role, content, intent, message_length,
+                   timestamp, tokens_estimate
+            FROM conversation_history ORDER BY id
+            """
+        ).fetchall()
+        old_table = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='conversation_history_old'"
+        ).fetchone()
+    finally:
+        connection.close()
+
+    assert columns == {
+        "id",
+        "user_id",
+        "role",
+        "content",
+        "intent",
+        "timestamp",
+        "message_length",
+        "tokens_estimate",
+    }
+    assert [row[:6] + row[7:] for row in rows] == [
+        (1, 42, "assistant", "Bot response", "answer", 12, None),
+        (2, 42, "user", "User prompt", "question", 11, None),
+    ]
+    assert all(row[6] is not None for row in rows)
+    assert old_table is None
+
+
 def test_startup_backup_precedes_schema_rebuild(migration_db, monkeypatch):
     monkeypatch.setattr(bot, "ensure_conversation_history_columns", lambda: None)
     monkeypatch.setattr(bot, "init_database", bot.migrate_database)
