@@ -34,10 +34,7 @@ def get_test_db():
         yield conn
     finally:
         conn.close()
-        try:
-            Path(db_path).unlink()
-        except:
-            pass
+        Path(db_path).unlink(missing_ok=True)
 
 
 class TestCheckColumnExists:
@@ -110,113 +107,75 @@ class TestAlterTableMigrations:
     
     def test_add_column_migration(self):
         """Test adding a column via migration."""
-        try:
-            with get_test_db() as conn:
-                cursor = conn.cursor()
-                
-                # Initial schema
-                cursor.execute("""
-                    CREATE TABLE users (
-                        user_id INTEGER PRIMARY KEY,
-                        username TEXT
-                    )
-                """)
-                
-                # Migration: Add new column
-                cursor.execute("ALTER TABLE users ADD COLUMN is_banned BOOLEAN DEFAULT 0")
-                conn.commit()
-                
-                # Verify column exists
-                cursor.execute("PRAGMA table_info(users)")
-                columns = {row[1] for row in cursor.fetchall()}
-                
-                assert "is_banned" in columns
-        except Exception:
-            pass
+        with get_test_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                CREATE TABLE users (
+                    user_id INTEGER PRIMARY KEY,
+                    username TEXT
+                )
+            """)
+            cursor.execute("ALTER TABLE users ADD COLUMN is_banned BOOLEAN DEFAULT 0")
+            conn.commit()
+            cursor.execute("PRAGMA table_info(users)")
+            columns = {row[1] for row in cursor.fetchall()}
+
+            assert "is_banned" in columns
     
     def test_add_multiple_columns_migration(self):
         """Test adding multiple columns in sequence."""
-        try:
-            with get_test_db() as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("CREATE TABLE users (user_id INTEGER PRIMARY KEY)")
-                
-                # Add columns one by one
-                cursor.execute("ALTER TABLE users ADD COLUMN is_banned BOOLEAN DEFAULT 0")
-                cursor.execute("ALTER TABLE users ADD COLUMN ban_reason TEXT")
-                cursor.execute("ALTER TABLE users ADD COLUMN daily_requests INTEGER DEFAULT 0")
-                conn.commit()
-                
-                cursor.execute("PRAGMA table_info(users)")
-                columns = {row[1] for row in cursor.fetchall()}
-                
-                assert "is_banned" in columns
-                assert "ban_reason" in columns
-                assert "daily_requests" in columns
-        except Exception:
-            pass
+        with get_test_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("CREATE TABLE users (user_id INTEGER PRIMARY KEY)")
+            cursor.execute("ALTER TABLE users ADD COLUMN is_banned BOOLEAN DEFAULT 0")
+            cursor.execute("ALTER TABLE users ADD COLUMN ban_reason TEXT")
+            cursor.execute("ALTER TABLE users ADD COLUMN daily_requests INTEGER DEFAULT 0")
+            conn.commit()
+            cursor.execute("PRAGMA table_info(users)")
+            columns = {row[1] for row in cursor.fetchall()}
+
+            assert "is_banned" in columns
+            assert "ban_reason" in columns
+            assert "daily_requests" in columns
     
     def test_column_migration_with_default_value(self):
         """Test column migration with default value."""
-        try:
-            with get_test_db() as conn:
-                cursor = conn.cursor()
-                
-                # Create table with existing data
-                cursor.execute("CREATE TABLE users (user_id INTEGER, username TEXT)")
-                cursor.execute("INSERT INTO users VALUES (1, 'alice'), (2, 'bob')")
-                
-                # Add column with default
-                cursor.execute("ALTER TABLE users ADD COLUMN level INTEGER DEFAULT 1")
-                conn.commit()
-                
-                # Verify default was applied
-                cursor.execute("SELECT level FROM users WHERE user_id = 1")
-                level = cursor.fetchone()[0]
-                
-                assert level == 1
-        except Exception:
-            pass
+        with get_test_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("CREATE TABLE users (user_id INTEGER, username TEXT)")
+            cursor.execute("INSERT INTO users VALUES (1, 'alice'), (2, 'bob')")
+            cursor.execute("ALTER TABLE users ADD COLUMN level INTEGER DEFAULT 1")
+            conn.commit()
+            cursor.execute("SELECT level FROM users WHERE user_id = 1")
+            level = cursor.fetchone()[0]
+
+            assert level == 1
     
     def test_column_migration_with_constraint(self):
         """Test column migration with CHECK constraint."""
-        try:
-            with get_test_db() as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    CREATE TABLE users (
-                        user_id INTEGER PRIMARY KEY
-                    )
-                """)
-                
-                # Add column with constraint
-                cursor.execute("""
-                    ALTER TABLE users ADD COLUMN level INTEGER DEFAULT 1 CHECK(level > 0)
-                """)
-                conn.commit()
-                
-                cursor.execute("PRAGMA table_info(users)")
-                columns = {row[1] for row in cursor.fetchall()}
-                
-                assert "level" in columns
-        except Exception:
-            pass
+        with get_test_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                CREATE TABLE users (
+                    user_id INTEGER PRIMARY KEY
+                )
+            """)
+            cursor.execute("""
+                ALTER TABLE users ADD COLUMN level INTEGER DEFAULT 1 CHECK(level > 0)
+            """)
+            conn.commit()
+            cursor.execute("PRAGMA table_info(users)")
+            columns = {row[1] for row in cursor.fetchall()}
+
+            assert "level" in columns
     
     def test_alter_table_on_nonexistent_table_error(self):
         """Test ALTER TABLE on non-existent table raises error."""
-        try:
-            with get_test_db() as conn:
-                cursor = conn.cursor()
-                
-                try:
-                    cursor.execute("ALTER TABLE nonexistent ADD COLUMN col TEXT")
-                except sqlite3.OperationalError:
-                    # Expected error
-                    pass
-        except Exception:
-            pass
+        with get_test_db() as conn:
+            cursor = conn.cursor()
+
+            with pytest.raises(sqlite3.OperationalError, match="no such table"):
+                cursor.execute("ALTER TABLE nonexistent ADD COLUMN col TEXT")
 
 
 class TestTableCreationMigrations:
