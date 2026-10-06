@@ -190,6 +190,97 @@ def test_migrate_database_transitions_legacy_conversation_history(migration_db):
     assert old_table is None
 
 
+def test_startup_aborts_on_failed_conversation_history_transition_preserving_source(
+    migration_db, monkeypatch
+):
+    connection = sqlite3.connect(migration_db)
+    connection.execute(
+        """
+        CREATE TABLE conversation_history (
+            id INTEGER PRIMARY KEY,
+            user_id INTEGER,
+            message_type TEXT,
+            content TEXT,
+            intent TEXT,
+            created_at TEXT
+        )
+        """
+    )
+    connection.execute(
+        """
+        INSERT INTO conversation_history
+            (id, user_id, message_type, content, intent, created_at)
+        VALUES (1, 42, 'bot', 'Original response', 'answer', '2024-02-03 04:05:06')
+        """
+    )
+    connection.commit()
+    connection.close()
+
+    original_get_db = bot.get_db
+    operations = []
+
+    def fail_when_dropping_old_history(action, table, column, database, trigger):
+        if action == sqlite3.SQLITE_INSERT and table == "conversation_history":
+            operations.append("copy-row")
+        if action == sqlite3.SQLITE_DROP_TABLE and table == "conversation_history_old":
+            operations.append("drop-old-table")
+            return sqlite3.SQLITE_DENY
+        return sqlite3.SQLITE_OK
+
+    @contextmanager
+    def get_db_with_late_failure():
+        with original_get_db() as migration_connection:
+            migration_connection.set_authorizer(fail_when_dropping_old_history)
+            yield migration_connection
+
+    monkeypatch.setattr(bot, "get_db", get_db_with_late_failure)
+
+    startup_steps = []
+    monkeypatch.setattr(
+        bot,
+        "ensure_conversation_history_columns",
+        lambda: startup_steps.append("ensure"),
+    )
+
+    def initialize_database():
+        startup_steps.append("init")
+        bot.migrate_database()
+
+    monkeypatch.setattr(bot, "init_database", initialize_database)
+
+    with pytest.raises(sqlite3.DatabaseError, match="not authorized"):
+        bot.initialize_database_with_backup()
+
+    assert startup_steps == ["ensure", "init"]
+    assert operations.index("copy-row") < operations.index("drop-old-table")
+
+    connection = sqlite3.connect(migration_db)
+    try:
+        columns = {
+            row[1]
+            for row in connection.execute(
+                "PRAGMA table_info(conversation_history)"
+            ).fetchall()
+        }
+        rows = connection.execute(
+            """
+            SELECT id, user_id, message_type, content, intent, created_at
+            FROM conversation_history
+            """
+        ).fetchall()
+        old_table = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='conversation_history_old'"
+        ).fetchone()
+    finally:
+        connection.close()
+
+    assert columns == {
+        "id", "user_id", "message_type", "content", "intent", "created_at"
+    }
+    assert rows == [(1, 42, "bot", "Original response", "answer", "2024-02-03 04:05:06")]
+    assert old_table is None
+
+
 def test_startup_backup_precedes_schema_rebuild(migration_db, monkeypatch):
     monkeypatch.setattr(bot, "ensure_conversation_history_columns", lambda: None)
     monkeypatch.setattr(bot, "init_database", bot.migrate_database)
