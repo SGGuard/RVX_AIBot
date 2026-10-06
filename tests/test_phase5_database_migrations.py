@@ -149,72 +149,50 @@ class TestAlterTableMigrations:
                 cursor.execute("ALTER TABLE nonexistent ADD COLUMN col TEXT")
 
 
-class TestTableCreationMigrations:
-    """Test table creation within migration function."""
+class TestSQLiteTableCreation:
+    """Test SQLite table-creation semantics without invoking bot migrations."""
     
-    def test_create_table_if_not_exists(self):
-        """Test CREATE TABLE IF NOT EXISTS in migration."""
-        try:
-            with get_test_db() as conn:
-                cursor = conn.cursor()
-                
-                # First call creates table
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS user_quiz_responses (
-                        id INTEGER PRIMARY KEY,
-                        user_id INTEGER,
-                        is_correct BOOLEAN
-                    )
-                """)
-                
-                # Second call does nothing (already exists)
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS user_quiz_responses (
-                        id INTEGER PRIMARY KEY,
-                        user_id INTEGER,
-                        is_correct BOOLEAN
-                    )
-                """)
-                conn.commit()
-                
-                # Table should exist
-                cursor.execute("""
-                    SELECT name FROM sqlite_master 
-                    WHERE type='table' AND name='user_quiz_responses'
-                """)
-                
-                assert cursor.fetchone() is not None
-        except Exception:
-            pass
+    def test_create_table_if_not_exists_is_idempotent(self):
+        """Repeating CREATE TABLE IF NOT EXISTS preserves existing rows."""
+        with get_test_db() as conn:
+            cursor = conn.cursor()
+            create_table = """
+                CREATE TABLE IF NOT EXISTS user_quiz_responses (
+                    id INTEGER PRIMARY KEY,
+                    user_id INTEGER,
+                    is_correct BOOLEAN
+                )
+            """
+            cursor.execute(create_table)
+            cursor.execute(
+                "INSERT INTO user_quiz_responses (user_id, is_correct) VALUES (?, ?)",
+                (42, 1),
+            )
+            cursor.execute(create_table)
+            conn.commit()
+
+            row = cursor.execute(
+                "SELECT user_id, is_correct FROM user_quiz_responses"
+            ).fetchone()
+
+            assert row == (42, 1)
     
     def test_table_creation_with_foreign_key(self):
-        """Test table creation with foreign key in migration."""
-        try:
-            with get_test_db() as conn:
-                cursor = conn.cursor()
-                
-                # Create parent table
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS users (
-                        user_id INTEGER PRIMARY KEY
-                    )
-                """)
-                
-                # Create child table with FK
-                cursor.execute("""
-                    CREATE TABLE IF NOT EXISTS user_quiz_responses (
-                        id INTEGER PRIMARY KEY,
-                        user_id INTEGER,
-                        FOREIGN KEY (user_id) REFERENCES users(user_id)
-                    )
-                """)
-                conn.commit()
-                
-                # Verify table created
-                cursor.execute("SELECT count(*) FROM user_quiz_responses")
-                assert cursor.fetchone()[0] == 0
-        except Exception:
-            pass
+        """SQLite enforces a declared foreign key when FK checks are enabled."""
+        with get_test_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA foreign_keys = ON")
+            cursor.execute("CREATE TABLE users (user_id INTEGER PRIMARY KEY)")
+            cursor.execute("""
+                CREATE TABLE user_quiz_responses (
+                    id INTEGER PRIMARY KEY,
+                    user_id INTEGER,
+                    FOREIGN KEY (user_id) REFERENCES users(user_id)
+                )
+            """)
+
+            with pytest.raises(sqlite3.IntegrityError, match="FOREIGN KEY constraint failed"):
+                cursor.execute("INSERT INTO user_quiz_responses (user_id) VALUES (?)", (999,))
 
 
 class TestSchemaMigrationTransitions:
