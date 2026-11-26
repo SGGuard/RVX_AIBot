@@ -1509,14 +1509,22 @@ async def request_validation_middleware(request: Request, call_next) -> Response
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next) -> Response:
     """✅ Rate limiting middleware with per-IP support."""
-    if request.url.path in ["/health", "/docs", "/redoc", "/openapi.json"]:
+    if request.url.path in [
+        "/health",
+        "/docs",
+        "/redoc",
+        "/openapi.json",
+        "/analyze_image",
+    ]:
         return await call_next(request)
     
     client_ip = request.client.host if request.client else "unknown"
     
     # IP-based rate limiting
-    allowed = rate_limiter.is_allowed(client_ip)
-    retry_after = rate_limiter.get_retry_after(client_ip) if not allowed else None
+    allowed = await rate_limiter.is_allowed(client_ip)
+    retry_after = (
+        await rate_limiter.get_retry_after(client_ip) if not allowed else None
+    )
     
     if not allowed:
         request_counter["rate_limited"] += 1
@@ -2160,7 +2168,7 @@ async def analyze_image(payload: ImagePayload, request: Request) -> JSONResponse
     try:
         # Проверяем rate limit
         client_ip = request.client.host if request.client else "unknown"
-        if not rate_limiter.is_allowed(client_ip):
+        if not await rate_limiter.is_allowed(client_ip):
             logger.warning(f"⚠️ Rate limit exceeded for IP: {client_ip}")
             request_counter["rate_limited"] += 1
             # PHASE 6b: Record rate limit metric

@@ -1,5 +1,6 @@
 import importlib
 import os
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -25,6 +26,11 @@ def api_server_module(tmp_path_factory):
             os.environ.pop("AUTH_DB_PATH", None)
         else:
             os.environ["AUTH_DB_PATH"] = previous_auth_db_path
+
+
+@pytest.fixture(autouse=True)
+def disable_rate_limiting_for_unrelated_tests(api_server_module, monkeypatch):
+    monkeypatch.setattr(api_server_module, "RATE_LIMIT_ENABLED", False)
 
 
 @pytest.mark.integration
@@ -258,6 +264,40 @@ def test_public_routes_remain_accessible_without_authentication(api_server_modul
     )
     assert verify_response.status_code == 200
     assert verify_response.json()["is_valid"] is False
+
+
+@pytest.mark.integration
+def test_rate_limit_middleware_awaits_async_limiter(api_server_module, monkeypatch):
+    check_rate_limit = AsyncMock(return_value=False)
+    get_retry_after = AsyncMock(return_value=7)
+    monkeypatch.setattr(api_server_module.rate_limiter, "is_allowed", check_rate_limit)
+    monkeypatch.setattr(api_server_module.rate_limiter, "get_retry_after", get_retry_after)
+
+    response = TestClient(api_server_module.app).get("/metrics")
+
+    assert response.status_code == 429
+    check_rate_limit.assert_awaited_once()
+    get_retry_after.assert_awaited_once()
+
+
+@pytest.mark.integration
+def test_analyze_image_awaits_async_limiter(api_server_module, monkeypatch):
+    monkeypatch.setattr(
+        api_server_module.api_key_manager,
+        "verify_api_key",
+        lambda api_key: (api_key == "valid-key", None),
+    )
+    check_rate_limit = AsyncMock(return_value=False)
+    monkeypatch.setattr(api_server_module.rate_limiter, "is_allowed", check_rate_limit)
+
+    response = TestClient(api_server_module.app).post(
+        "/analyze_image",
+        headers={"Authorization": "Bearer valid-key"},
+        json={"image_base64": "dGVzdA=="},
+    )
+
+    assert response.status_code == 429
+    check_rate_limit.assert_awaited_once()
 
 
 @pytest.mark.integration
