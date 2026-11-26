@@ -337,6 +337,7 @@ class TestIntentClassification:
 # TEST CLASS 3: Command Processing
 # ============================================================================
 
+@pytest.mark.usefixtures("initialized_bot_database")
 class TestCommandProcessing:
     """Test command handler execution and routing."""
 
@@ -732,6 +733,7 @@ class TestHandlerPerformance:
 # TEST CLASS 10: Integration Test - Full Handler Flow
 # ============================================================================
 
+@pytest.mark.usefixtures("initialized_bot_database")
 class TestFullHandlerIntegration:
     """Test complete handler workflows end-to-end."""
 

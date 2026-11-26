@@ -347,7 +347,9 @@ class TestResourceLimits:
             pass
 
     @pytest.mark.asyncio
-    async def test_response_timeout_large_metrics(self, admin_update, admin_context):
+    async def test_response_timeout_large_metrics(
+        self, admin_update, admin_context, initialized_bot_database
+    ):
         """Test response timeout with large metrics."""
         admin_context.bot.send_message = AsyncMock(side_effect=asyncio.TimeoutError())
         

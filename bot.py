@@ -14399,7 +14399,7 @@ async def update_leaderboard_cache(context: ContextTypes.DEFAULT_TYPE) -> None:
 # ОБРАБОТКА ОШИБОК
 # =============================================================================
 
-async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Глобальный обработчик ошибок с восстановлением после сетевых ошибок."""
     error = context.error
     

@@ -22,6 +22,18 @@ def test_environment():
     }
 
 
+@pytest.fixture
+def initialized_bot_database(tmp_path, monkeypatch):
+    """Give bot database operations an isolated, fully initialized SQLite file."""
+    import bot
+
+    database_path = tmp_path / "rvx_bot.db"
+    monkeypatch.setattr(bot, "DB_PATH", str(database_path))
+    monkeypatch.setattr(bot, "db_pool", None)
+    bot.init_database()
+    return database_path
+
+
 # ==================== MARKERS ====================
 
 def pytest_configure(config):
