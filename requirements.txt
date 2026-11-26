@@ -28,6 +28,7 @@ openai>=2.14.0,<3.0
 # HTTP & Networking (with upper bounds)
 httpx>=0.28.1,<1.0
 aiohttp>=3.11.10,<4.0
+yarl>=1.17.0,<2.0
 
 # Retry & Resilience (with upper bounds)
 tenacity>=9.0.0,<10.0

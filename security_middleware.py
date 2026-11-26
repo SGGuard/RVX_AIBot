@@ -143,6 +143,12 @@ SECURITY_HEADERS = {
 # Create global rate limiter
 rate_limiter = RateLimiter(requests_per_minute=60)
 
+
+def get_client_ip(request: Request) -> str:
+    """Use the ASGI server's client address, never an untrusted forwarded header."""
+    return request.client.host if request.client else "unknown"
+
+
 async def security_headers_middleware(request: Request, call_next):
     """Add security headers to responses"""
     response = await call_next(request)
@@ -172,11 +178,7 @@ async def request_validation_middleware(request: Request, call_next):
 
 async def rate_limit_middleware(request: Request, call_next):
     """Rate limit requests by IP"""
-    
-    # Get client IP (handle X-Forwarded-For for proxies)
-    client_ip = request.headers.get("X-Forwarded-For", request.client.host)
-    if "," in client_ip:
-        client_ip = client_ip.split(",")[0].strip()
+    client_ip = get_client_ip(request)
     
     # Check rate limit
     is_allowed, error = rate_limiter.is_allowed(client_ip)
@@ -203,10 +205,7 @@ async def request_logging_middleware(request: Request, call_next):
     """Log all requests"""
     start_time = time.time()
     
-    # Get client IP
-    client_ip = request.headers.get("X-Forwarded-For", request.client.host)
-    if "," in client_ip:
-        client_ip = client_ip.split(",")[0].strip()
+    client_ip = get_client_ip(request)
     
     # Log request
     logger.debug(
