@@ -4,13 +4,17 @@ import logging
 import json
 import re
 import hashlib
+import hmac
 import asyncio
 import base64
+import ipaddress
 import secrets
+import socket
 import time
 from typing import Optional, Any, Dict, List, AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urljoin
 
 # ============================================================================
 # CRITICAL: Prevent API server from running in Railway
@@ -28,7 +32,9 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from dotenv import load_dotenv
 from starlette.concurrency import run_in_threadpool
 from tenacity import retry, stop_after_attempt, wait_exponential
+import aiohttp
 import httpx
+from yarl import URL
 
 # DeepSeek AI (OpenAI compatible) + Google Gemini
 from openai import OpenAI
@@ -72,6 +78,7 @@ from audit_logger import audit_logger
 from secrets_manager import get_safe_logger
 from security_middleware import (
     RateLimiter,
+    get_client_ip,
 )
 
 # =============================================================================
@@ -85,6 +92,7 @@ logging.basicConfig(
 logger = logging.getLogger("RVX_API")
 
 load_dotenv()
+USER_ID_SIGNING_SECRET = os.getenv("USER_ID_SIGNING_SECRET", "").strip()
 
 # ✅ CRITICAL FIX #3: Validate configuration on API startup
 # =============================================================================
@@ -306,8 +314,7 @@ class ImagePayload(BaseModel):
         if image_url:
             if not isinstance(image_url, str) or len(image_url) > 2048:
                 raise ValueError("Invalid image_url: must be string and <= 2048 chars")
-            if not (image_url.startswith('http://') or image_url.startswith('https://')):
-                raise ValueError("Invalid image_url: must start with http:// or https://")
+            values["image_url"] = str(validate_image_url(image_url))
         
         # Validate base64 format if provided
         if image_base64:
@@ -318,6 +325,170 @@ class ImagePayload(BaseModel):
                 raise ValueError("Invalid image_base64: contains invalid characters")
         
         return values
+
+
+_IPV6_TRANSITION_NETWORKS = (
+    ipaddress.ip_network("64:ff9b::/96"),
+    ipaddress.ip_network("64:ff9b:1::/48"),
+    ipaddress.ip_network("2002::/16"),
+    ipaddress.ip_network("2001::/32"),
+)
+MAX_IMAGE_DOWNLOAD_BYTES = 10 * 1024 * 1024
+MAX_IMAGE_REDIRECTS = 3
+
+
+def _is_public_ip(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    if isinstance(address, ipaddress.IPv6Address):
+        if address.ipv4_mapped:
+            return _is_public_ip(address.ipv4_mapped)
+        if address.sixtofour or address.teredo:
+            return False
+        if any(address in network for network in _IPV6_TRANSITION_NETWORKS):
+            return False
+    return address.is_global
+
+
+def validate_image_url(image_url: str) -> URL:
+    """Validate URL syntax and reject non-public literal IP addresses."""
+    if (
+        not image_url
+        or len(image_url) > 2048
+        or image_url != image_url.strip()
+        or "\\" in image_url
+        or any(ord(char) < 0x20 for char in image_url)
+    ):
+        raise ValueError("Invalid image URL")
+
+    try:
+        parsed_url = URL(image_url)
+        hostname = parsed_url.host
+        if (
+            parsed_url.scheme not in {"http", "https"}
+            or not parsed_url.is_absolute()
+            or not hostname
+            or parsed_url.user is not None
+            or parsed_url.password is not None
+        ):
+            raise ValueError("Image URL must be an absolute HTTP(S) URL without credentials")
+
+        expected_port = 80 if parsed_url.scheme == "http" else 443
+        if parsed_url.port not in {None, expected_port}:
+            raise ValueError("Image URL must use the default HTTP(S) port")
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Invalid image URL") from exc
+
+    try:
+        literal_address = ipaddress.ip_address(hostname)
+    except ValueError:
+        try:
+            socket.inet_aton(hostname)
+        except OSError:
+            pass
+        else:
+            raise ValueError("Non-standard IP literals are not allowed")
+    else:
+        if not _is_public_ip(literal_address):
+            raise ValueError("Image URL must not target a non-public IP address")
+
+    return parsed_url
+
+
+def _parse_trusted_proxy_ips(value: str) -> list[str]:
+    trusted_proxies = [entry.strip() for entry in value.split(",")]
+    if not trusted_proxies or any(not entry for entry in trusted_proxies):
+        raise ValueError("FORWARDED_ALLOW_IPS must contain trusted proxy IPs or CIDRs")
+    if "*" in trusted_proxies:
+        raise ValueError("FORWARDED_ALLOW_IPS must not trust every source")
+
+    try:
+        normalized_proxies = []
+        for proxy in trusted_proxies:
+            network = ipaddress.ip_network(proxy, strict=False)
+            normalized_proxies.append(
+                str(network) if "/" in proxy else str(network.network_address)
+            )
+    except ValueError as exc:
+        raise ValueError(
+            "FORWARDED_ALLOW_IPS must contain only IP addresses or CIDRs"
+        ) from exc
+
+    return normalized_proxies
+
+
+class PublicAddressResolver(aiohttp.abc.AbstractResolver):
+    """Resolve hostnames only when every result is a public unicast address."""
+
+    def __init__(self) -> None:
+        self._resolver = aiohttp.resolver.DefaultResolver()
+
+    async def resolve(
+        self,
+        host: str,
+        port: int = 0,
+        family: socket.AddressFamily = socket.AF_INET,
+    ) -> list[dict[str, Any]]:
+        addresses = await self._resolver.resolve(host, port, family)
+        if not addresses:
+            raise OSError("Image hostname did not resolve")
+
+        for result in addresses:
+            try:
+                address = ipaddress.ip_address(result["host"])
+            except ValueError as exc:
+                raise OSError("Image hostname resolved to an invalid IP address") from exc
+            if not _is_public_ip(address):
+                raise OSError("Image hostname resolved to a non-public IP address")
+
+        return addresses
+
+    async def close(self) -> None:
+        await self._resolver.close()
+
+
+async def download_image_from_url(image_url: str) -> tuple[bytes, str]:
+    """Fetch an image without allowing private-network targets or unsafe redirects."""
+    current_url = validate_image_url(image_url)
+    timeout = aiohttp.ClientTimeout(total=10)
+    connector = aiohttp.TCPConnector(
+        resolver=PublicAddressResolver(),
+        use_dns_cache=False,
+    )
+
+    async with aiohttp.ClientSession(
+        connector=connector,
+        timeout=timeout,
+        trust_env=False,
+    ) as http_client:
+        for redirect_count in range(MAX_IMAGE_REDIRECTS + 1):
+            async with http_client.get(current_url, allow_redirects=False) as response:
+                if response.status in {301, 302, 303, 307, 308}:
+                    location = response.headers.get("Location")
+                    if not location or redirect_count == MAX_IMAGE_REDIRECTS:
+                        raise ValueError("Image URL redirect limit exceeded or location missing")
+                    target = URL(urljoin(str(current_url), location))
+                    current_url = validate_image_url(str(target))
+                    continue
+
+                response.raise_for_status()
+                mime_type = response.content_type
+                if not mime_type.startswith("image/"):
+                    raise ValueError("Image URL response is not an image")
+                if (
+                    response.content_length is not None
+                    and response.content_length > MAX_IMAGE_DOWNLOAD_BYTES
+                ):
+                    raise ValueError("Image URL response exceeds the size limit")
+
+                image_data = bytearray()
+                async for chunk in response.content.iter_chunked(64 * 1024):
+                    if len(image_data) + len(chunk) > MAX_IMAGE_DOWNLOAD_BYTES:
+                        raise ValueError("Image URL response exceeds the size limit")
+                    image_data.extend(chunk)
+                if not image_data:
+                    raise ValueError("Image URL response is empty")
+                return bytes(image_data), mime_type
+
+    raise ValueError("Image URL redirect limit exceeded")
 
 class ImageAnalysisResponse(BaseModel):
     """Ответ API с анализом изображения."""
@@ -1518,7 +1689,7 @@ async def rate_limit_middleware(request: Request, call_next) -> Response:
     ]:
         return await call_next(request)
     
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = get_client_ip(request)
     
     # IP-based rate limiting
     allowed = await rate_limiter.is_allowed(client_ip)
@@ -1611,6 +1782,36 @@ def verify_api_key(request: Request) -> str:
     return api_key
 
 
+def get_verified_user_id(request: Request) -> int | None:
+    """Return a bot-signed Telegram user ID, or reject an untrusted claim."""
+    user_id = request.headers.get("X-User-ID")
+    signature = request.headers.get("X-User-ID-Signature")
+    if user_id is None and signature is None:
+        return None
+    if (
+        not USER_ID_SIGNING_SECRET
+        or user_id is None
+        or signature is None
+        or len(user_id) > 20
+        or not user_id.isascii()
+        or not user_id.isdecimal()
+        or int(user_id) < 1
+        or str(int(user_id)) != user_id
+        or len(signature) != 64
+        or not re.fullmatch(r"[0-9a-f]{64}", signature)
+    ):
+        raise HTTPException(status_code=401, detail="Invalid user identity")
+
+    expected_signature = hmac.new(
+        USER_ID_SIGNING_SECRET.encode("utf-8"),
+        user_id.encode("ascii"),
+        hashlib.sha256,
+    ).hexdigest()
+    if not secrets.compare_digest(signature, expected_signature):
+        raise HTTPException(status_code=401, detail="Invalid user identity")
+    return int(user_id)
+
+
 def verify_admin_token(request: Request) -> None:
     """Require the configured admin token using a constant-time comparison."""
     expected_token = os.getenv("ADMIN_TOKEN", "")
@@ -1623,7 +1824,7 @@ def verify_admin_token(request: Request) -> None:
             expected_token.encode("utf-8"),
         )
     ):
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = get_client_ip(request)
         logger.warning(f"⚠️ Invalid admin token from {client_ip}")
         raise HTTPException(status_code=403, detail="Invalid admin token")
 
@@ -1921,11 +2122,8 @@ async def explain_news(payload: NewsPayload, request: Request) -> JSONResponse:
     text_hash = hash_text(news_text)
     
     # Получаем user_id из заголовков
-    user_id_header = request.headers.get("X-User-ID", "anonymous")
-    try:
-        user_id = int(user_id_header)
-    except (ValueError, TypeError):
-        user_id = "anonymous"
+    verified_user_id = get_verified_user_id(request)
+    user_id = verified_user_id if verified_user_id is not None else "anonymous"
     
     logger.info(f"📰 Запрос анализа новости от {user_id}: {len(news_text)} символов | Hash: {text_hash[:8]}...")
     
@@ -2159,15 +2357,12 @@ async def analyze_image(payload: ImagePayload, request: Request) -> JSONResponse
     request_counter["total"] += 1
     
     # Получаем user_id из заголовков
-    user_id_header = request.headers.get("X-User-ID", "anonymous")
-    try:
-        user_id = int(user_id_header)
-    except (ValueError, TypeError):
-        user_id = 0
+    verified_user_id = get_verified_user_id(request)
+    user_id = verified_user_id if verified_user_id is not None else 0
     
     try:
         # Проверяем rate limit
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = get_client_ip(request)
         if not await rate_limiter.is_allowed(client_ip):
             logger.warning(f"⚠️ Rate limit exceeded for IP: {client_ip}")
             request_counter["rate_limited"] += 1
@@ -2180,22 +2375,18 @@ async def analyze_image(payload: ImagePayload, request: Request) -> JSONResponse
         
         # Формируем контент для Gemini Vision API
         if payload.image_url:
-            logger.info(f"📸 Анализирую изображение по URL: {payload.image_url[:50]}...")
-            
-            async with httpx.AsyncClient() as http_client:
-                try:
-                    img_response = await http_client.get(payload.image_url, timeout=10.0)
-                    img_response.raise_for_status()
-                    image_data = img_response.content
-                    
-                    # Определяем MIME тип
-                    mime_type = img_response.headers.get("content-type", "image/jpeg")
-                except Exception as e:
-                    logger.error(f"❌ Ошибка при загрузке изображения по URL: {e}")
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Не удалось загрузить изображение по URL"
-                    )
+            logger.info("📸 Загружаю изображение по URL после SSRF-проверки")
+            try:
+                image_data, mime_type = await download_image_from_url(payload.image_url)
+            except (aiohttp.ClientError, asyncio.TimeoutError, ValueError) as error:
+                logger.warning(
+                    "Image URL fetch rejected or failed: %s",
+                    type(error).__name__,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Не удалось безопасно загрузить изображение по URL",
+                ) from error
         
         elif payload.image_base64:
             logger.info(f"📸 Анализирую изображение из base64 ({len(payload.image_base64)//1024}KB)...")
@@ -2873,12 +3064,17 @@ if __name__ == "__main__":
     import uvicorn
     
     port = int(os.getenv("PORT", "8000"))
+    host = os.getenv("HOST", "127.0.0.1")
     logger.info(f"🚀 Запуск сервера на порту {port}")
     
     uvicorn.run(
         "api_server:app",
-        host="0.0.0.0",
+        host=host,
         port=port,
         reload=False,
-        log_level="info"
+        log_level="info",
+        proxy_headers=True,
+        forwarded_allow_ips=_parse_trusted_proxy_ips(
+            os.getenv("FORWARDED_ALLOW_IPS", "127.0.0.1,::1")
+        ),
     )

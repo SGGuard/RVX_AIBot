@@ -1,3 +1,7 @@
+import hashlib
+import hmac
+import pathlib
+
 import pytest
 
 import config
@@ -35,12 +39,16 @@ def test_http_allowlist_matches_exact_host():
         validate_api_url("http://api.internal.example/explain_news", insecure_hosts={"api"})
 
 
-def test_build_api_headers_uses_shared_key_and_user_id(monkeypatch):
+def test_build_api_headers_signs_user_id(monkeypatch):
     monkeypatch.setattr(config, "BOT_API_KEY", "test-key")
+    monkeypatch.setattr(config, "USER_ID_SIGNING_SECRET", "s" * 32)
 
     assert build_api_headers(42) == {
         "Authorization": "Bearer test-key",
         "X-User-ID": "42",
+        "X-User-ID-Signature": hmac.new(
+            b"s" * 32, b"42", hashlib.sha256
+        ).hexdigest(),
     }
 
 
@@ -49,3 +57,23 @@ def test_build_api_headers_fails_without_key(monkeypatch):
 
     with pytest.raises(ValueError, match="BOT_API_KEY"):
         build_api_headers()
+
+
+def test_database_path_rejects_prefix_sibling(tmp_path, monkeypatch):
+    app_dir = tmp_path / "app"
+    home_dir = tmp_path / "home"
+    temp_dir = tmp_path / "tmp"
+    sibling_path = tmp_path / "app-elsewhere" / "data.db"
+    app_dir.mkdir()
+    home_dir.mkdir()
+    temp_dir.mkdir()
+    monkeypatch.chdir(app_dir)
+    monkeypatch.setattr(
+        pathlib.Path,
+        "home",
+        classmethod(lambda _cls: home_dir),
+    )
+    monkeypatch.setattr(config.tempfile, "gettempdir", lambda: str(temp_dir))
+
+    with pytest.raises(ValueError, match="outside safe directories"):
+        config._validate_and_resolve_db_path(str(sibling_path))

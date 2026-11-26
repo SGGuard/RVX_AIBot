@@ -214,8 +214,18 @@ def test_metrics_structure():
             'ERROR_COUNTER': ['error_type', 'severity']
         }
         
+        metrics = {
+            'REQUEST_COUNTER': REQUEST_COUNTER,
+            'REQUEST_ERRORS': REQUEST_ERRORS,
+            'RESPONSE_TIME': RESPONSE_TIME,
+            'CACHE_HIT_RATIO': CACHE_HIT_RATIO,
+            'PROVIDER_LATENCY': PROVIDER_LATENCY,
+            'DB_QUERY_TIME': DB_QUERY_TIME,
+            'ERROR_COUNTER': ERROR_COUNTER,
+        }
+
         for metric_name, expected_labels in metrics_config.items():
-            metric = eval(metric_name)
+            metric = metrics[metric_name]
             # Verify metric is initialized
             assert metric is not None, f"{metric_name} not initialized"
             print(f"✅ {metric_name}: Properly initialized with labels {expected_labels}")
