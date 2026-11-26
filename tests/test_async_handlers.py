@@ -83,6 +83,51 @@ def async_test_runner():
 
 class TestHandleMessageAsync:
     """Test async message handler."""
+
+    @pytest.mark.asyncio
+    async def test_handle_message_rejects_oversized_raw_text(
+        self, mock_async_update, mock_async_context, monkeypatch
+    ):
+        from bot import handle_message
+
+        monkeypatch.setattr("bot.MAX_INPUT_LENGTH", 12)
+        mock_async_update.message.text = "x" * 13
+
+        with patch(
+            "bot.check_channel_subscription",
+            new=AsyncMock(return_value=True),
+        ):
+            with patch("bot.get_text", new=AsyncMock(return_value="too long")):
+                with patch("bot.validate_user_input") as validate_input:
+                    await handle_message(mock_async_update, mock_async_context)
+
+        validate_input.assert_not_called()
+        mock_async_update.message.reply_text.assert_awaited_once_with("too long")
+
+    @pytest.mark.asyncio
+    async def test_handle_message_awaits_ip_rate_limiter(
+        self, mock_async_update, mock_async_context
+    ):
+        from bot import handle_message
+
+        with patch(
+            "bot.check_channel_subscription",
+            new=AsyncMock(return_value=True),
+        ):
+            with patch("bot.get_text", new=AsyncMock(return_value="rate limited")):
+                with patch(
+                    "bot.rate_limiter.check_rate_limit",
+                    new=AsyncMock(return_value=False),
+                ) as check_rate_limit:
+                    with patch(
+                        "bot.rate_limiter.get_remaining_requests",
+                        new=AsyncMock(return_value=0),
+                    ) as get_remaining_requests:
+                        await handle_message(mock_async_update, mock_async_context)
+
+        check_rate_limit.assert_awaited_once()
+        get_remaining_requests.assert_awaited_once()
+        mock_async_update.message.reply_text.assert_awaited_once()
     
     @pytest.mark.asyncio
     async def test_handle_message_success(

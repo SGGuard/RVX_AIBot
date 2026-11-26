@@ -78,8 +78,8 @@ class TestInputValidators:
         is_valid, error = validate_user_input("")
         assert is_valid is False
     
-    def test_too_long_input(self):
-        """Long input should be truncated to the supported message length."""
+    def test_overlong_input_is_truncated_to_schema_limit(self):
+        """The standalone input sanitizer truncates oversized messages."""
         from input_validators import MAX_MESSAGE_LENGTH
 
         long_text = "x" * (MAX_MESSAGE_LENGTH + 1)
