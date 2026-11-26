@@ -20,9 +20,6 @@ import json
 from typing import List
 from unittest.mock import patch, MagicMock
 
-import sys
-sys.path.insert(0, '/home/sv4096/rvx_backend')
-
 # Import modules under test
 from sql_validator import SQLValidator, sql_validator
 from input_validators import validate_user_input, UserMessageInput, sanitize_for_display
@@ -81,10 +78,17 @@ class TestInputValidators:
         is_valid, error = validate_user_input("")
         assert is_valid is False
     
-    def test_too_long_input(self):
-        """Too long input should fail validation."""
-        is_valid, error = validate_user_input("x" * 10000)
-        assert is_valid is False
+    def test_overlong_input_is_truncated_to_schema_limit(self):
+        """The standalone input sanitizer truncates oversized messages."""
+        from input_validators import MAX_MESSAGE_LENGTH
+
+        long_text = "x" * (MAX_MESSAGE_LENGTH + 1)
+        is_valid, error = validate_user_input(long_text)
+        message = UserMessageInput(text=long_text)
+
+        assert is_valid is True
+        assert error is None
+        assert len(message.text) == MAX_MESSAGE_LENGTH
     
     def test_control_characters_removed(self):
         """Control characters should be sanitized."""
@@ -99,9 +103,10 @@ class TestInputValidators:
         msg = UserMessageInput(text="Valid message")
         assert msg.text == "Valid message"
         
-        # Invalid - too long
-        with pytest.raises(Exception):
-            UserMessageInput(text="x" * 10000)
+        # Oversized input is safely truncated to the schema limit.
+        from input_validators import MAX_MESSAGE_LENGTH
+        msg = UserMessageInput(text="x" * (MAX_MESSAGE_LENGTH + 1))
+        assert len(msg.text) == MAX_MESSAGE_LENGTH
 
 
 # =============================================================================

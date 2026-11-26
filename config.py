@@ -75,6 +75,10 @@ API_HEALTH_ENDPOINT = f"{API_BASE_URL}/health"
 API_TIMEOUT_SECONDS = int(float(os.getenv("API_TIMEOUT", "10")))
 
 BOT_API_KEY = os.getenv("BOT_API_KEY", "")
+_ADMIN_TOKEN_PLACEHOLDERS = {
+    "replace_with_a_long_random_admin_token",
+    "admin_token_change_this_to_secure_random_token_in_production",
+}
 
 # ============================================================================
 # AI MODEL CONFIGURATION
@@ -233,7 +237,7 @@ LOG_FILE_PATH = os.getenv("LOG_FILE_PATH", "./logs/bot.log")
 # ============================================================================
 # DEVELOPMENT / PRODUCTION
 # ============================================================================
-ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+ENVIRONMENT = os.getenv("ENVIRONMENT", "production").strip().lower()
 DEBUG_MODE = os.getenv("DEBUG_MODE", "true").lower() == "true"
 PORT = int(os.getenv("PORT", "8000"))
 
@@ -286,6 +290,14 @@ def validate_config(require_bot: bool = True):
         except ValueError as e:
             errors.append(f"❌ SECURITY: {e}")
     
+    # Non-development deployments must not start with a missing or example admin token.
+    if ENVIRONMENT != "development":
+        admin_token = os.getenv("ADMIN_TOKEN", "").strip()
+        if not admin_token:
+            errors.append("❌ ADMIN_TOKEN не установлен для рабочего окружения")
+        elif admin_token.casefold() in _ADMIN_TOKEN_PLACEHOLDERS:
+            errors.append("❌ ADMIN_TOKEN содержит стандартное значение; замените его случайным секретом")
+
     # PRODUCTION CHECKS
     if ENVIRONMENT == "production":
         if not GEMINI_API_KEY or not GEMINI_API_KEY.strip():

@@ -11,9 +11,6 @@
 import pytest
 import sqlite3
 from datetime import datetime
-import sys
-
-sys.path.insert(0, '/home/sv4096/rvx_backend')
 
 from bot import check_column_exists
 

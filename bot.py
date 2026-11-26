@@ -120,6 +120,7 @@ from telegram.constants import ParseMode, ChatAction
 # ============================================================================
 from config import (
     API_URL_NEWS,
+    build_api_headers,
     CACHE_ENABLED, BOT_ADMIN_IDS, BOT_OWNER_ID,
     FEATURE_ANALYTICS_ENABLED
 )
@@ -9380,7 +9381,8 @@ async def drops_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(
                 f"{API_URL_NEWS.replace('/explain_news', '')}/get_drops",
-                params={"limit": 10, "chain": "all"}
+                params={"limit": 10, "chain": "all"},
+                headers=build_api_headers(user_id)
             )
         
         if response.status_code != 200:
@@ -9471,7 +9473,8 @@ async def activities_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(
                 f"{API_URL_NEWS.replace('/explain_news', '')}/get_activities",
-                timeout=30.0
+                timeout=30.0,
+                headers=build_api_headers(user_id)
             )
         
         if response.status_code != 200:
@@ -10391,7 +10394,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                         "image_base64": image_b64,
                         "context": ""
                     },
-                    headers={"X-User-ID": str(user.id)}
+                    headers=build_api_headers(user.id)
                 )
                 
                 if response.status_code != 200:
@@ -13530,7 +13533,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                     response = await client.post(
                         f"{API_URL_NEWS.replace('/explain_news', '')}/explain_news",
                         json={"text_content": caption},
-                        headers={"X-User-ID": str(user.id)}
+                        headers=build_api_headers(user.id)
                     )
                 else:
                     # Только изображение без текста - анализируем как картинку
@@ -13541,7 +13544,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                             "image_base64": image_b64,
                             "context": ""
                         },
-                        headers={"X-User-ID": str(user.id)}
+                        headers=build_api_headers(user.id)
                     )
                 
                 if response.status_code != 200:
@@ -13723,6 +13726,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if not update.message or not update.message.text:
         logger.warning(f"Empty message from user {user.id}")
         return
+
+    if len(update.message.text) > MAX_INPUT_LENGTH:
+        text_too_long = await get_text(
+            "error.text_too_long",
+            user_id,
+            max=MAX_INPUT_LENGTH,
+            actual=len(update.message.text),
+        )
+        await update.message.reply_text(text_too_long)
+        return
     
     # ✅ v0.33.0: CALCULATOR PRICE INPUT HANDLER (проверяем ДО валидации основного текста)
     if context.user_data.get("waiting_for_price"):
@@ -13812,8 +13825,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # In real Telegram bot, we'd use update.message.from_user.id as a unique identifier
         client_ip = str(update.message.from_user.id)
     
-    if not rate_limiter.check_rate_limit(client_ip):
-        remaining = rate_limiter.get_remaining_requests(client_ip)
+    if not await rate_limiter.check_rate_limit(client_ip):
+        remaining = await rate_limiter.get_remaining_requests(client_ip)
         logger.warning(f"IP rate limit exceeded for {client_ip}: {remaining} requests left")
         limit_msg = await get_text("error.rate_limit", user_id)
         limit_info = await get_text("error.rate_limit_info", user_id)
@@ -14077,12 +14090,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if not await bot_state.check_flood(user.id):
         flood_msg = await get_text("error.flood_control", user_id, seconds=FLOOD_COOLDOWN_SECONDS)
         await update.message.reply_text(flood_msg)
-        return
-    
-    # Валидация длины текста (ТОЛЬКО для крипто-новостей!)
-    if len(user_text) > MAX_INPUT_LENGTH:
-        text_too_long = await get_text("error.text_too_long", user_id, max=MAX_INPUT_LENGTH, actual=len(user_text))
-        await update.message.reply_text(text_too_long)
         return
     
     # Минимум 10 символов - ТОЛЬКО для крипто-новостей
@@ -14396,7 +14403,7 @@ async def update_leaderboard_cache(context: ContextTypes.DEFAULT_TYPE) -> None:
 # ОБРАБОТКА ОШИБОК
 # =============================================================================
 
-async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Глобальный обработчик ошибок с восстановлением после сетевых ошибок."""
     error = context.error
     
@@ -14749,7 +14756,10 @@ def main() -> None:
         
         try:
             async with httpx.AsyncClient(timeout=15) as client:
-                response = await client.get(f"{API_URL_NEWS.replace('/explain_news', '')}/get_drops?limit=10")
+                response = await client.get(
+                    f"{API_URL_NEWS.replace('/explain_news', '')}/get_drops?limit=10",
+                    headers=build_api_headers(user_id)
+                )
                 response.raise_for_status()
                 data = response.json()
                 
@@ -14806,7 +14816,10 @@ def main() -> None:
         
         try:
             async with httpx.AsyncClient(timeout=15) as client:
-                response = await client.get(f"{API_URL_NEWS.replace('/explain_news', '')}/get_activities")
+                response = await client.get(
+                    f"{API_URL_NEWS.replace('/explain_news', '')}/get_activities",
+                    headers=build_api_headers(user_id)
+                )
                 response.raise_for_status()
                 data = response.json()
                 
@@ -14862,7 +14875,10 @@ def main() -> None:
         
         try:
             async with httpx.AsyncClient(timeout=15) as client:
-                response = await client.get(f"{API_URL_NEWS.replace('/explain_news', '')}/get_trending?limit=10")
+                response = await client.get(
+                    f"{API_URL_NEWS.replace('/explain_news', '')}/get_trending?limit=10",
+                    headers=build_api_headers(user_id)
+                )
                 response.raise_for_status()
                 data = response.json()
                 

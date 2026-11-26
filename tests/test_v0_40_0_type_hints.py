@@ -20,10 +20,6 @@ from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from typing import Optional
 from datetime import datetime, timedelta
 
-# Import test utilities
-import sys
-sys.path.insert(0, '/home/sv4096/rvx_backend')
-
 # Mock telegram before importing bot
 from unittest.mock import MagicMock as MockTelegram
 
@@ -205,99 +201,79 @@ class TestVerifyDatabaseSchema(unittest.TestCase):
         self.assertIsInstance(result, dict)
 
 
-class TestIPRateLimiter(unittest.TestCase):
+class TestIPRateLimiter(unittest.IsolatedAsyncioTestCase):
     """Tests for IP-based rate limiting (DDoS protection)."""
     
     def setUp(self):
         """Set up test fixtures."""
         self.limiter = IPRateLimiter(max_requests=5, window_seconds=60)
     
-    def test_rate_limiter_allows_first_request(self):
+    async def test_rate_limiter_allows_first_request(self):
         """Rate limiter should allow first request from IP."""
-        result = self.limiter.check_rate_limit("192.168.1.1")
+        result = await self.limiter.check_rate_limit("192.168.1.1")
         self.assertTrue(result)
     
-    def test_rate_limiter_allows_requests_within_limit(self):
+    async def test_rate_limiter_allows_requests_within_limit(self):
         """Rate limiter should allow requests within limit."""
         ip = "192.168.1.1"
         for i in range(5):  # max_requests = 5
-            result = self.limiter.check_rate_limit(ip)
+            result = await self.limiter.check_rate_limit(ip)
             self.assertTrue(result, f"Request {i+1} should be allowed")
     
-    def test_rate_limiter_blocks_exceeded_requests(self):
+    async def test_rate_limiter_blocks_exceeded_requests(self):
         """Rate limiter should block requests exceeding limit."""
         ip = "192.168.1.1"
-        # Use up all requests
-        for i in range(5):
-            self.limiter.check_rate_limit(ip)
-        # Next request should be blocked
-        result = self.limiter.check_rate_limit(ip)
+        for _ in range(5):
+            await self.limiter.check_rate_limit(ip)
+        result = await self.limiter.check_rate_limit(ip)
         self.assertFalse(result)
     
-    def test_rate_limiter_remaining_requests(self):
+    async def test_rate_limiter_remaining_requests(self):
         """Rate limiter should track remaining requests."""
         ip = "192.168.1.2"
-        self.limiter.check_rate_limit(ip)
-        remaining = self.limiter.get_remaining_requests(ip)
+        await self.limiter.check_rate_limit(ip)
+        remaining = await self.limiter.get_remaining_requests(ip)
         self.assertEqual(remaining, 4)  # 5 - 1 = 4
     
-    def test_rate_limiter_separate_ips(self):
+    async def test_rate_limiter_separate_ips(self):
         """Rate limiter should track separate IPs independently."""
         ip1 = "192.168.1.1"
         ip2 = "192.168.1.2"
         
-        # Use up IP1
-        for i in range(5):
-            self.limiter.check_rate_limit(ip1)
+        for _ in range(5):
+            await self.limiter.check_rate_limit(ip1)
         
-        # IP2 should still have requests
-        result = self.limiter.check_rate_limit(ip2)
+        result = await self.limiter.check_rate_limit(ip2)
         self.assertTrue(result)
     
-    def test_rate_limiter_reset_ip(self):
+    async def test_rate_limiter_reset_ip(self):
         """Rate limiter should allow resetting IP."""
         ip = "192.168.1.1"
-        # Use up all requests
-        for i in range(5):
-            self.limiter.check_rate_limit(ip)
-        
-        # Reset
-        self.limiter.reset_ip(ip)
-        
-        # Should allow requests again
-        result = self.limiter.check_rate_limit(ip)
+        for _ in range(5):
+            await self.limiter.check_rate_limit(ip)
+        await self.limiter.reset_ip(ip)
+        result = await self.limiter.check_rate_limit(ip)
         self.assertTrue(result)
     
-    def test_rate_limiter_get_stats(self):
+    async def test_rate_limiter_get_stats(self):
         """Rate limiter should provide statistics."""
         ip = "192.168.1.1"
-        self.limiter.check_rate_limit(ip)
-        self.limiter.check_rate_limit(ip)
+        await self.limiter.check_rate_limit(ip)
+        await self.limiter.check_rate_limit(ip)
         
-        stats = self.limiter.get_stats()
+        stats = await self.limiter.get_stats()
         self.assertIsInstance(stats, dict)
-        self.assertIn("total_ips", stats)
-        self.assertIn("total_requests", stats)
+        self.assertEqual(stats["total_tracked_ips"], 1)
+        self.assertEqual(stats["blocked_ips"], 0)
     
-    def test_rate_limiter_thread_safety(self):
-        """Rate limiter should be thread-safe."""
-        import threading
+    async def test_rate_limiter_concurrent_requests_respect_limit(self):
+        """Concurrent requests should respect the per-IP limit."""
         ip = "192.168.1.1"
-        results = []
-        
-        def check_limit():
-            result = self.limiter.check_rate_limit(ip)
-            results.append(result)
-        
-        threads = [threading.Thread(target=check_limit) for _ in range(10)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-        
-        # Should have exactly 5 True and 5 False (or similar)
-        true_count = sum(1 for r in results if r)
-        self.assertLessEqual(true_count, 5)
+        results = await asyncio.gather(
+            *(self.limiter.check_rate_limit(ip) for _ in range(10))
+        )
+        self.assertEqual(sum(results), 5)
+        self.assertEqual(await self.limiter.get_remaining_requests(ip), 0)
 
 
 class TestAuthLevel(unittest.TestCase):
@@ -310,7 +286,7 @@ class TestAuthLevel(unittest.TestCase):
     
     def test_auth_level_values(self):
         """AuthLevel should have proper integer values."""
-        self.assertLess(AuthLevel.USER, AuthLevel.ADMIN)
+        self.assertLess(AuthLevel.USER.value, AuthLevel.ADMIN.value)
 
 
 class TestTypeHintsIntegration(unittest.TestCase):
@@ -385,34 +361,34 @@ class TestLoggerIntegration(unittest.TestCase):
         self.assertLess(elapsed, 1.0)  # Should complete in less than 1 second
 
 
-class TestRateLimitingDDoSScenario(unittest.TestCase):
+class TestRateLimitingDDoSScenario(unittest.IsolatedAsyncioTestCase):
     """Test rate limiting against DDoS scenarios."""
     
     def setUp(self):
         """Set up test fixtures."""
         self.limiter = IPRateLimiter(max_requests=30, window_seconds=60)
     
-    def test_ddos_attack_blocked(self):
+    async def test_ddos_attack_blocked(self):
         """DDoS attack from single IP should be blocked."""
         attacker_ip = "192.168.1.100"
         
         # Simulate 50 requests from attacker
         blocked_count = 0
         for i in range(50):
-            if not self.limiter.check_rate_limit(attacker_ip):
+            if not await self.limiter.check_rate_limit(attacker_ip):
                 blocked_count += 1
         
         # Should block after 30 requests
         self.assertGreater(blocked_count, 0)
     
-    def test_multiple_ips_not_blocked(self):
+    async def test_multiple_ips_not_blocked(self):
         """Legitimate traffic from multiple IPs should not be blocked."""
         ips = [f"192.168.1.{i}" for i in range(10)]
         
         # Each IP makes 2 requests (within limit of 30)
         for ip in ips:
-            result1 = self.limiter.check_rate_limit(ip)
-            result2 = self.limiter.check_rate_limit(ip)
+            result1 = await self.limiter.check_rate_limit(ip)
+            result2 = await self.limiter.check_rate_limit(ip)
             self.assertTrue(result1)
             self.assertTrue(result2)
 

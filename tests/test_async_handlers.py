@@ -7,6 +7,7 @@ Tests cover message handling, callbacks, state management, and error scenarios.
 
 import pytest
 import asyncio
+from types import SimpleNamespace
 from unittest.mock import Mock, AsyncMock, MagicMock, patch
 from datetime import datetime, timezone
 
@@ -27,7 +28,9 @@ def mock_async_update():
     update.message = AsyncMock()
     update.message.text = "Test message"
     update.message.message_id = 1
-    update.message.reply_text = AsyncMock(return_value=Mock(message_id=2))
+    status_message = Mock(message_id=2)
+    status_message.edit_text = AsyncMock()
+    update.message.reply_text = AsyncMock(return_value=status_message)
     update.message.edit_text = AsyncMock()
     
     return update
@@ -43,6 +46,9 @@ def mock_async_context():
     context.bot = AsyncMock()
     context.bot.send_message = AsyncMock()
     context.bot.send_typing = AsyncMock()
+    context.bot.get_chat_member = AsyncMock(
+        return_value=SimpleNamespace(status="member")
+    )
     return context
 
 
@@ -77,9 +83,56 @@ def async_test_runner():
 
 class TestHandleMessageAsync:
     """Test async message handler."""
+
+    @pytest.mark.asyncio
+    async def test_handle_message_rejects_oversized_raw_text(
+        self, mock_async_update, mock_async_context, monkeypatch
+    ):
+        from bot import handle_message
+
+        monkeypatch.setattr("bot.MAX_INPUT_LENGTH", 12)
+        mock_async_update.message.text = "x" * 13
+
+        with patch(
+            "bot.check_channel_subscription",
+            new=AsyncMock(return_value=True),
+        ):
+            with patch("bot.get_text", new=AsyncMock(return_value="too long")):
+                with patch("bot.validate_user_input") as validate_input:
+                    await handle_message(mock_async_update, mock_async_context)
+
+        validate_input.assert_not_called()
+        mock_async_update.message.reply_text.assert_awaited_once_with("too long")
+
+    @pytest.mark.asyncio
+    async def test_handle_message_awaits_ip_rate_limiter(
+        self, mock_async_update, mock_async_context
+    ):
+        from bot import handle_message
+
+        with patch(
+            "bot.check_channel_subscription",
+            new=AsyncMock(return_value=True),
+        ):
+            with patch("bot.get_text", new=AsyncMock(return_value="rate limited")):
+                with patch(
+                    "bot.rate_limiter.check_rate_limit",
+                    new=AsyncMock(return_value=False),
+                ) as check_rate_limit:
+                    with patch(
+                        "bot.rate_limiter.get_remaining_requests",
+                        new=AsyncMock(return_value=0),
+                    ) as get_remaining_requests:
+                        await handle_message(mock_async_update, mock_async_context)
+
+        check_rate_limit.assert_awaited_once()
+        get_remaining_requests.assert_awaited_once()
+        mock_async_update.message.reply_text.assert_awaited_once()
     
     @pytest.mark.asyncio
-    async def test_handle_message_success(self, mock_async_update, mock_async_context):
+    async def test_handle_message_success(
+        self, mock_async_update, mock_async_context, initialized_bot_database
+    ):
         """Test successful message handling."""
         # Arrange
         mock_async_update.message.text = "What is Bitcoin?"
@@ -87,11 +140,13 @@ class TestHandleMessageAsync:
         # Act - Import and test
         from bot import handle_message
         
-        # Mock get_db to avoid database access
-        with patch('bot.get_db'):
-            with patch('bot.check_user_banned', return_value=(False, None)):
-                with patch('bot.check_daily_limit', return_value=(True, 9)):
-                    with patch('bot.save_user'):
+        with patch('bot.check_user_banned', return_value=(False, None)):
+            with patch('bot.check_daily_limit', return_value=(True, 9)):
+                with patch('bot.save_user'):
+                    with patch(
+                        'bot.call_api_with_retry',
+                        new=AsyncMock(return_value=("Test analysis", 100.0, None)),
+                    ):
                         await handle_message(mock_async_update, mock_async_context)
         
         # Assert
