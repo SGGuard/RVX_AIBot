@@ -17,9 +17,6 @@ from unittest.mock import patch, MagicMock, Mock
 import json
 
 # Import тестируемые функции
-import sys
-sys.path.insert(0, '/home/sv4096/rvx_backend')
-
 from ai_dialogue import (
     check_ai_rate_limit,
     build_dialogue_system_prompt,
@@ -230,20 +227,19 @@ class TestMessageSplitting:
 class TestSystemPrompt:
     """Тесты для системного промпта"""
     
-    def test_prompt_not_contains_flattery_rules(self):
-        """Промпт должен содержать правило о запрете комплиментов"""
+    def test_prompt_defines_financial_analyst_persona(self):
+        """The prompt should identify the financial analyst persona."""
         prompt = build_dialogue_system_prompt()
         
-        # Проверим что промпт содержит указание быть профессиональным
-        assert "профессиональным" in prompt.lower() or "эксперт" in prompt.lower()
+        assert "опытный финансовый аналитик" in prompt.lower()
     
-    def test_prompt_not_contains_forced_answers(self):
-        """Промпт должен разрешать честный ответ"""
+    def test_prompt_discourages_guarantees_and_allows_uncertainty(self):
+        """The prompt should discourage guarantees and permit uncertainty."""
         prompt = build_dialogue_system_prompt()
         
-        # Проверяем что промпт существует и не пуст
         assert len(prompt) > 100
-        assert "помочь" in prompt.lower() or "ответить" in prompt.lower()
+        assert "гарантии" in prompt.lower()
+        assert "вероятно" in prompt.lower()
     
     def test_prompt_requires_detailed_answers(self):
         """Промпт должен требовать подробных/структурированных ответов"""
