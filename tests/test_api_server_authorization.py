@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 
 @pytest.fixture(scope="module")
@@ -264,6 +265,155 @@ def test_public_routes_remain_accessible_without_authentication(api_server_modul
     )
     assert verify_response.status_code == 200
     assert verify_response.json()["is_valid"] is False
+
+
+@pytest.mark.parametrize(
+    "image_url",
+    [
+        "http://127.0.0.1/image.jpg",
+        "http://10.0.0.1/image.jpg",
+        "http://169.254.169.254/latest/meta-data/",
+        "http://[::1]/image.jpg",
+        "http://[fc00::1]/image.jpg",
+        "http://[fe80::1]/image.jpg",
+        "http://[64:ff9b::7f00:1]/image.jpg",
+        "http://2130706433/image.jpg",
+        "http://0177.0.0.1/image.jpg",
+        "http://0x7f000001/image.jpg",
+    ],
+)
+def test_image_payload_rejects_non_public_ip_literals(api_server_module, image_url):
+    with pytest.raises(ValidationError):
+        api_server_module.ImagePayload(image_url=image_url)
+
+
+def test_image_payload_accepts_public_hostname(api_server_module):
+    payload = api_server_module.ImagePayload(
+        image_url="https://images.example.com/chart.png"
+    )
+
+    assert payload.image_url == "https://images.example.com/chart.png"
+
+
+@pytest.mark.integration
+def test_analyze_image_rejects_private_url(api_server_module, monkeypatch):
+    monkeypatch.setattr(
+        api_server_module.api_key_manager,
+        "verify_api_key",
+        lambda api_key: (api_key == "valid-key", None),
+    )
+
+    response = TestClient(api_server_module.app).post(
+        "/analyze_image",
+        headers={"Authorization": "Bearer valid-key"},
+        json={"image_url": "http://127.0.0.1/latest/meta-data/"},
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_public_address_resolver_rejects_private_dns_answers(
+    api_server_module, monkeypatch
+):
+    class PrivateAddressResolver:
+        async def resolve(self, host, port, family):
+            return [
+                {"host": "93.184.216.34"},
+                {"host": "10.0.0.5"},
+            ]
+
+        async def close(self):
+            return None
+
+    resolver = api_server_module.PublicAddressResolver()
+    monkeypatch.setattr(resolver, "_resolver", PrivateAddressResolver())
+
+    try:
+        with pytest.raises(OSError, match="non-public"):
+            await resolver.resolve("public.example", 443)
+    finally:
+        await resolver.close()
+
+
+@pytest.mark.asyncio
+async def test_image_download_validates_redirect_target(api_server_module, monkeypatch):
+    class RedirectResponse:
+        status = 302
+        headers = {"Location": "http://127.0.0.1/private"}
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+    class FakeClientSession:
+        def __init__(self, **_kwargs):
+            self.requested_urls = []
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        def get(self, url, *, allow_redirects):
+            assert allow_redirects is False
+            self.requested_urls.append(str(url))
+            return RedirectResponse()
+
+    sessions = []
+
+    def create_session(**kwargs):
+        session = FakeClientSession(**kwargs)
+        sessions.append(session)
+        return session
+
+    monkeypatch.setattr(api_server_module.aiohttp, "TCPConnector", lambda **_kwargs: object())
+    monkeypatch.setattr(api_server_module.aiohttp, "ClientSession", create_session)
+
+    with pytest.raises(ValueError, match="non-public"):
+        await api_server_module.download_image_from_url(
+            "https://images.example.com/redirect"
+        )
+
+    assert len(sessions[0].requested_urls) == 1
+
+
+def test_trusted_proxy_allowlist_accepts_only_ips_and_networks(api_server_module):
+    assert api_server_module._parse_trusted_proxy_ips(
+        "127.0.0.1, 10.20.0.0/16, ::1"
+    ) == ["127.0.0.1", "10.20.0.0/16", "::1"]
+
+
+def test_client_ip_ignores_untrusted_forwarded_header():
+    from fastapi import Request
+    from security_middleware import get_client_ip
+
+    request = Request(
+        {
+            "type": "http",
+            "asgi": {"version": "3.0"},
+            "http_version": "1.1",
+            "method": "GET",
+            "scheme": "http",
+            "path": "/",
+            "raw_path": b"/",
+            "query_string": b"",
+            "headers": [(b"x-forwarded-for", b"203.0.113.99")],
+            "client": ("10.0.0.20", 1234),
+            "server": ("api", 8000),
+        }
+    )
+
+    assert get_client_ip(request) == "10.0.0.20"
+
+
+@pytest.mark.parametrize("value", ["", "*", "proxy.example.com", "127.0.0.1,*"])
+def test_trusted_proxy_allowlist_rejects_unsafe_values(api_server_module, value):
+    with pytest.raises(ValueError):
+        api_server_module._parse_trusted_proxy_ips(value)
 
 
 @pytest.mark.integration
