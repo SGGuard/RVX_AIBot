@@ -6,6 +6,7 @@ import re
 import hashlib
 import asyncio
 import base64
+import secrets
 import time
 from typing import Optional, Any, Dict, List, AsyncGenerator
 from contextlib import asynccontextmanager
@@ -20,7 +21,7 @@ if os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('RAILWAY_PROJECT_ID'):
     print("    This file (api_server.py) must NOT be executed")
     sys.exit(1)
 
-from fastapi import FastAPI, HTTPException, Request, status, Query
+from fastapi import Depends, FastAPI, HTTPException, Request, status, Query
 from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -1436,11 +1437,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 # FASTAPI APP
 # =============================================================================
 
+def _api_documentation_config(environment: str) -> dict[str, str | None]:
+    if environment.strip().lower() == "development":
+        return {
+            "docs_url": "/docs",
+            "redoc_url": "/redoc",
+            "openapi_url": "/openapi.json",
+        }
+    return {"docs_url": None, "redoc_url": None, "openapi_url": None}
+
+
 app = FastAPI(
     title="RVX AI Backend",
     version="3.0.0",
     description="Production-ready API для анализа криптоновостей с AI",
-    lifespan=lifespan
+    lifespan=lifespan,
+    **_api_documentation_config(ENVIRONMENT),
 )
 
 # CORS Middleware
@@ -1590,6 +1602,24 @@ def verify_api_key(request: Request) -> str:
     
     return api_key
 
+
+def verify_admin_token(request: Request) -> None:
+    """Require the configured admin token using a constant-time comparison."""
+    expected_token = os.getenv("ADMIN_TOKEN", "")
+    supplied_token = request.headers.get("X-Admin-Token", "")
+    if (
+        not expected_token
+        or not supplied_token
+        or not secrets.compare_digest(
+            supplied_token.encode("utf-8"),
+            expected_token.encode("utf-8"),
+        )
+    ):
+        client_ip = request.client.host if request.client else "unknown"
+        logger.warning(f"⚠️ Invalid admin token from {client_ip}")
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+
+
 # =============================================================================
 # ENDPOINTS
 # =============================================================================
@@ -1694,7 +1724,7 @@ async def health_check() -> HealthResponse:
     return health_response
 
 # PHASE 6b: Prometheus metrics endpoint
-@app.get("/metrics")
+@app.get("/metrics", dependencies=[Depends(verify_api_key)])
 async def metrics() -> Response:
     """
     Prometheus metrics endpoint for monitoring.
@@ -1705,10 +1735,11 @@ async def metrics() -> Response:
         Response: Metrics in Prometheus format (text/plain)
         
     Usage:
-        curl http://localhost:8000/metrics
+        curl http://localhost:8000/metrics \\
+            -H "Authorization: Bearer rvx_key_..."
         
     Grafana Integration:
-        Add data source: http://localhost:8000/metrics
+        Configure the data source with Bearer token authentication.
     """
     try:
         # Generate Prometheus metrics in text format
@@ -1735,10 +1766,7 @@ async def create_api_key(request: Request) -> Dict[str, Any]:
         - Key metadata
     """
     # Verify admin token
-    admin_token = request.headers.get("X-Admin-Token", "")
-    if not admin_token or admin_token != os.getenv("ADMIN_TOKEN", ""):
-        logger.warning(f"⚠️ Unauthorized API key creation attempt from {request.client.host if request.client else 'unknown'}")
-        raise HTTPException(status_code=403, detail="Invalid admin token")
+    verify_admin_token(request)
     
     # Create new API key
     key_name = request.headers.get("X-Key-Name", "Auto-generated key")
@@ -1753,11 +1781,11 @@ async def create_api_key(request: Request) -> Dict[str, Any]:
         "api_key": api_key,  # Only shown once
         "created_at": datetime.now(timezone.utc).isoformat(),
         "message": "Save your API key securely. It will not be shown again.",
-        "usage": "Use as Authorization: Bearer <your_api_key> in requests to /explain_news"
+        "usage": "Use as Authorization: Bearer <your_api_key> for protected API endpoints"
     }
 
 @app.post("/auth/verify_api_key")
-async def verify_api_key_endpoint(request: Request) -> Dict[str, bool]:
+async def verify_api_key_endpoint(request: Request) -> Dict[str, Any]:
     """✅ Verify if an API key is valid.
     
     Requires:
@@ -1801,9 +1829,7 @@ async def security_status(request: Request) -> Dict[str, Any]:
         - Security statistics and recent events
     """
     # Verify admin token
-    admin_token = request.headers.get("X-Admin-Token", "")
-    if not admin_token or admin_token != os.getenv("ADMIN_TOKEN", ""):
-        raise HTTPException(status_code=403, detail="Invalid admin token")
+    verify_admin_token(request)
     
     # Get security statistics
     stats = audit_logger.get_statistics()
@@ -2107,7 +2133,11 @@ async def explain_news(payload: NewsPayload, request: Request) -> JSONResponse:
 # ENDPOINT: IMAGE ANALYSIS (v0.24 - updated)
 # =============================================================================
 
-@app.post("/analyze_image", response_model=ImageAnalysisResponse)
+@app.post(
+    "/analyze_image",
+    response_model=ImageAnalysisResponse,
+    dependencies=[Depends(verify_api_key)],
+)
 async def analyze_image(payload: ImagePayload, request: Request) -> JSONResponse:
     """
     Анализирует изображение (график, скриншот, мем) с помощью Gemini Vision.
@@ -2359,7 +2389,11 @@ async def analyze_image(payload: ImagePayload, request: Request) -> JSONResponse
 # ENDPOINT: TEACHING LESSONS
 # =============================================================================
 
-@app.post("/teach_lesson", response_model=TeachingResponse)
+@app.post(
+    "/teach_lesson",
+    response_model=TeachingResponse,
+    dependencies=[Depends(verify_api_key)],
+)
 async def teach_lesson(payload: TeachingPayload) -> JSONResponse:
     """
     Создает интерактивный учебный урок по криптографии с встроенным AI.
@@ -2508,7 +2542,12 @@ async def teach_lesson(payload: TeachingPayload) -> JSONResponse:
 # ENDPOINTS ДЛЯ ДРОПОВ И АКТИВНОСТЕЙ (v0.15.0)
 # =============================================================================
 
-@app.get("/get_drops", response_model=DropsResponse, tags=["Drops"])
+@app.get(
+    "/get_drops",
+    response_model=DropsResponse,
+    tags=["Drops"],
+    dependencies=[Depends(verify_api_key)],
+)
 async def get_drops_endpoint(limit: int = 10, chain: str = "all") -> Dict[str, Any]:
     """
     Получить информацию о свежих NFT дропах.
@@ -2549,7 +2588,12 @@ async def get_drops_endpoint(limit: int = 10, chain: str = "all") -> Dict[str, A
         )
 
 
-@app.get("/get_activities", response_model=ActivitiesResponse, tags=["Drops"])
+@app.get(
+    "/get_activities",
+    response_model=ActivitiesResponse,
+    tags=["Drops"],
+    dependencies=[Depends(verify_api_key)],
+)
 async def get_activities_endpoint() -> Dict[str, Any]:
     """
     Получить информацию об активностях в топ-проектах.
@@ -2599,7 +2643,12 @@ async def get_activities_endpoint() -> Dict[str, Any]:
         )
 
 
-@app.get("/get_trending", response_model=DropsResponse, tags=["Drops"])
+@app.get(
+    "/get_trending",
+    response_model=DropsResponse,
+    tags=["Drops"],
+    dependencies=[Depends(verify_api_key)],
+)
 async def get_trending_endpoint(limit: int = 10) -> DropsResponse:
     """
     Получить список трендовых (вирусных) токенов за последние 24ч.
@@ -2636,7 +2685,12 @@ async def get_trending_endpoint(limit: int = 10) -> DropsResponse:
         )
 
 
-@app.get("/get_token_info/{token_id}", response_model=TokenInfoResponse, tags=["Drops"])
+@app.get(
+    "/get_token_info/{token_id}",
+    response_model=TokenInfoResponse,
+    tags=["Drops"],
+    dependencies=[Depends(verify_api_key)],
+)
 async def get_token_info_endpoint(token_id: str) -> TokenInfoResponse:
     """
     Получить подробную информацию о конкретном токене.
@@ -2673,7 +2727,12 @@ async def get_token_info_endpoint(token_id: str) -> TokenInfoResponse:
 # LEADERBOARD ENDPOINT (v0.17.0)
 # =============================================================================
 
-@app.get("/get_leaderboard", response_model=LeaderboardResponse, tags=["Leaderboard"])
+@app.get(
+    "/get_leaderboard",
+    response_model=LeaderboardResponse,
+    tags=["Leaderboard"],
+    dependencies=[Depends(verify_api_key)],
+)
 async def get_leaderboard_endpoint(
     period: str = Query("all", pattern="^(week|month|all)$"),
     limit: int = Query(10, ge=1, le=50),
@@ -2740,7 +2799,7 @@ async def get_leaderboard_endpoint(
 # =============================================================================
 
 @app.get("/dialogue_metrics")
-async def get_dialogue_metrics() -> dict:
+async def get_dialogue_metrics(request: Request) -> dict:
     """
     📊 Получить метрики системы ИИ диалога.
     
@@ -2750,6 +2809,7 @@ async def get_dialogue_metrics() -> dict:
     - Статистику по каждому провайдеру (Groq, Mistral, Gemini)
     - Среднее время ответа
     """
+    verify_admin_token(request)
     try:
         from ai_dialogue import get_metrics_summary
         metrics = get_metrics_summary()

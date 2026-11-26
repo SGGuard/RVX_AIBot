@@ -88,8 +88,9 @@ CACHE_ENABLED=true
 ALLOWED_ORIGINS=*
 
 # ========== SECURITY (v1.0) ==========
-# Admin token для управления API ключами (ОБЯЗАТЕЛЬНО ИЗМЕНИТЕ!)
-ADMIN_TOKEN=admin_token_change_this_to_secure_random_token_in_production
+# Admin token для управления API ключами; замените перед production.
+# Этот пример отклоняется при запуске вне development.
+ADMIN_TOKEN=replace_with_a_long_random_admin_token
 
 # API Key для бота (создается через /auth/create_api_key)
 BOT_API_KEY=rvx_key_your_generated_key_here
@@ -211,7 +212,7 @@ CACHE_TTL=3600
 
 ### API Key Authentication
 
-Все запросы к `/explain_news` требуют Bearer token:
+Все функциональные API-маршруты требуют Bearer token: `/explain_news`, `/analyze_image`, `/teach_lesson`, `/get_drops`, `/get_activities`, `/get_trending`, `/get_token_info/{token_id}`, `/get_leaderboard` и `/metrics`.
 
 ```bash
 # ✅ Правильный запрос
@@ -230,7 +231,7 @@ curl -X POST http://localhost:8000/explain_news \
 ```bash
 # 1. Создать ключ (требует admin token)
 curl -X POST http://localhost:8000/auth/create_api_key \
-  -H "X-Admin-Token: admin_token_change_this_to_secure_random_token_in_production" \
+  -H "X-Admin-Token: <ADMIN_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{}'
 
@@ -251,6 +252,8 @@ curl -X POST http://localhost:8000/auth/verify_api_key \
 - ✅ **Audit Logging** - Все события в SQLite (9/10)
 - ✅ **Secret Detection** - Обнаружение конфиденциальной информации
 - ✅ **Database Encryption** - SHA-256 хеширование ключей
+
+Маршруты `/auth/create_api_key`, `/security/status` и `/dialogue_metrics` требуют `X-Admin-Token`. Сравнение токена выполняется без раннего выхода.
 
 **Документация:** 
 - 📖 [SECURITY_DEPLOYMENT_GUIDE.md](SECURITY_DEPLOYMENT_GUIDE.md) - Полное руководство по безопасности
@@ -279,6 +282,8 @@ curl -X POST http://localhost:8000/auth/verify_api_key \
 
 ### Health Check
 
+`/health` остаётся публичным для проверок доступности:
+
 ```bash
 curl http://localhost:8000/health
 ```
@@ -301,16 +306,28 @@ curl http://localhost:8000/health
 
 ```bash
 curl -X GET http://localhost:8000/security/status \
-  -H "X-Admin-Token: admin_token_change_this_to_secure_random_token_in_production"
+  -H "X-Admin-Token: <ADMIN_TOKEN>"
 ```
 
+### Prometheus Metrics
+
+`/metrics` требует действительный Bearer API key:
+
+```bash
+curl http://localhost:8000/metrics \
+  -H "Authorization: Bearer rvx_key_..."
+```
 
 
 ### API Документация
 
-После запуска API доступна по адресу:
+Swagger UI, ReDoc и OpenAPI доступны только при `ENVIRONMENT=development`:
 - Swagger UI: `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
+
+Если `ENVIRONMENT` не задан, используется `production`; в этом режиме эти маршруты отключены. Для локальной разработки задайте `ENVIRONMENT=development`. В любом другом окружении запуск также отклонит отсутствующий или стандартный `ADMIN_TOKEN`; задайте уникальный случайный секрет.
+
+Prometheus endpoint `/metrics` требует `Authorization: Bearer <api_key>`.
 
 ---
 

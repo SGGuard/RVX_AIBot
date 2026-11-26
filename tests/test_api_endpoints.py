@@ -11,6 +11,7 @@ Comprehensive tests for all FastAPI endpoints covering:
 """
 
 import pytest
+import os
 from fastapi.testclient import TestClient
 from unittest.mock import Mock, MagicMock, patch
 import json
@@ -23,18 +24,20 @@ import json
 @pytest.fixture
 def client():
     """Create a test client for the FastAPI app."""
-    from api_server import app
-    
-    # Disable rate limiting for tests
-    with patch('api_server.RATE_LIMIT_ENABLED', False):
-        # Mock verify_api_key to always return valid key
-        with patch('api_server.verify_api_key', return_value="test-key"):
-            # Also mock api_key_manager.verify_api_key
-            with patch('api_server.api_key_manager.verify_api_key', return_value=(True, "")):
-                test_client = TestClient(app)
-                # Add default API key header for authenticated endpoints
-                test_client.headers.update({"X-API-Key": "test-key-12345"})
-                yield test_client
+    with patch.dict(os.environ, {"ADMIN_TOKEN": "test-admin-token"}):
+        from api_server import app
+
+        with patch('api_server.RATE_LIMIT_ENABLED', False):
+            with patch('api_server.verify_api_key', return_value="test-key"):
+                with patch('api_server.api_key_manager.verify_api_key', return_value=(True, "")):
+                    test_client = TestClient(app)
+                    test_client.headers.update(
+                        {
+                            "Authorization": "Bearer test-key-12345",
+                            "X-Admin-Token": "test-admin-token",
+                        }
+                    )
+                    yield test_client
 
 
 @pytest.fixture

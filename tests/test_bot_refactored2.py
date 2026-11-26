@@ -116,7 +116,8 @@ class TestQuestSchemas:
             description="Analyze 5 news items",
             objective="Perform analysis",
             xp_reward=50,
-            required_level=1
+            required_level=1,
+            completion_criteria="Analyze five news items"
         )
         assert quest.xp_reward == 50
         assert quest.required_level == 1

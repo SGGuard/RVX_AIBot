@@ -362,16 +362,18 @@ class TestInputValidation(unittest.TestCase):
         self.assertFalse(is_valid)
         self.assertIsNotNone(error)
     
-    def test_validate_input_too_long(self):
-        """validate_user_input should reject very long input."""
+    def test_validate_input_truncates_overlong_text(self):
+        """validate_user_input accepts text after schema truncation."""
         from bot import validate_user_input
-        from bot import MAX_INPUT_LENGTH
+        from input_validators import MAX_MESSAGE_LENGTH, UserMessageInput
         
-        long_text = "a" * (MAX_INPUT_LENGTH + 100)
+        long_text = "a" * (MAX_MESSAGE_LENGTH + 100)
         is_valid, error = validate_user_input(long_text)
+        message = UserMessageInput(text=long_text)
         
-        self.assertFalse(is_valid)
-        self.assertIsNotNone(error)
+        self.assertTrue(is_valid)
+        self.assertIsNone(error)
+        self.assertEqual(len(message.text), MAX_MESSAGE_LENGTH)
 
 
 class TestIntentClassification(unittest.TestCase):

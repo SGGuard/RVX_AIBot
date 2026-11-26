@@ -9,9 +9,11 @@ Coverage Target: 40%+ validation
 
 import unittest
 import logging
-import sys
+from pathlib import Path
 from unittest.mock import Mock, MagicMock
 from typing import Optional
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 class MockLogger(logging.Logger):
@@ -25,7 +27,7 @@ class TestTypesExist(unittest.TestCase):
     def test_cleanup_function_returns_none(self):
         """cleanup_stale_bot_processes should have -> None return type."""
         # Read bot.py and check for type hints
-        with open('/home/sv4096/rvx_backend/bot.py', 'r', encoding='utf-8') as f:
+        with open(PROJECT_ROOT / "bot.py", 'r', encoding='utf-8') as f:
             content = f.read()
         
         # Check that function signature includes return type
@@ -33,70 +35,70 @@ class TestTypesExist(unittest.TestCase):
     
     def test_setup_logger_returns_logger(self):
         """setup_logger should have -> logging.Logger return type."""
-        with open('/home/sv4096/rvx_backend/bot.py', 'r', encoding='utf-8') as f:
+        with open(PROJECT_ROOT / "bot.py", 'r', encoding='utf-8') as f:
             content = f.read()
         
         self.assertIn('def setup_logger(name: Optional[str] = None, level: int = logging.INFO) -> logging.Logger:', content)
     
     def test_main_returns_none(self):
         """main() should have -> None return type."""
-        with open('/home/sv4096/rvx_backend/bot.py', 'r', encoding='utf-8') as f:
+        with open(PROJECT_ROOT / "bot.py", 'r', encoding='utf-8') as f:
             content = f.read()
         
         self.assertIn('def main() -> None:', content)
     
     def test_admin_only_decorator_typed(self):
         """admin_only decorator should have type hints."""
-        with open('/home/sv4096/rvx_backend/bot.py', 'r', encoding='utf-8') as f:
+        with open(PROJECT_ROOT / "bot.py", 'r', encoding='utf-8') as f:
             content = f.read()
         
         self.assertIn('def admin_only(func: Callable) -> Callable:', content)
     
     def test_error_handler_typed(self):
         """error_handler should have type hints."""
-        with open('/home/sv4096/rvx_backend/bot.py', 'r', encoding='utf-8') as f:
+        with open(PROJECT_ROOT / "bot.py", 'r', encoding='utf-8') as f:
             content = f.read()
         
         self.assertIn('async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:', content)
     
     def test_show_leaderboard_typed(self):
         """show_leaderboard should have return type."""
-        with open('/home/sv4096/rvx_backend/bot.py', 'r', encoding='utf-8') as f:
+        with open(PROJECT_ROOT / "bot.py", 'r', encoding='utf-8') as f:
             content = f.read()
         
         self.assertIn('async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE, period: str) -> None:', content)
     
     def test_show_resources_menu_typed(self):
         """show_resources_menu should have return type."""
-        with open('/home/sv4096/rvx_backend/bot.py', 'r', encoding='utf-8') as f:
+        with open(PROJECT_ROOT / "bot.py", 'r', encoding='utf-8') as f:
             content = f.read()
         
         self.assertIn('async def show_resources_menu(update: Update, query: Optional[CallbackQuery] = None) -> None:', content)
     
     def test_send_crypto_digest_typed(self):
         """send_crypto_digest should have return type."""
-        with open('/home/sv4096/rvx_backend/bot.py', 'r', encoding='utf-8') as f:
+        with open(PROJECT_ROOT / "bot.py", 'r', encoding='utf-8') as f:
             content = f.read()
         
         self.assertIn('async def send_crypto_digest(context: ContextTypes.DEFAULT_TYPE) -> None:', content)
     
     def test_periodic_cache_cleanup_typed(self):
         """periodic_cache_cleanup should have return type."""
-        with open('/home/sv4096/rvx_backend/bot.py', 'r', encoding='utf-8') as f:
+        with open(PROJECT_ROOT / "bot.py", 'r', encoding='utf-8') as f:
             content = f.read()
         
         self.assertIn('async def periodic_cache_cleanup(context: ContextTypes.DEFAULT_TYPE) -> None:', content)
     
     def test_update_leaderboard_cache_typed(self):
         """update_leaderboard_cache should have return type."""
-        with open('/home/sv4096/rvx_backend/bot.py', 'r', encoding='utf-8') as f:
+        with open(PROJECT_ROOT / "bot.py", 'r', encoding='utf-8') as f:
             content = f.read()
         
         self.assertIn('async def update_leaderboard_cache(context: ContextTypes.DEFAULT_TYPE) -> None:', content)
     
     def test_callback_query_imported(self):
         """CallbackQuery should be imported."""
-        with open('/home/sv4096/rvx_backend/bot.py', 'r', encoding='utf-8') as f:
+        with open(PROJECT_ROOT / "bot.py", 'r', encoding='utf-8') as f:
             content = f.read()
         
         self.assertIn('from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand, CallbackQuery', content)
@@ -108,18 +110,18 @@ class TestMypyConfigExists(unittest.TestCase):
     def test_mypy_ini_exists(self):
         """mypy.ini should exist."""
         import os
-        self.assertTrue(os.path.exists('/home/sv4096/rvx_backend/mypy.ini'))
+        self.assertTrue((PROJECT_ROOT / "mypy.ini").exists())
     
     def test_mypy_ini_has_python_version(self):
         """mypy.ini should specify Python version."""
-        with open('/home/sv4096/rvx_backend/mypy.ini', 'r') as f:
+        with open(PROJECT_ROOT / "mypy.ini", 'r') as f:
             content = f.read()
         
         self.assertIn('python_version = 3.10', content)
     
     def test_mypy_ini_ignores_telegram(self):
         """mypy.ini should ignore telegram imports."""
-        with open('/home/sv4096/rvx_backend/mypy.ini', 'r') as f:
+        with open(PROJECT_ROOT / "mypy.ini", 'r') as f:
             content = f.read()
         
         self.assertIn('[mypy-telegram.*]', content)
@@ -132,11 +134,11 @@ class TestDocumentationExists(unittest.TestCase):
     def test_type_hints_documentation_exists(self):
         """TYPE_HINTS_v0.40.0.md should exist."""
         import os
-        self.assertTrue(os.path.exists('/home/sv4096/rvx_backend/TYPE_HINTS_v0.40.0.md'))
+        self.assertTrue((PROJECT_ROOT / "TYPE_HINTS_v0.40.0.md").exists())
     
     def test_type_hints_doc_has_overview(self):
         """Documentation should have overview section."""
-        with open('/home/sv4096/rvx_backend/TYPE_HINTS_v0.40.0.md', 'r') as f:
+        with open(PROJECT_ROOT / "TYPE_HINTS_v0.40.0.md", 'r') as f:
             content = f.read()
         
         self.assertIn('# 🔤 TYPE HINTS - v0.40.0 Implementation', content)
@@ -144,7 +146,7 @@ class TestDocumentationExists(unittest.TestCase):
     
     def test_type_hints_doc_has_examples(self):
         """Documentation should have code examples."""
-        with open('/home/sv4096/rvx_backend/TYPE_HINTS_v0.40.0.md', 'r') as f:
+        with open(PROJECT_ROOT / "TYPE_HINTS_v0.40.0.md", 'r') as f:
             content = f.read()
         
         self.assertIn('def cleanup_stale_bot_processes() -> None:', content)
@@ -160,7 +162,7 @@ class TestSyntaxValidity(unittest.TestCase):
         import tempfile
         
         try:
-            py_compile.compile('/home/sv4096/rvx_backend/bot.py', doraise=True)
+            py_compile.compile(str(PROJECT_ROOT / "bot.py"), doraise=True)
             syntax_valid = True
         except py_compile.PyCompileError:
             syntax_valid = False
@@ -173,7 +175,7 @@ class TestTypeHintsCoverage(unittest.TestCase):
     
     def test_minimum_functions_typed(self):
         """At least 15 functions should have return type hints."""
-        with open('/home/sv4096/rvx_backend/bot.py', 'r', encoding='utf-8') as f:
+        with open(PROJECT_ROOT / "bot.py", 'r', encoding='utf-8') as f:
             content = f.read()
         
         # Count functions with return type hints (-> Type:)
@@ -186,7 +188,7 @@ class TestTypeHintsCoverage(unittest.TestCase):
     
     def test_core_functions_have_types(self):
         """Core functions should have type hints."""
-        with open('/home/sv4096/rvx_backend/bot.py', 'r', encoding='utf-8') as f:
+        with open(PROJECT_ROOT / "bot.py", 'r', encoding='utf-8') as f:
             content = f.read()
         
         core_functions = [
@@ -205,7 +207,7 @@ class TestTypeHintsQuality(unittest.TestCase):
     
     def test_optional_types_used(self):
         """Optional types should be used for nullable parameters."""
-        with open('/home/sv4096/rvx_backend/bot.py', 'r', encoding='utf-8') as f:
+        with open(PROJECT_ROOT / "bot.py", 'r', encoding='utf-8') as f:
             content = f.read()
         
         self.assertIn('Optional[str]', content)
@@ -213,14 +215,14 @@ class TestTypeHintsQuality(unittest.TestCase):
     
     def test_typing_imports_present(self):
         """Typing module imports should be present."""
-        with open('/home/sv4096/rvx_backend/bot.py', 'r', encoding='utf-8') as f:
+        with open(PROJECT_ROOT / "bot.py", 'r', encoding='utf-8') as f:
             content = f.read()
         
         self.assertIn('from typing import Optional, List, Tuple, Dict, Any, Callable', content)
     
     def test_context_types_used(self):
         """ContextTypes.DEFAULT_TYPE should be used for handlers."""
-        with open('/home/sv4096/rvx_backend/bot.py', 'r', encoding='utf-8') as f:
+        with open(PROJECT_ROOT / "bot.py", 'r', encoding='utf-8') as f:
             content = f.read()
         
         # Should appear in multiple handler functions
@@ -233,7 +235,7 @@ class TestCallbackQueryImport(unittest.TestCase):
     
     def test_callback_query_imported_from_telegram(self):
         """CallbackQuery should be imported from telegram module."""
-        with open('/home/sv4096/rvx_backend/bot.py', 'r', encoding='utf-8') as f:
+        with open(PROJECT_ROOT / "bot.py", 'r', encoding='utf-8') as f:
             content = f.read()
         
         # Find the telegram import line
@@ -253,7 +255,7 @@ class TestIntegrationTypeHints(unittest.TestCase):
         import ast
         
         try:
-            with open('/home/sv4096/rvx_backend/bot.py', 'r', encoding='utf-8') as f:
+            with open(PROJECT_ROOT / "bot.py", 'r', encoding='utf-8') as f:
                 ast.parse(f.read())
             syntax_ok = True
         except SyntaxError as e:
@@ -268,7 +270,7 @@ class TestIntegrationTypeHints(unittest.TestCase):
         # They only affect static type checking
         
         # Verify function definitions are syntactically valid
-        with open('/home/sv4096/rvx_backend/bot.py', 'r', encoding='utf-8') as f:
+        with open(PROJECT_ROOT / "bot.py", 'r', encoding='utf-8') as f:
             content = f.read()
         
         # Should have proper function definitions
