@@ -120,6 +120,7 @@ from telegram.constants import ParseMode, ChatAction
 # ============================================================================
 from config import (
     API_URL_NEWS,
+    build_api_headers,
     CACHE_ENABLED, BOT_ADMIN_IDS, BOT_OWNER_ID,
     FEATURE_ANALYTICS_ENABLED
 )
@@ -9380,7 +9381,8 @@ async def drops_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(
                 f"{API_URL_NEWS.replace('/explain_news', '')}/get_drops",
-                params={"limit": 10, "chain": "all"}
+                params={"limit": 10, "chain": "all"},
+                headers=build_api_headers(user_id)
             )
         
         if response.status_code != 200:
@@ -9471,7 +9473,8 @@ async def activities_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.get(
                 f"{API_URL_NEWS.replace('/explain_news', '')}/get_activities",
-                timeout=30.0
+                timeout=30.0,
+                headers=build_api_headers(user_id)
             )
         
         if response.status_code != 200:
@@ -10391,7 +10394,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                         "image_base64": image_b64,
                         "context": ""
                     },
-                    headers={"X-User-ID": str(user.id)}
+                    headers=build_api_headers(user.id)
                 )
                 
                 if response.status_code != 200:
@@ -13530,7 +13533,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                     response = await client.post(
                         f"{API_URL_NEWS.replace('/explain_news', '')}/explain_news",
                         json={"text_content": caption},
-                        headers={"X-User-ID": str(user.id)}
+                        headers=build_api_headers(user.id)
                     )
                 else:
                     # Только изображение без текста - анализируем как картинку
@@ -13541,7 +13544,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                             "image_base64": image_b64,
                             "context": ""
                         },
-                        headers={"X-User-ID": str(user.id)}
+                        headers=build_api_headers(user.id)
                     )
                 
                 if response.status_code != 200:
@@ -14749,7 +14752,10 @@ def main() -> None:
         
         try:
             async with httpx.AsyncClient(timeout=15) as client:
-                response = await client.get(f"{API_URL_NEWS.replace('/explain_news', '')}/get_drops?limit=10")
+                response = await client.get(
+                    f"{API_URL_NEWS.replace('/explain_news', '')}/get_drops?limit=10",
+                    headers=build_api_headers(user_id)
+                )
                 response.raise_for_status()
                 data = response.json()
                 
@@ -14806,7 +14812,10 @@ def main() -> None:
         
         try:
             async with httpx.AsyncClient(timeout=15) as client:
-                response = await client.get(f"{API_URL_NEWS.replace('/explain_news', '')}/get_activities")
+                response = await client.get(
+                    f"{API_URL_NEWS.replace('/explain_news', '')}/get_activities",
+                    headers=build_api_headers(user_id)
+                )
                 response.raise_for_status()
                 data = response.json()
                 
@@ -14862,7 +14871,10 @@ def main() -> None:
         
         try:
             async with httpx.AsyncClient(timeout=15) as client:
-                response = await client.get(f"{API_URL_NEWS.replace('/explain_news', '')}/get_trending?limit=10")
+                response = await client.get(
+                    f"{API_URL_NEWS.replace('/explain_news', '')}/get_trending?limit=10",
+                    headers=build_api_headers(user_id)
+                )
                 response.raise_for_status()
                 data = response.json()
                 
