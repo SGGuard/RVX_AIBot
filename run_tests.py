@@ -12,6 +12,7 @@ Usage:
 import subprocess
 import sys
 import os
+import shlex
 from pathlib import Path
 
 
@@ -33,12 +34,12 @@ def print_header():
 
 
 def run_command(cmd, description=""):
-    """Run a shell command"""
+    """Run a menu command without invoking a shell."""
     if description:
         print(f"{Colors.YELLOW}{description}{Colors.END}\n")
     
     try:
-        result = subprocess.run(cmd, shell=True)
+        result = subprocess.run(shlex.split(cmd), check=False)
         return result.returncode == 0
     except Exception as e:
         print(f"{Colors.RED}Error: {e}{Colors.END}")

@@ -21,6 +21,9 @@ from security_middleware import (
 )
 """
 
+# Forwarded client IPs are trusted only when Uvicorn receives requests from
+# addresses configured in FORWARDED_ALLOW_IPS; middleware uses request.client.
+
 # ============================================================================
 # STEP 2: In lifespan context manager (around line 1065)
 # ============================================================================
