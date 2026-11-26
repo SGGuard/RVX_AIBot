@@ -7,11 +7,21 @@ Centralized database access to avoid SQL duplication everywhere.
 
 import sqlite3
 import logging
+import re
 from typing import Optional, List, Dict, Any, Tuple
 from contextlib import contextmanager
 from datetime import datetime
 
 logger = logging.getLogger("DB_SERVICE")
+
+_SQL_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _quote_identifier(identifier: str) -> str:
+    """Validate and quote an identifier before using it in a SQL statement."""
+    if not isinstance(identifier, str) or not _SQL_IDENTIFIER.fullmatch(identifier):
+        raise ValueError(f"Invalid SQL identifier: {identifier!r}")
+    return f'"{identifier}"'
 
 
 class DatabaseConnectionPool:
@@ -51,7 +61,7 @@ class BaseRepository:
     """
     
     def __init__(self, table_name: str, pool: DatabaseConnectionPool):
-        self.table_name = table_name
+        self.table_name = _quote_identifier(table_name)
         self.pool = pool
     
     @contextmanager
@@ -78,7 +88,7 @@ class BaseRepository:
         """Get record by ID"""
         with self._get_cursor() as cursor:
             cursor.execute(
-                f"SELECT * FROM {self.table_name} WHERE id = ?",
+                f"SELECT * FROM {self.table_name} WHERE id = ?",  # nosec B608
                 (id,)
             )
             row = cursor.fetchone()
@@ -86,29 +96,38 @@ class BaseRepository:
     
     def get_all(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """Get all records"""
+        if limit is not None and (
+            isinstance(limit, bool) or not isinstance(limit, int) or limit < 0
+        ):
+            raise ValueError("limit must be a non-negative integer")
+
         with self._get_cursor() as cursor:
-            query = f"SELECT * FROM {self.table_name}"
-            if limit:
-                query += f" LIMIT {limit}"
+            query = f"SELECT * FROM {self.table_name}"  # nosec B608
+            params = ()
+            if limit is not None:
+                query += " LIMIT ?"
+                params = (limit,)
             
-            cursor.execute(query)
+            cursor.execute(query, params)
             rows = cursor.fetchall()
             return [dict(row) for row in rows]
     
     def count(self) -> int:
         """Count records in table"""
         with self._get_cursor() as cursor:
-            cursor.execute(f"SELECT COUNT(*) FROM {self.table_name}")
+            cursor.execute(f"SELECT COUNT(*) FROM {self.table_name}")  # nosec B608
             return cursor.fetchone()[0]
     
     def create(self, **kwargs) -> Dict[str, Any]:
         """Create new record"""
-        columns = ", ".join(kwargs.keys())
+        if not kwargs:
+            raise ValueError("At least one column is required")
+        columns = ", ".join(_quote_identifier(column) for column in kwargs)
         placeholders = ", ".join(["?"] * len(kwargs))
         
         with self._get_cursor() as cursor:
             cursor.execute(
-                f"INSERT INTO {self.table_name} ({columns}) VALUES ({placeholders})",
+                f"INSERT INTO {self.table_name} ({columns}) VALUES ({placeholders})",  # nosec B608
                 tuple(kwargs.values())
             )
             record_id = cursor.lastrowid
@@ -120,12 +139,14 @@ class BaseRepository:
         if not kwargs:
             return self.get_by_id(id)
         
-        set_clause = ", ".join([f"{k} = ?" for k in kwargs.keys()])
+        set_clause = ", ".join(
+            f"{_quote_identifier(key)} = ?" for key in kwargs
+        )
         values = list(kwargs.values()) + [id]
         
         with self._get_cursor() as cursor:
             cursor.execute(
-                f"UPDATE {self.table_name} SET {set_clause} WHERE id = ?",
+                f"UPDATE {self.table_name} SET {set_clause} WHERE id = ?",  # nosec B608
                 values
             )
         
@@ -134,17 +155,21 @@ class BaseRepository:
     def delete(self, id: int) -> bool:
         """Delete record"""
         with self._get_cursor() as cursor:
-            cursor.execute(f"DELETE FROM {self.table_name} WHERE id = ?", (id,))
+            cursor.execute(f"DELETE FROM {self.table_name} WHERE id = ?", (id,))  # nosec B608
             return cursor.rowcount > 0
     
     def find(self, **where_clause) -> List[Dict[str, Any]]:
         """Find records by criteria"""
-        where_parts = [f"{k} = ?" for k in where_clause.keys()]
+        if not where_clause:
+            raise ValueError("At least one search criterion is required")
+        where_parts = [
+            f"{_quote_identifier(key)} = ?" for key in where_clause
+        ]
         where_sql = " AND ".join(where_parts)
         
         with self._get_cursor() as cursor:
             cursor.execute(
-                f"SELECT * FROM {self.table_name} WHERE {where_sql}",
+                f"SELECT * FROM {self.table_name} WHERE {where_sql}",  # nosec B608
                 tuple(where_clause.values())
             )
             rows = cursor.fetchall()

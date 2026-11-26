@@ -101,6 +101,7 @@ def mock_callback_query():
 # TEST CLASS 1: Command Handlers - Basic Paths (12 tests)
 # =============================================================================
 
+@pytest.mark.usefixtures("initialized_bot_database")
 class TestCommandHandlersBasic:
     """Test basic command handler functionality."""
 
@@ -210,6 +211,7 @@ class TestCommandHandlersBasic:
 # TEST CLASS 2: Telegram API Error Handling (10 tests)
 # =============================================================================
 
+@pytest.mark.usefixtures("initialized_bot_database")
 class TestTelegramErrorHandling:
     """Test handling of Telegram API errors."""
 
@@ -600,6 +602,7 @@ class TestMessageHandlingEdgeCases:
 # TEST CLASS 6: State & Context Management (8 tests)
 # =============================================================================
 
+@pytest.mark.usefixtures("initialized_bot_database")
 class TestStateAndContextManagement:
     """Test user state and context management."""
 
