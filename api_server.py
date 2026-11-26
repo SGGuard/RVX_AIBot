@@ -20,7 +20,7 @@ if os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('RAILWAY_PROJECT_ID'):
     print("    This file (api_server.py) must NOT be executed")
     sys.exit(1)
 
-from fastapi import FastAPI, HTTPException, Request, status, Query
+from fastapi import Depends, FastAPI, HTTPException, Request, status, Query
 from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -2107,7 +2107,11 @@ async def explain_news(payload: NewsPayload, request: Request) -> JSONResponse:
 # ENDPOINT: IMAGE ANALYSIS (v0.24 - updated)
 # =============================================================================
 
-@app.post("/analyze_image", response_model=ImageAnalysisResponse)
+@app.post(
+    "/analyze_image",
+    response_model=ImageAnalysisResponse,
+    dependencies=[Depends(verify_api_key)],
+)
 async def analyze_image(payload: ImagePayload, request: Request) -> JSONResponse:
     """
     Анализирует изображение (график, скриншот, мем) с помощью Gemini Vision.
@@ -2508,7 +2512,12 @@ async def teach_lesson(payload: TeachingPayload) -> JSONResponse:
 # ENDPOINTS ДЛЯ ДРОПОВ И АКТИВНОСТЕЙ (v0.15.0)
 # =============================================================================
 
-@app.get("/get_drops", response_model=DropsResponse, tags=["Drops"])
+@app.get(
+    "/get_drops",
+    response_model=DropsResponse,
+    tags=["Drops"],
+    dependencies=[Depends(verify_api_key)],
+)
 async def get_drops_endpoint(limit: int = 10, chain: str = "all") -> Dict[str, Any]:
     """
     Получить информацию о свежих NFT дропах.
@@ -2549,7 +2558,12 @@ async def get_drops_endpoint(limit: int = 10, chain: str = "all") -> Dict[str, A
         )
 
 
-@app.get("/get_activities", response_model=ActivitiesResponse, tags=["Drops"])
+@app.get(
+    "/get_activities",
+    response_model=ActivitiesResponse,
+    tags=["Drops"],
+    dependencies=[Depends(verify_api_key)],
+)
 async def get_activities_endpoint() -> Dict[str, Any]:
     """
     Получить информацию об активностях в топ-проектах.
@@ -2599,7 +2613,12 @@ async def get_activities_endpoint() -> Dict[str, Any]:
         )
 
 
-@app.get("/get_trending", response_model=DropsResponse, tags=["Drops"])
+@app.get(
+    "/get_trending",
+    response_model=DropsResponse,
+    tags=["Drops"],
+    dependencies=[Depends(verify_api_key)],
+)
 async def get_trending_endpoint(limit: int = 10) -> DropsResponse:
     """
     Получить список трендовых (вирусных) токенов за последние 24ч.
