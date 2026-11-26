@@ -362,8 +362,8 @@ class TestInputValidation(unittest.TestCase):
         self.assertFalse(is_valid)
         self.assertIsNotNone(error)
     
-    def test_validate_input_too_long(self):
-        """validate_user_input should accept input after schema truncation."""
+    def test_validate_input_truncates_overlong_text(self):
+        """validate_user_input accepts text after schema truncation."""
         from bot import validate_user_input
         from input_validators import MAX_MESSAGE_LENGTH, UserMessageInput
         

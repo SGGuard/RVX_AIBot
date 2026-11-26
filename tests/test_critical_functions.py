@@ -232,6 +232,7 @@ class TestSystemPrompt:
         prompt = build_dialogue_system_prompt()
         
         assert "опытный финансовый аналитик" in prompt.lower()
+        assert "не высокомерный" in prompt.lower()
     
     def test_prompt_discourages_guarantees_and_allows_uncertainty(self):
         """The prompt should discourage guarantees and permit uncertainty."""
@@ -239,7 +240,7 @@ class TestSystemPrompt:
         
         assert len(prompt) > 100
         assert "гарантии" in prompt.lower()
-        assert "вероятно" in prompt.lower()
+        assert '"может", "вероятно"' in prompt.lower()
     
     def test_prompt_requires_detailed_answers(self):
         """Промпт должен требовать подробных/структурированных ответов"""

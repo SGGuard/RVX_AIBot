@@ -13726,6 +13726,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if not update.message or not update.message.text:
         logger.warning(f"Empty message from user {user.id}")
         return
+
+    if len(update.message.text) > MAX_INPUT_LENGTH:
+        text_too_long = await get_text(
+            "error.text_too_long",
+            user_id,
+            max=MAX_INPUT_LENGTH,
+            actual=len(update.message.text),
+        )
+        await update.message.reply_text(text_too_long)
+        return
     
     # ✅ v0.33.0: CALCULATOR PRICE INPUT HANDLER (проверяем ДО валидации основного текста)
     if context.user_data.get("waiting_for_price"):
@@ -13815,8 +13825,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # In real Telegram bot, we'd use update.message.from_user.id as a unique identifier
         client_ip = str(update.message.from_user.id)
     
-    if not rate_limiter.check_rate_limit(client_ip):
-        remaining = rate_limiter.get_remaining_requests(client_ip)
+    if not await rate_limiter.check_rate_limit(client_ip):
+        remaining = await rate_limiter.get_remaining_requests(client_ip)
         logger.warning(f"IP rate limit exceeded for {client_ip}: {remaining} requests left")
         limit_msg = await get_text("error.rate_limit", user_id)
         limit_info = await get_text("error.rate_limit_info", user_id)
@@ -14080,12 +14090,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if not await bot_state.check_flood(user.id):
         flood_msg = await get_text("error.flood_control", user_id, seconds=FLOOD_COOLDOWN_SECONDS)
         await update.message.reply_text(flood_msg)
-        return
-    
-    # Валидация длины текста (ТОЛЬКО для крипто-новостей!)
-    if len(user_text) > MAX_INPUT_LENGTH:
-        text_too_long = await get_text("error.text_too_long", user_id, max=MAX_INPUT_LENGTH, actual=len(user_text))
-        await update.message.reply_text(text_too_long)
         return
     
     # Минимум 10 символов - ТОЛЬКО для крипто-новостей
