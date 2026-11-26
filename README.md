@@ -211,7 +211,7 @@ CACHE_TTL=3600
 
 ### API Key Authentication
 
-Все запросы к `/explain_news` требуют Bearer token:
+Все функциональные API-маршруты требуют Bearer token: `/explain_news`, `/analyze_image`, `/teach_lesson`, `/get_drops`, `/get_activities`, `/get_trending`, `/get_token_info/{token_id}`, `/get_leaderboard` и `/metrics`.
 
 ```bash
 # ✅ Правильный запрос
@@ -252,6 +252,8 @@ curl -X POST http://localhost:8000/auth/verify_api_key \
 - ✅ **Secret Detection** - Обнаружение конфиденциальной информации
 - ✅ **Database Encryption** - SHA-256 хеширование ключей
 
+Маршруты `/auth/create_api_key`, `/security/status` и `/dialogue_metrics` требуют `X-Admin-Token`. Сравнение токена выполняется без раннего выхода.
+
 **Документация:** 
 - 📖 [SECURITY_DEPLOYMENT_GUIDE.md](SECURITY_DEPLOYMENT_GUIDE.md) - Полное руководство по безопасности
 - 📖 [BOT_SECURITY_INTEGRATION.md](BOT_SECURITY_INTEGRATION.md) - Интеграция бота
@@ -279,6 +281,8 @@ curl -X POST http://localhost:8000/auth/verify_api_key \
 
 ### Health Check
 
+`/health` остаётся публичным для проверок доступности:
+
 ```bash
 curl http://localhost:8000/health
 ```
@@ -304,13 +308,23 @@ curl -X GET http://localhost:8000/security/status \
   -H "X-Admin-Token: admin_token_change_this_to_secure_random_token_in_production"
 ```
 
+### Prometheus Metrics
+
+`/metrics` требует действительный Bearer API key:
+
+```bash
+curl http://localhost:8000/metrics \
+  -H "Authorization: Bearer rvx_key_..."
+```
 
 
 ### API Документация
 
-После запуска API доступна по адресу:
+Swagger UI, ReDoc и OpenAPI доступны только при `ENVIRONMENT=development`:
 - Swagger UI: `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
+
+В остальных окружениях эти маршруты отключены. Prometheus endpoint `/metrics` требует `Authorization: Bearer <api_key>`.
 
 ---
 
