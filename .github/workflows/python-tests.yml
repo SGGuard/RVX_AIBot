@@ -9,6 +9,12 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      ENVIRONMENT: development
+      ADMIN_TOKEN: test-ci-admin-token
+      TELEGRAM_BOT_TOKEN: test-ci-bot-token
+      BOT_API_KEY: test-ci-api-key
+      GEMINI_API_KEY: test-ci-gemini-key
     strategy:
       matrix:
         python-version: ['3.10', '3.11', '3.12']
@@ -30,8 +36,7 @@ jobs:
     
     - name: Run unit tests
       run: |
-        pytest tests/ -v --tb=short || echo "Tests completed with status $?"
-      continue-on-error: true
+        pytest tests/ -v --tb=short
     
     - name: Run code quality checks
       run: |
@@ -125,6 +130,8 @@ jobs:
 
     - name: Run required tests
       env:
+        ENVIRONMENT: development
+        ADMIN_TOKEN: test-ci-admin-token
         TELEGRAM_BOT_TOKEN: test-ci-bot-token
         BOT_API_KEY: test-ci-api-key
         GEMINI_API_KEY: test-ci-gemini-key
@@ -132,6 +139,8 @@ jobs:
         pytest -q --tb=short
         tests/test_config_api_url.py
         tests/test_api_authentication.py
+        tests/test_api_server_authorization.py
+        tests/test_production_security_defaults.py
         tests/test_migrate_database_preservation.py
         tests/test_phase5_database_migrations.py::TestAlterTableMigrations
         tests/test_phase5_database_migrations.py::TestCheckColumnExists

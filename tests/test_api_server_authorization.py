@@ -272,6 +272,9 @@ def test_api_documentation_routes_are_development_only(api_server_module):
         "redoc_url": None,
         "openapi_url": None,
     }
+    assert api_server_module.app.docs_url == "/docs"
+    assert api_server_module.app.redoc_url == "/redoc"
+    assert api_server_module.app.openapi_url == "/openapi.json"
 
     client = TestClient(api_server_module.app)
     assert client.get("/docs").status_code == 200
