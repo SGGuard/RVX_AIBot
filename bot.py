@@ -2175,7 +2175,8 @@ def migrate_database() -> None:
                 # Copy legacy fields and let the new schema supply defaults for added columns.
                 columns_sql = ", ".join(preserved_columns)
                 placeholders = ", ".join("?" for _ in preserved_columns)
-                insert_sql = f"INSERT INTO users ({columns_sql}) VALUES ({placeholders})"
+                # Identifiers come only from the fixed required_columns schema.
+                insert_sql = f"INSERT INTO users ({columns_sql}) VALUES ({placeholders})"  # nosec B608
                 for user in existing_users:
                     cursor.execute(insert_sql, tuple(user[column] for column in preserved_columns))
                 
@@ -4067,28 +4068,19 @@ def update_user_profile(user_id: int, interests: Optional[str] = None, portfolio
         existing = cursor.fetchone()
         
         if existing:
-            updates = []
-            params = []
-            if interests is not None:
-                updates.append("interests = ?")
-                params.append(interests)
-            if portfolio is not None:
-                updates.append("portfolio = ?")
-                params.append(portfolio)
-            if risk_tolerance is not None:
-                updates.append("risk_tolerance = ?")
-                params.append(risk_tolerance)
-            
-            if updates:
-                # ✅ КРИТИЧЕСКИЙ ФИК #1: SQL Injection защита - whitelist полей
-                ALLOWED_FIELDS = {"interests", "portfolio", "risk_tolerance"}
-                safe_updates = [u.split(" ")[0] for u in updates if u.split(" ")[0] in ALLOWED_FIELDS]
-                if safe_updates or len(updates) > 0:
-                    updates.append("last_updated = datetime('now')")
-                    params.append(user_id)
-                    query = f"UPDATE user_profiles SET {', '.join(updates)} WHERE user_id = ?"
-                    cursor.execute(query, params)
-                    logger.info(f"Updated user {user_id} profile (SQL safe)")
+            if any(value is not None for value in (interests, portfolio, risk_tolerance)):
+                cursor.execute(
+                    """
+                    UPDATE user_profiles
+                    SET interests = COALESCE(?, interests),
+                        portfolio = COALESCE(?, portfolio),
+                        risk_tolerance = COALESCE(?, risk_tolerance),
+                        last_updated = datetime('now')
+                    WHERE user_id = ?
+                    """,
+                    (interests, portfolio, risk_tolerance, user_id),
+                )
+                logger.info(f"Updated user {user_id} profile (SQL safe)")
         else:
             # Создать новый профиль
             cursor.execute("""
@@ -4934,7 +4926,7 @@ bot_metrics: BotMetrics = BotMetrics()
 def get_cache_key(text: str) -> str:
     """Генерирует ключ кэша для текста (MD5 hash)."""
     normalized: str = text.lower().strip()
-    return hashlib.md5(normalized.encode('utf-8')).hexdigest()
+    return hashlib.md5(normalized.encode('utf-8'), usedforsecurity=False).hexdigest()
 
 # =============================================================================
 # BACKUP SYSTEM (v0.22.0) - Автоматические резервные копии БД

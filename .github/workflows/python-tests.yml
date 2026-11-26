@@ -158,17 +158,15 @@ jobs:
     - name: Install security tools
       run: |
         python -m pip install --upgrade pip
-        pip install bandit safety
+        pip install bandit pip-audit
     
     - name: Run security checks
       run: |
         echo "🔒 Running Bandit security scan..."
-        bandit -r *.py -ll 2>/dev/null || echo "Bandit scan completed"
-      continue-on-error: true
+        bandit -r *.py -ll
     
     - name: Check dependencies for vulnerabilities
+      if: always()
       run: |
-        echo "🔒 Checking dependencies..."
-        pip install -r requirements.txt 2>/dev/null
-        safety check --json 2>/dev/null || echo "Safety check completed"
-      continue-on-error: true
+        echo "🔒 Auditing declared dependencies..."
+        pip-audit -r requirements.txt
