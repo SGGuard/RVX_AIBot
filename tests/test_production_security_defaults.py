@@ -42,6 +42,15 @@ def test_non_development_config_accepts_custom_admin_token(monkeypatch):
     assert config.validate_config(require_bot=False) is True
 
 
+def test_env_example_does_not_override_secure_environment_default():
+    env_example = Path(__file__).resolve().parents[1] / ".env.example"
+
+    assert not any(
+        line.strip() == "ENVIRONMENT=development"
+        for line in env_example.read_text(encoding="utf-8").splitlines()
+    )
+
+
 def test_unset_environment_defaults_to_production_and_disables_docs(tmp_path):
     environment = os.environ.copy()
     environment.pop("ENVIRONMENT", None)
