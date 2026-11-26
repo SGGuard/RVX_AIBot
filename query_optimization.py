@@ -58,18 +58,15 @@ def optimize_get_leaderboard_with_badges(
     
     if period == "week":
         start_date = now - timedelta(days=7)
-        date_filter = "AND u.created_at > ?"
-        params = (start_date.isoformat(), limit)
     elif period == "month":
         start_date = now - timedelta(days=30)
-        date_filter = "AND u.created_at > ?"
-        params = (start_date.isoformat(), limit)
     else:  # "all"
-        date_filter = ""
-        params = (limit,)
+        start_date = None
+    date_cutoff = start_date.isoformat() if start_date else None
+    params = (date_cutoff, date_cutoff, limit)
     
     # OPTIMIZED: Single query with JSON aggregation instead of N+1
-    query = f"""
+    query = """
         SELECT 
             u.user_id,
             u.username,
@@ -79,7 +76,8 @@ def optimize_get_leaderboard_with_badges(
             GROUP_CONCAT(ub.badge_id, ',') as badge_ids
         FROM users u
         LEFT JOIN user_badges ub ON u.user_id = ub.user_id AND ub.earned_at IS NOT NULL
-        WHERE u.xp > 0 {date_filter}
+        WHERE u.xp > 0
+          AND (? IS NULL OR u.created_at > ?)
         GROUP BY u.user_id
         ORDER BY u.xp DESC, u.level DESC, u.total_requests DESC
         LIMIT ?
@@ -145,7 +143,7 @@ def optimize_get_user_stats_batch(
     placeholders = ','.join('?' * len(user_ids))
     
     # OPTIMIZED: Single query with aggregation
-    query = f"""
+    query_template = """
         SELECT 
             u.user_id,
             u.xp,
@@ -158,9 +156,11 @@ def optimize_get_user_stats_batch(
         LEFT JOIN user_badges ub ON u.user_id = ub.user_id AND ub.earned_at IS NOT NULL
         LEFT JOIN user_progress up ON u.user_id = up.user_id
         LEFT JOIN user_quiz_stats uq ON u.user_id = uq.user_id
-        WHERE u.user_id IN ({placeholders})
+        WHERE u.user_id IN ({})
         GROUP BY u.user_id
     """
+    # Interpolate only the generated placeholder count; bind every ID value.
+    query = query_template.format(placeholders)
     
     cursor.execute(query, user_ids)
     rows = cursor.fetchall()

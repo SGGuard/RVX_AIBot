@@ -4,6 +4,9 @@
 
 import os
 import pathlib
+import hashlib
+import hmac
+import tempfile
 from urllib.parse import urlsplit, urlunsplit
 from dotenv import load_dotenv
 
@@ -43,7 +46,17 @@ def build_api_headers(user_id: int | None = None) -> dict[str, str]:
 
     headers = {"Authorization": f"Bearer {BOT_API_KEY.strip()}"}
     if user_id is not None:
-        headers["X-User-ID"] = str(user_id)
+        if isinstance(user_id, bool) or not isinstance(user_id, int) or user_id < 1:
+            raise ValueError("user_id must be a positive integer")
+    if user_id is not None and USER_ID_SIGNING_SECRET:
+        user_id_value = str(user_id)
+        signature = hmac.new(
+            USER_ID_SIGNING_SECRET.encode("utf-8"),
+            user_id_value.encode("ascii"),
+            hashlib.sha256,
+        ).hexdigest()
+        headers["X-User-ID"] = user_id_value
+        headers["X-User-ID-Signature"] = signature
     return headers
 
 
@@ -75,6 +88,7 @@ API_HEALTH_ENDPOINT = f"{API_BASE_URL}/health"
 API_TIMEOUT_SECONDS = int(float(os.getenv("API_TIMEOUT", "10")))
 
 BOT_API_KEY = os.getenv("BOT_API_KEY", "")
+USER_ID_SIGNING_SECRET = os.getenv("USER_ID_SIGNING_SECRET", "").strip()
 _ADMIN_TOKEN_PLACEHOLDERS = {
     "replace_with_a_long_random_admin_token",
     "admin_token_change_this_to_secure_random_token_in_production",
@@ -140,21 +154,15 @@ def _validate_and_resolve_db_path(path_str: str) -> str:
         if resolved.suffix != '.db':
             raise ValueError(f"Database path must have .db extension: {path_str}")
         
-        # Проверяем что путь находится в безопасном месте
-        # Разрешаем: текущая директория, /tmp (для тестов), home директория
+        # Разрешаем: текущую директорию, системную временную директорию и home.
         cwd = pathlib.Path.cwd().resolve()
-        
-        # Если путь не в текущей директории, должен быть в home или /tmp
-        is_in_cwd = str(resolved).startswith(str(cwd))
-        is_in_home = str(resolved).startswith(str(pathlib.Path.home()))
-        is_in_tmp = str(resolved).startswith('/tmp')
-        
-        if not (is_in_cwd or is_in_home or is_in_tmp):
-            # Дополнительный check для относительных путей которые не выходят из cwd
-            try:
-                resolved.relative_to(cwd)
-            except ValueError:
-                raise ValueError(f"Database path is outside safe directories: {resolved}")
+        safe_roots = (
+            cwd,
+            pathlib.Path.home().resolve(),
+            pathlib.Path(tempfile.gettempdir()).resolve(),
+        )
+        if not any(resolved == root or resolved.is_relative_to(root) for root in safe_roots):
+            raise ValueError(f"Database path is outside safe directories: {resolved}")
         
         return str(resolved)
     except ValueError:
@@ -267,6 +275,10 @@ def validate_config(require_bot: bool = True):
             errors.append("❌ TELEGRAM_BOT_TOKEN не установлен или пустой")
         if not BOT_API_KEY.strip():
             errors.append("❌ BOT_API_KEY не установлен или пустой")
+    if USER_ID_SIGNING_SECRET and len(USER_ID_SIGNING_SECRET) < 32:
+        errors.append("❌ USER_ID_SIGNING_SECRET должен содержать не менее 32 символов")
+    elif not USER_ID_SIGNING_SECRET:
+        warnings.append("⚠️ USER_ID_SIGNING_SECRET не установлен: атрибуция X-User-ID отключена")
     
     # Check at least one AI provider is configured
     providers_configured = sum([
