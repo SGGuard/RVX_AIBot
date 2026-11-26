@@ -383,7 +383,7 @@ async def test_image_download_validates_redirect_target(api_server_module, monke
 
 def test_trusted_proxy_allowlist_accepts_only_ips_and_networks(api_server_module):
     assert api_server_module._parse_trusted_proxy_ips(
-        "127.0.0.1, 10.20.0.0/16, ::1"
+        "127.0.0.1, 10.20.99.5/16, ::1"
     ) == ["127.0.0.1", "10.20.0.0/16", "::1"]
 
 
