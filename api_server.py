@@ -4,6 +4,7 @@ import logging
 import json
 import re
 import hashlib
+import hmac
 import asyncio
 import base64
 import ipaddress
@@ -91,6 +92,7 @@ logging.basicConfig(
 logger = logging.getLogger("RVX_API")
 
 load_dotenv()
+USER_ID_SIGNING_SECRET = os.getenv("USER_ID_SIGNING_SECRET", "").strip()
 
 # ✅ CRITICAL FIX #3: Validate configuration on API startup
 # =============================================================================
@@ -1780,6 +1782,36 @@ def verify_api_key(request: Request) -> str:
     return api_key
 
 
+def get_verified_user_id(request: Request) -> int | None:
+    """Return a bot-signed Telegram user ID, or reject an untrusted claim."""
+    user_id = request.headers.get("X-User-ID")
+    signature = request.headers.get("X-User-ID-Signature")
+    if user_id is None and signature is None:
+        return None
+    if (
+        not USER_ID_SIGNING_SECRET
+        or user_id is None
+        or signature is None
+        or len(user_id) > 20
+        or not user_id.isascii()
+        or not user_id.isdecimal()
+        or int(user_id) < 1
+        or str(int(user_id)) != user_id
+        or len(signature) != 64
+        or not re.fullmatch(r"[0-9a-f]{64}", signature)
+    ):
+        raise HTTPException(status_code=401, detail="Invalid user identity")
+
+    expected_signature = hmac.new(
+        USER_ID_SIGNING_SECRET.encode("utf-8"),
+        user_id.encode("ascii"),
+        hashlib.sha256,
+    ).hexdigest()
+    if not secrets.compare_digest(signature, expected_signature):
+        raise HTTPException(status_code=401, detail="Invalid user identity")
+    return int(user_id)
+
+
 def verify_admin_token(request: Request) -> None:
     """Require the configured admin token using a constant-time comparison."""
     expected_token = os.getenv("ADMIN_TOKEN", "")
@@ -2090,11 +2122,8 @@ async def explain_news(payload: NewsPayload, request: Request) -> JSONResponse:
     text_hash = hash_text(news_text)
     
     # Получаем user_id из заголовков
-    user_id_header = request.headers.get("X-User-ID", "anonymous")
-    try:
-        user_id = int(user_id_header)
-    except (ValueError, TypeError):
-        user_id = "anonymous"
+    verified_user_id = get_verified_user_id(request)
+    user_id = verified_user_id if verified_user_id is not None else "anonymous"
     
     logger.info(f"📰 Запрос анализа новости от {user_id}: {len(news_text)} символов | Hash: {text_hash[:8]}...")
     
@@ -2328,11 +2357,8 @@ async def analyze_image(payload: ImagePayload, request: Request) -> JSONResponse
     request_counter["total"] += 1
     
     # Получаем user_id из заголовков
-    user_id_header = request.headers.get("X-User-ID", "anonymous")
-    try:
-        user_id = int(user_id_header)
-    except (ValueError, TypeError):
-        user_id = 0
+    verified_user_id = get_verified_user_id(request)
+    user_id = verified_user_id if verified_user_id is not None else 0
     
     try:
         # Проверяем rate limit
@@ -3038,11 +3064,12 @@ if __name__ == "__main__":
     import uvicorn
     
     port = int(os.getenv("PORT", "8000"))
+    host = os.getenv("HOST", "127.0.0.1")
     logger.info(f"🚀 Запуск сервера на порту {port}")
     
     uvicorn.run(
         "api_server:app",
-        host="0.0.0.0",
+        host=host,
         port=port,
         reload=False,
         log_level="info",

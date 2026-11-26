@@ -1,4 +1,6 @@
 import importlib
+import hashlib
+import hmac
 import os
 from unittest.mock import AsyncMock
 
@@ -448,6 +450,55 @@ def test_analyze_image_awaits_async_limiter(api_server_module, monkeypatch):
 
     assert response.status_code == 429
     check_rate_limit.assert_awaited_once()
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("path", "payload"),
+    [
+        ("/explain_news", {"text_content": "Market update"}),
+        ("/analyze_image", {"image_base64": "dGVzdA=="}),
+    ],
+)
+def test_functional_endpoints_reject_forged_user_id(
+    api_server_module, monkeypatch, path, payload
+):
+    monkeypatch.setattr(api_server_module, "USER_ID_SIGNING_SECRET", "s" * 32)
+    monkeypatch.setattr(
+        api_server_module.api_key_manager,
+        "verify_api_key",
+        lambda api_key: (api_key == "valid-key", None),
+    )
+
+    response = TestClient(api_server_module.app).post(
+        path,
+        headers={
+            "Authorization": "Bearer valid-key",
+            "X-User-ID": "42",
+            "X-User-ID-Signature": "0" * 64,
+        },
+        json=payload,
+    )
+
+    assert response.status_code == 401
+    assert response.json()["simplified_text"] == "❌ Invalid user identity"
+
+
+def test_verified_user_id_requires_a_valid_signature(api_server_module, monkeypatch):
+    monkeypatch.setattr(api_server_module, "USER_ID_SIGNING_SECRET", "s" * 32)
+    user_id = "42"
+    signature = hmac.new(b"s" * 32, user_id.encode(), hashlib.sha256).hexdigest()
+    request = api_server_module.Request(
+        {
+            "type": "http",
+            "headers": [
+                (b"x-user-id", user_id.encode()),
+                (b"x-user-id-signature", signature.encode()),
+            ],
+        }
+    )
+
+    assert api_server_module.get_verified_user_id(request) == 42
 
 
 @pytest.mark.integration
