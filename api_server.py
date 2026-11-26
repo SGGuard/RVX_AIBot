@@ -399,14 +399,18 @@ def _parse_trusted_proxy_ips(value: str) -> list[str]:
         raise ValueError("FORWARDED_ALLOW_IPS must not trust every source")
 
     try:
+        normalized_proxies = []
         for proxy in trusted_proxies:
-            ipaddress.ip_network(proxy, strict=False)
+            network = ipaddress.ip_network(proxy, strict=False)
+            normalized_proxies.append(
+                str(network) if "/" in proxy else str(network.network_address)
+            )
     except ValueError as exc:
         raise ValueError(
             "FORWARDED_ALLOW_IPS must contain only IP addresses or CIDRs"
         ) from exc
 
-    return trusted_proxies
+    return normalized_proxies
 
 
 class PublicAddressResolver(aiohttp.abc.AbstractResolver):
