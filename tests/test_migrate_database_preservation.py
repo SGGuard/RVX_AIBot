@@ -1,5 +1,7 @@
 import sqlite3
+import time
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -142,14 +144,17 @@ def test_migrate_database_transitions_legacy_conversation_history(migration_db):
         VALUES (?, ?, ?, ?, ?, ?)
         """,
         [
-            (1, 42, "bot", "Bot response", "answer", "2024-02-03 04:05:06"),
-            (2, 42, "user", "User prompt", "question", "2024-02-03 04:06:07"),
+            (1, 42, "bot", "Bot response", "answer", "2024-02-03T04:05:06Z"),
+            (2, 42, "user", "User prompt", "question", "2024-02-03T04:06:07Z"),
+            (3, 42, "user", "Undated prompt", "question", None),
         ],
     )
     connection.commit()
     connection.close()
 
+    migration_started_at = int(time.time()) - 1
     bot.migrate_database()
+    migration_finished_at = int(time.time()) + 1
 
     connection = sqlite3.connect(migration_db)
     try:
@@ -182,11 +187,28 @@ def test_migrate_database_transitions_legacy_conversation_history(migration_db):
         "message_length",
         "tokens_estimate",
     }
-    assert [row[:6] + row[7:] for row in rows] == [
+    expected_timestamps = [
+        int(datetime(2024, 2, 3, 4, 5, 6, tzinfo=timezone.utc).timestamp()),
+        int(datetime(2024, 2, 3, 4, 6, 7, tzinfo=timezone.utc).timestamp()),
+    ]
+    assert [row[:6] + row[7:] for row in rows[:2]] == [
         (1, 42, "assistant", "Bot response", "answer", 12, None),
         (2, 42, "user", "User prompt", "question", 11, None),
     ]
-    assert all(row[6] is not None for row in rows)
+    assert [row[6] for row in rows[:2]] == expected_timestamps
+    assert migration_started_at <= rows[2][6] <= migration_finished_at
+
+    history = bot.get_conversation_history(42)
+    assert [message["content"] for message in history] == [
+        "Undated prompt",
+        "User prompt",
+        "Bot response",
+    ]
+    assert [message["timestamp"] for message in history] == [
+        rows[2][6],
+        expected_timestamps[1],
+        expected_timestamps[0],
+    ]
     assert old_table is None
 
 

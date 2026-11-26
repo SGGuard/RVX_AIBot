@@ -2391,10 +2391,17 @@ def migrate_database() -> None:
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_conv_timestamp ON conversation_history(timestamp)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_conv_role ON conversation_history(role)")
                 cursor.execute("""
-                    INSERT INTO conversation_history (id, user_id, role, content, intent, message_length)
+                    INSERT INTO conversation_history (
+                        id, user_id, role, content, intent, timestamp, message_length
+                    )
                     SELECT id, user_id,
                            CASE WHEN message_type = 'bot' THEN 'assistant' ELSE 'user' END as role,
-                           content, intent, LENGTH(content)
+                           content, intent,
+                           COALESCE(
+                               CAST(strftime('%s', NULLIF(TRIM(created_at), '')) AS INTEGER),
+                               CAST(strftime('%s', 'now') AS INTEGER)
+                           ),
+                           LENGTH(content)
                     FROM conversation_history_old
                 """)
                 cursor.execute("DROP TABLE conversation_history_old")
