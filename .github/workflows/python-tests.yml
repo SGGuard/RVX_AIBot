@@ -166,6 +166,7 @@ jobs:
         bandit -r *.py -ll
     
     - name: Check dependencies for vulnerabilities
+      if: always()
       run: |
         echo "🔒 Checking dependencies..."
         pip install -r requirements.txt
