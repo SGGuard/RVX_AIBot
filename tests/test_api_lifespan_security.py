@@ -12,9 +12,7 @@ import api_server
         RuntimeError("Unexpected validation failure"),
     ],
 )
-async def test_lifespan_stops_startup_when_config_validation_fails(
-    monkeypatch, error
-):
+async def test_lifespan_stops_startup_when_config_validation_fails(monkeypatch, error):
     def fail_validation(**_kwargs):
         raise error
 
