@@ -1,0 +1,29 @@
+title = "RVX Gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "curl-auth-header"
+
+    [[rules.allowlists]]
+    description = "Allow verified documentation-only API key placeholders"
+    condition = "AND"
+    regexTarget = "line"
+
+    paths = [
+        '''(^|/)README\.md$''',
+        '''(^|/)api_server\.py$''',
+        '''(^|/)OLLAMA_QUICK_START\.md$''',
+        '''(^|/)RAILWAY_FIX_v0\.31\.md$''',
+        '''(^|/)BOT_SECURITY_INTEGRATION\.md$''',
+        '''(^|/)SECURITY_DEPLOYMENT_GUIDE\.md$''',
+        '''(^|/)SECURITY_INTEGRATION_GUIDE\.py$'''
+    ]
+
+    regexes = [
+        '''(?i)rvx_key_(\.\.\.|your_key|your_key_here)''',
+        '''(?i)your[-_]api[-_]key''',
+        '''(?i)your_bot_api_key''',
+        '''admin_token_change_this_to_secure_random_token_in_production'''
+    ]

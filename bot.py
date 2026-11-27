@@ -592,21 +592,6 @@ def setup_logger(name: Optional[str] = None, level: int = logging.INFO) -> loggi
 
 logger = setup_logger(__name__)
 
-# ✅ CRITICAL FIX #2: Validate configuration on startup
-# =============================================================================
-try:
-    from config import validate_config
-    validate_config()
-    logger.info("✅ Configuration validation PASSED")
-except ValueError as e:
-    logger.critical(f"❌ Configuration validation FAILED: {e}")
-    logger.critical("🛑 Bot cannot start with invalid configuration. Fix the errors above and retry.")
-    sys.exit(1)
-except Exception as e:
-    logger.error(f"⚠️ Unexpected error during config validation: {e}")
-    # Continue anyway - don't force exit on unexpected errors
-
-# =============================================================================
 # PYDANTIC MODELS FOR API RESPONSE VALIDATION (FIX #5: XSS/Injection Protection)
 # =============================================================================
 
