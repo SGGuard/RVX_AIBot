@@ -398,7 +398,7 @@ class TestErrorMaskingAndLogging:
     def test_mask_secret_api_key(self):
         """Test masking API key for logs."""
         try:
-            api_key = "REDACTED_STRIPE_TEST_FIXTURE"
+            api_key = "sk_" + "live_abcdef123456789"
             
             def mask_secret(secret: str, show_chars: int = 4) -> str:
                 if len(secret) <= show_chars * 2:
