@@ -1,5 +1,7 @@
 # 📖 SPRINT 4 Documentation Index
 
+> Historical status: the experimental `api_server_refactored.py` was not adopted and has been removed. `api_server.py` remains the supported API entry point; references to running or replacing it are obsolete.
+
 **Дата**: 14 декабря 2025  
 **Версия**: v0.20.0-beta  
 **Статус**: 🟢 Phase 1 Complete, Phase 2 Ready

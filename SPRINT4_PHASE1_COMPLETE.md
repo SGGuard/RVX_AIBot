@@ -1,5 +1,7 @@
 # ✅ SPRINT 4: SOLID Refactoring - Начало
 
+> Historical status: the experimental `api_server_refactored.py` was not adopted and has been removed. `api_server.py` remains the supported API entry point; references to running or replacing it are obsolete.
+
 **Дата**: 14 декабря 2025  
 **Статус**: 🔨 IN PROGRESS (Phase 1)  
 **Версия**: v0.20.0-beta
