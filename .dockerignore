@@ -1,14 +1,37 @@
-# Don't copy these files to Docker container
-api_server.py
+# Never copy local secrets or environment files into images
+.env
+.env.*
+*.env
+*.env.*
+secrets/
+**/secrets/
+credentials/
+**/credentials/
+
+# Source control and local tooling
 .git
 .github
-__pycache__
+__pycache__/
 *.pyc
-.pytest_cache
-.env.local
-.env.railway
-*.log
+.pytest_cache/
 tests/
+
+# Logs, local state and generated data
+*.log
+*.log.*
+*.out
+logs/
+**/logs/
+current_logs.txt
+railway_logs.txt
+*_logs.txt
+*.db
+*.sqlite
+*.sqlite3
+*.bak
+*.backup
+
+# Local-only files
 README.md
 docs/
 .gitignore
