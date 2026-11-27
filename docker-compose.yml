@@ -16,6 +16,7 @@ services:
       - DATABASE_PATH=/app/rvx_bot.db
       - PORT=8000
       - RELOAD=false
+      - HOST=0.0.0.0
     volumes:
       - ./:/app
     command: python api_server.py
