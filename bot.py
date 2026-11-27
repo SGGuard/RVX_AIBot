@@ -14604,7 +14604,7 @@ def main() -> None:
         logger.info("✅ Конфигурация валидна")
     except Exception as e:
         logger.critical(f"❌ Ошибка валидации конфигурации: {e}")
-        return
+        raise SystemExit(1)
     
     # ✅ CRITICAL: Ensure we're running in worker dyno on Railway
     # Prevent double-polling that causes "Conflict: terminated by other getUpdates"

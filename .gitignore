@@ -5,9 +5,9 @@
 # Environment variables and local secrets
 .env
 .env.*
-!.env.example
 *.env
 *.env.*
+!.env.example
 secrets/
 **/secrets/
 credentials/

@@ -1398,8 +1398,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except ValueError as e:
         logger.critical(f"❌ Конфигурация API недействительна: {e}")
         raise
-    except Exception as e:
-        logger.error(f"⚠️ Непредвиденная ошибка проверки конфигурации: {e}")
+    except Exception:
+        logger.exception("❌ Непредвиденная ошибка проверки конфигурации API")
+        raise
     
     # Startup
     logger.info("=" * 70)
