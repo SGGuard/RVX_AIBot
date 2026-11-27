@@ -98,7 +98,7 @@ USER_ID_SIGNING_SECRET = os.getenv("USER_ID_SIGNING_SECRET", "").strip()
 # =============================================================================
 try:
     from config import validate_config, ENVIRONMENT
-    validate_config()
+    validate_config(require_bot=False)
     logger.info("✅ API Configuration validation PASSED")
 except ValueError as e:
     logger.critical(f"❌ Configuration validation FAILED: {e}")
@@ -1404,7 +1404,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # CRITICAL FIX #5: Вызвать валидацию конфигурации при запуске
     try:
         from config import validate_config
-        validate_config()
+        validate_config(require_bot=False)
         logger.info("✅ Конфигурация валидна")
     except Exception as e:
         logger.warning(f"⚠️ Предупреждение валидации конфигурации: {e}")

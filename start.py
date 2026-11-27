@@ -28,9 +28,4 @@ def run_bot():
 if __name__ == "__main__":
     # Railway runs ONLY the bot
     run_bot()
-    try:
-        run_bot()
-    except KeyboardInterrupt:
-        print("\n⏹️  Shutting down services...")
-        sys.exit(0)
 
