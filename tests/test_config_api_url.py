@@ -59,6 +59,19 @@ def test_build_api_headers_fails_without_key(monkeypatch):
         build_api_headers()
 
 
+def test_api_config_does_not_require_telegram_secrets(monkeypatch):
+    monkeypatch.setattr(config, "TELEGRAM_BOT_TOKEN", "")
+    monkeypatch.setattr(config, "BOT_API_KEY", "")
+    monkeypatch.setattr(config, "GEMINI_API_KEY", "test-gemini-key")
+    monkeypatch.setattr(config, "ENVIRONMENT", "production")
+    monkeypatch.setenv("ADMIN_TOKEN", "test-admin-token")
+
+    assert config.validate_config(require_bot=False)
+
+    with pytest.raises(ValueError, match="Конфигурация невалидна"):
+        config.validate_config()
+
+
 def test_database_path_rejects_prefix_sibling(tmp_path, monkeypatch):
     app_dir = tmp_path / "app"
     home_dir = tmp_path / "home"

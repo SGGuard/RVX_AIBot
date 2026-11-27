@@ -9,8 +9,14 @@ services:
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GEMINI_MODEL=models/gemini-2.5-flash
+      - ADMIN_TOKEN=${ADMIN_TOKEN}
+      - BOT_API_KEY=${BOT_API_KEY}
+      - USER_ID_SIGNING_SECRET=${USER_ID_SIGNING_SECRET}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - DATABASE_PATH=/app/rvx_bot.db
       - PORT=8000
       - RELOAD=false
+      - HOST=0.0.0.0
     volumes:
       - ./:/app
     command: python api_server.py
@@ -29,21 +35,26 @@ services:
     environment:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - BOT_API_KEY=${BOT_API_KEY}
+      - USER_ID_SIGNING_SECRET=${USER_ID_SIGNING_SECRET}
       - API_URL_NEWS=http://api:8000/explain_news
-      - DB_PATH=/data/rvx_bot.db
+      - API_INSECURE_HOSTS=api
+      - DATABASE_PATH=/app/rvx_bot.db
     volumes:
       - ./:/app
-      - rvx-data:/data
     command: python bot.py
     networks:
       - rvx-network
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://api:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     depends_on:
       api:
         condition: service_healthy
     restart: unless-stopped
-
-volumes:
-  rvx-data:
 
 networks:
   rvx-network:

@@ -23,5 +23,5 @@ RUN mkdir -p /data /app/backups
 # Сделать стартовый скрипт исполняемым
 RUN chmod +x /app/start.py
 
-# Запустить оба сервиса одновременно
+# API runs as a separate Compose service; start.py launches only the bot.
 CMD ["python", "start.py"]
