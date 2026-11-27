@@ -53,8 +53,8 @@ Bot automatically checks health every 5 minutes:
 ### Environment Variables
 ```bash
 # Required
-TELEGRAM_BOT_TOKEN=7123456789:ABCDEF...
-GEMINI_API_KEY=AIzaSyB11p...
+TELEGRAM_BOT_TOKEN=replace_with_your_telegram_bot_token
+GEMINI_API_KEY=replace_with_your_gemini_api_key
 
 # Optional (defaults shown)
 API_URL_NEWS=http://localhost:8000/explain_news
@@ -146,7 +146,7 @@ python3 -m py_compile bot.py
 python3 -c "import bot; print('OK')"
 
 # Check .env file
-cat .env | grep TELEGRAM_BOT_TOKEN
+grep -q '^TELEGRAM_BOT_TOKEN=.' .env && echo 'Telegram token is configured' || echo 'Telegram token is missing'
 ```
 
 ### Database errors
