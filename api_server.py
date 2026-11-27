@@ -92,23 +92,12 @@ logging.basicConfig(
 logger = logging.getLogger("RVX_API")
 
 load_dotenv()
+from config import ENVIRONMENT
+
 USER_ID_SIGNING_SECRET = os.getenv("USER_ID_SIGNING_SECRET", "").strip()
 
-# ✅ CRITICAL FIX #3: Validate configuration on API startup
 # =============================================================================
-try:
-    from config import validate_config, ENVIRONMENT
-    validate_config(require_bot=False)
-    logger.info("✅ API Configuration validation PASSED")
-except ValueError as e:
-    logger.critical(f"❌ Configuration validation FAILED: {e}")
-    logger.critical("🛑 API cannot start with invalid configuration. Fix the errors above and retry.")
-    sys.exit(1)
-except Exception as e:
-    logger.error(f"⚠️ Unexpected error during config validation: {e}")
-    # Continue anyway - don't force exit on unexpected errors
 
-# =============================================================================
 # SECURITY UTILITIES (Critical Fix #2: Mask secrets in logs)
 # =============================================================================
 
@@ -1406,8 +1395,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         from config import validate_config
         validate_config(require_bot=False)
         logger.info("✅ Конфигурация валидна")
+    except ValueError as e:
+        logger.critical(f"❌ Конфигурация API недействительна: {e}")
+        raise
     except Exception as e:
-        logger.warning(f"⚠️ Предупреждение валидации конфигурации: {e}")
+        logger.error(f"⚠️ Непредвиденная ошибка проверки конфигурации: {e}")
     
     # Startup
     logger.info("=" * 70)

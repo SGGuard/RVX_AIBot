@@ -111,12 +111,12 @@ class TestSecretManager:
     
     def test_sanitize_log_message(self):
         """Test log message sanitization"""
-        message = "API Key set to sk_" + "live_1234567890 for user 123"
+        message = "api_key=SAFE_FIXTURE_VALUE_12345"
         sanitized = SecretManager.sanitize_log_message(message)
-        
-        assert "sk_" + "live_1234567890" not in sanitized
-        assert "[REDACTED" in sanitized
-    
+
+        assert "SAFE_FIXTURE_VALUE_12345" not in sanitized
+        assert "api_key=[REDACTED]" in sanitized
+
     def test_generate_secure_token(self):
         """Test secure token generation"""
         token1 = SecretManager.generate_secure_token()

@@ -6,6 +6,9 @@ import pytest
 import sys
 import os
 
+# Use development settings during test collection and execution.
+os.environ["ENVIRONMENT"] = "development"
+
 # Добавляем путь к коду
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
