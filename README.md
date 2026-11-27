@@ -73,9 +73,21 @@ Create your local environment file from the example:
 
     cp .env.example .env
 
-Open the .env file and provide the required values for your Telegram bot, AI provider, API authentication, and database configuration.
+Edit .env before starting the services. At minimum, configure:
 
-Do not commit your real .env file or expose API keys and tokens.
+- `TELEGRAM_BOT_TOKEN` — your Telegram bot token.
+- At least one AI provider key: `GEMINI_API_KEY`, `GROQ_API_KEY`, or `MISTRAL_API_KEY`.
+- `BOT_API_KEY` — a strong random secret shared by the bot and API.
+- `ADMIN_TOKEN` — replace the example placeholder with a strong random secret. The default placeholder is rejected outside development.
+- `USER_ID_SIGNING_SECRET` — use a random value of at least 32 characters; keep the same value for the bot and API. This enables signed user ID attribution.
+
+You can generate separate random values with:
+
+    openssl rand -hex 32
+
+Run the command once for each secret and paste the results into the corresponding entries in .env. Do not reuse a public example value.
+
+The Compose file supplies the database path and internal API URL for its services. Do not commit your real .env file or expose API keys and tokens.
 
 ### 4. Start the services
 
