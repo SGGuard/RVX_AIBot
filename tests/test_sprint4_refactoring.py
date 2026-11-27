@@ -205,19 +205,5 @@ class TestIntegration:
         assert text_result.is_valid
         assert security_result.is_safe
     
-    def test_api_response_model(self):
-        """API response model should work"""
-        from api_server_refactored import APIResponse
-        
-        response = APIResponse(
-            status="ok",
-            data={"message": "test"},
-            cached=False
-        )
-        
-        assert response.status == "ok"
-        assert response.data["message"] == "test"
-
-
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

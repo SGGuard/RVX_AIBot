@@ -1,5 +1,7 @@
 # 🎯 SPRINT 4 - ПОЛНАЯ ДОКУМЕНТАЦИЯ (Phase 1 + Phase 2)
 
+> Historical status: the experimental `api_server_refactored.py` was not adopted and has been removed. `api_server.py` remains the supported API entry point; references to running it are obsolete.
+
 **Статус**: ✅ ЗАВЕРШЕНО  
 **Дата завершения**: 14 декабря 2025  
 **Общее улучшение**: От 6.0/10 до 8.5/10 (+42%)
