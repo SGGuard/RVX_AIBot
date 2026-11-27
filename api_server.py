@@ -15,6 +15,7 @@ from typing import Optional, Any, Dict, List, AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urljoin
+from config import ENVIRONMENT
 
 # ============================================================================
 # CRITICAL: Prevent API server from running in Railway
@@ -92,7 +93,6 @@ logging.basicConfig(
 logger = logging.getLogger("RVX_API")
 
 load_dotenv()
-from config import ENVIRONMENT
 
 USER_ID_SIGNING_SECRET = os.getenv("USER_ID_SIGNING_SECRET", "").strip()
 
