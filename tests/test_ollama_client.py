@@ -37,10 +37,12 @@ async def test_identical_request_uses_cache(client):
 @pytest.mark.asyncio
 async def test_different_system_prompt_does_not_use_same_cache_entry(client):
     with patch("ollama_client.httpx.AsyncClient") as mock_http:
-        post = AsyncMock(side_effect=[
-            mock_response("Response A"),
-            mock_response("Response B"),
-        ])
+        post = AsyncMock(
+            side_effect=[
+                mock_response("Response A"),
+                mock_response("Response B"),
+            ]
+        )
         mock_http.return_value.__aenter__.return_value.post = post
 
         first = await client.generate("Hello", system_prompt="Be concise")
@@ -54,10 +56,12 @@ async def test_different_system_prompt_does_not_use_same_cache_entry(client):
 @pytest.mark.asyncio
 async def test_different_temperature_does_not_use_same_cache_entry(client):
     with patch("ollama_client.httpx.AsyncClient") as mock_http:
-        post = AsyncMock(side_effect=[
-            mock_response("Response A"),
-            mock_response("Response B"),
-        ])
+        post = AsyncMock(
+            side_effect=[
+                mock_response("Response A"),
+                mock_response("Response B"),
+            ]
+        )
         mock_http.return_value.__aenter__.return_value.post = post
 
         first = await client.generate("Hello", temperature=0.2)
@@ -71,10 +75,12 @@ async def test_different_temperature_does_not_use_same_cache_entry(client):
 @pytest.mark.asyncio
 async def test_different_max_tokens_does_not_use_same_cache_entry(client):
     with patch("ollama_client.httpx.AsyncClient") as mock_http:
-        post = AsyncMock(side_effect=[
-            mock_response("Response A"),
-            mock_response("Response B"),
-        ])
+        post = AsyncMock(
+            side_effect=[
+                mock_response("Response A"),
+                mock_response("Response B"),
+            ]
+        )
         mock_http.return_value.__aenter__.return_value.post = post
 
         first = await client.generate("Hello", max_tokens=500)
