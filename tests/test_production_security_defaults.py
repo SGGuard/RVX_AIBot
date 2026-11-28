@@ -136,7 +136,43 @@ def test_build_api_headers_rejects_placeholder_signing_secret(monkeypatch):
         config.build_api_headers(user_id=123)
 
 
+def test_config_accepts_ollama_without_cloud_providers(monkeypatch):
+    monkeypatch.setattr(config, "ENVIRONMENT", "development")
+    monkeypatch.setattr(config, "OLLAMA_ENABLED", True)
+    monkeypatch.setattr(config, "GEMINI_API_KEY", "")
+    monkeypatch.setattr(
+        config,
+        "AI_PROVIDERS",
+        {
+            "groq": {"api_key": ""},
+            "mistral": {"api_key": ""},
+            "gemini": {"api_key": ""},
+        },
+    )
+
+    assert config.validate_config(require_bot=False) is True
+
+
+def test_config_rejects_missing_providers_when_ollama_disabled(monkeypatch):
+    monkeypatch.setattr(config, "ENVIRONMENT", "development")
+    monkeypatch.setattr(config, "OLLAMA_ENABLED", False)
+    monkeypatch.setattr(config, "GEMINI_API_KEY", "")
+    monkeypatch.setattr(
+        config,
+        "AI_PROVIDERS",
+        {
+            "groq": {"api_key": ""},
+            "mistral": {"api_key": ""},
+            "gemini": {"api_key": ""},
+        },
+    )
+
+    with pytest.raises(ValueError, match="Конфигурация невалидна"):
+        config.validate_config(require_bot=False)
+
+
 def test_config_rejects_ai_provider_placeholders(monkeypatch, caplog):
+    monkeypatch.setattr(config, "OLLAMA_ENABLED", False)
     monkeypatch.setattr(config, "ENVIRONMENT", "production")
     monkeypatch.setattr(config, "DEBUG_MODE", False)
     monkeypatch.setattr(config, "GEMINI_API_KEY", "your_gemini_api_key_here")

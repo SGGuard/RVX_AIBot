@@ -22,6 +22,7 @@ from datetime import datetime
 from collections import defaultdict
 from threading import Lock
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 # 🎯 OLLAMA LOCAL LLM
 try:
@@ -1357,23 +1358,25 @@ def get_ai_response_sync(
             ollama_client = get_ollama_client()
             
             if ollama_client and ollama_client.is_available:
-                # Создаём event loop для async функции если его нет
-                try:
-                    loop = asyncio.get_event_loop()
-                except RuntimeError:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                
-                # Вызываем async generate
-                ai_response = loop.run_until_complete(
-                    ollama_client.generate(
-                        prompt=f"{context_str}Пользователь: {user_message}",
-                        system_prompt=system_prompt,
-                        temperature=temperature,
-                        max_tokens=max_tokens,
-                        stream=False
+                # Безопасный запуск async Ollama из синхронной функции.
+                def run_ollama():
+                    return asyncio.run(
+                        ollama_client.generate(
+                            prompt=f"{context_str}Пользователь: {user_message}",
+                            system_prompt=system_prompt,
+                            temperature=temperature,
+                            max_tokens=max_tokens,
+                            stream=False
+                        )
                     )
-                )
+
+                try:
+                    asyncio.get_running_loop()
+                except RuntimeError:
+                    ai_response = run_ollama()
+                else:
+                    with ThreadPoolExecutor(max_workers=1) as executor:
+                        ai_response = executor.submit(run_ollama).result()
                 
                 provider_time = time.time() - provider_start
                 

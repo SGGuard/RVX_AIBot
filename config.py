@@ -118,6 +118,7 @@ def _is_configured_secret(value: str | None) -> bool:
 # AI MODEL CONFIGURATION
 # ============================================================================
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+OLLAMA_ENABLED = os.getenv("OLLAMA_ENABLED", "true").strip().lower() == "true"
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 GEMINI_TIMEOUT = int(os.getenv("GEMINI_TIMEOUT", "30"))
 
@@ -309,10 +310,11 @@ def validate_config(require_bot: bool = True):
         _is_configured_secret(AI_PROVIDERS["groq"].get("api_key", "")),
         _is_configured_secret(AI_PROVIDERS["mistral"].get("api_key", "")),
         _is_configured_secret(GEMINI_API_KEY),
+        OLLAMA_ENABLED,
     ])
     
     if providers_configured == 0:
-        errors.append("❌ Ни один AI провайдер не настроен (требуется GROQ_API_KEY, MISTRAL_API_KEY или GEMINI_API_KEY)")
+        errors.append("❌ Ни один AI провайдер не настроен (требуется Ollama или GROQ_API_KEY, MISTRAL_API_KEY, GEMINI_API_KEY)")
     
     # HTTPS CHECK for remote APIs
     if require_bot:

@@ -15,7 +15,7 @@ from typing import Optional, Any, Dict, List, AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urljoin
-from config import ENVIRONMENT
+from config import ENVIRONMENT, OLLAMA_ENABLED
 
 # ============================================================================
 # CRITICAL: Prevent API server from running in Railway
@@ -119,7 +119,6 @@ DEEPSEEK_TEMPERATURE = float(os.getenv("DEEPSEEK_TEMPERATURE", "0.3"))
 DEEPSEEK_MAX_TOKENS = int(os.getenv("DEEPSEEK_MAX_TOKENS", "1500"))
 
 # 🎯 OLLAMA конфигурация (локальная LLM без интернета - ПРИОРИТЕТ 1!)
-OLLAMA_ENABLED = os.getenv("OLLAMA_ENABLED", "true").lower() == "true"
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5")
 OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "60"))
@@ -1412,14 +1411,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # ====================================================================
     if OLLAMA_ENABLED:
         try:
-            await initialize_ollama(
+            ollama_client = await initialize_ollama(
                 base_url=OLLAMA_BASE_URL,
                 model=OLLAMA_MODEL,
                 timeout=OLLAMA_TIMEOUT
             )
-            logger.info(f"✅ Ollama клиент инициализирован (модель: {OLLAMA_MODEL})")
-            logger.info(f"   URL: {OLLAMA_BASE_URL}")
-            logger.info(f"   ⚡ Ollama будет использоваться в ПРИОРИТЕТЕ перед облачными сервисами!")
+
+            if ollama_client.is_available:
+                logger.info(f"✅ Ollama доступна (модель: {OLLAMA_MODEL})")
+                logger.info(f"   URL: {OLLAMA_BASE_URL}")
+                logger.info("   ⚡ Ollama будет использоваться в приоритете перед облачными сервисами")
+            else:
+                logger.warning(
+                    "⚠️ Клиент Ollama создан, но сервер недоступен: %s",
+                    OLLAMA_BASE_URL
+                )
+                logger.warning("   Проверьте, запущен ли Ollama и доступна ли модель %s", OLLAMA_MODEL)
         except Exception as e:
             logger.warning(f"⚠️ Ошибка инициализации Ollama: {e}")
             logger.warning(f"   Система переключится на облачные провайдеры (Groq/Mistral/Gemini)")
@@ -1897,8 +1904,17 @@ async def health_check() -> HealthResponse:
         logger.debug(f"Could not retrieve cache stats: {e}")
         cache_stats = {}
     
+    ollama = get_ollama_client()
+    ollama_available = ollama is not None and ollama.is_available
+
+    ai_available = (
+        ollama_available
+        or deepseek_client is not None
+        or client is not None
+    )
+
     health_response = HealthResponse(
-        status="healthy" if client else "degraded",
+        status="healthy" if ai_available else "degraded",
         gemini_available=client is not None,
         requests_total=request_counter["total"],
         requests_success=request_counter["success"],

@@ -708,6 +708,53 @@ class TestConcurrentRequests:
         assert all(r.status_code == 200 for r in responses)
 
 
+class TestHealthCheckProviderAvailability:
+    """Health check must recognize every supported AI provider."""
+
+    @pytest.mark.asyncio
+    async def test_ollama_only_is_healthy(self, monkeypatch):
+        from types import SimpleNamespace
+        import api_server
+
+        monkeypatch.setattr(
+            api_server, "get_ollama_client",
+            lambda: SimpleNamespace(is_available=True)
+        )
+        monkeypatch.setattr(api_server, "deepseek_client", None)
+        monkeypatch.setattr(api_server, "client", None)
+
+        health = await api_server.health_check()
+
+        assert health.status == "healthy"
+        assert health.gemini_available is False
+
+    @pytest.mark.asyncio
+    async def test_gemini_only_is_healthy(self, monkeypatch):
+        import api_server
+
+        monkeypatch.setattr(api_server, "get_ollama_client", lambda: None)
+        monkeypatch.setattr(api_server, "deepseek_client", None)
+        monkeypatch.setattr(api_server, "client", object())
+
+        health = await api_server.health_check()
+
+        assert health.status == "healthy"
+        assert health.gemini_available is True
+
+    @pytest.mark.asyncio
+    async def test_no_providers_is_degraded(self, monkeypatch):
+        import api_server
+
+        monkeypatch.setattr(api_server, "get_ollama_client", lambda: None)
+        monkeypatch.setattr(api_server, "deepseek_client", None)
+        monkeypatch.setattr(api_server, "client", None)
+
+        health = await api_server.health_check()
+
+        assert health.status == "degraded"
+        assert health.gemini_available is False
+
+
 # ============================================================================
 # EXPLAIN NEWS: PROVIDER REPORTING AND RESPONSE LENGTH
 # ============================================================================
