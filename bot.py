@@ -19,6 +19,7 @@ from functools import wraps
 from dotenv import load_dotenv
 from pydantic import BaseModel, field_validator, ValidationInfo, ValidationError, Field
 
+from ollama_client import initialize_ollama
 # Импорт i18n для мультиязычной поддержки
 try:
     from i18n import get_text, set_user_language, get_user_language as get_user_lang
@@ -156,7 +157,6 @@ from input_validators import validate_user_input, UserMessageInput
 
 # ✅ v0.28.0: Daily Digest Scheduler - ежедневный крипто-дайджест в 9:00
 from daily_digest_scheduler import initialize_digest_scheduler, stop_digest_scheduler
-from ollama_client import initialize_ollama
 
 # Новый модуль для обучения (v0.5.0)
 from education import (
