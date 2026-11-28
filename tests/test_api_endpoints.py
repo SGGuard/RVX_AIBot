@@ -706,3 +706,71 @@ class TestConcurrentRequests:
         
         # Assert
         assert all(r.status_code == 200 for r in responses)
+
+
+# ============================================================================
+# EXPLAIN NEWS: PROVIDER REPORTING AND RESPONSE LENGTH
+# ============================================================================
+
+class TestExplainNewsProviderAndLength:
+    """Regression tests for provider attribution and response truncation."""
+
+    def test_explain_news_records_actual_ai_provider(
+        self, client, sample_news_text, monkeypatch
+    ):
+        import api_server
+        import ai_dialogue
+
+        recorded_metrics = {}
+        recorded_log = {}
+
+        def fake_ai_response(**kwargs):
+            assert kwargs.get("return_provider") is True
+            return "Локальный анализ новости.", "ollama"
+
+        monkeypatch.setattr(api_server, "CACHE_ENABLED", False)
+        monkeypatch.setattr(
+            ai_dialogue, "get_ai_response_sync", fake_ai_response
+        )
+        monkeypatch.setattr(
+            api_server,
+            "record_request",
+            lambda **kwargs: recorded_metrics.update(kwargs),
+        )
+        monkeypatch.setattr(
+            api_server.structured_logger,
+            "log_request",
+            lambda **kwargs: recorded_log.update(kwargs),
+        )
+
+        response = client.post(
+            "/explain_news", json={"text_content": sample_news_text}
+        )
+
+        assert response.status_code == 200
+        assert recorded_metrics["provider"] == "ollama"
+        assert recorded_log["ai_provider"] == "ollama"
+
+    def test_explain_news_preserves_long_ai_response(
+        self, client, sample_news_text, monkeypatch
+    ):
+        import api_server
+        import ai_dialogue
+
+        long_response = "Анализ рынка. " * 60
+
+        def fake_ai_response(**kwargs):
+            assert kwargs.get("return_provider") is True
+            return long_response, "ollama"
+
+        monkeypatch.setattr(api_server, "CACHE_ENABLED", False)
+        monkeypatch.setattr(
+            ai_dialogue, "get_ai_response_sync", fake_ai_response
+        )
+
+        response = client.post(
+            "/explain_news", json={"text_content": sample_news_text}
+        )
+
+        assert response.status_code == 200
+        assert response.json()["simplified_text"] == long_response

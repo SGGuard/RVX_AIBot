@@ -2171,33 +2171,16 @@ async def explain_news(payload: NewsPayload, request: Request) -> JSONResponse:
         logger.info(f"🔄 Вызываем ai_dialogue для анализа...")
         
         # Получаем ответ через Groq → Mistral → Gemini
-        ai_response = get_ai_response_sync(
+        ai_response, ai_provider = await run_in_threadpool(
+            get_ai_response_sync,
             user_message=analysis_prompt,
             context_history=[],  # Анализ новостей - не нужен контекст
-            timeout=15.0
+            timeout=15.0,
+            return_provider=True,
         )
         
         if ai_response:
             logger.info(f"✅ Анализ получен: {len(ai_response)} символов ({(datetime.now(timezone.utc) - start_time_request).total_seconds():.2f}s)")
-            
-            # ⚡ HARD LIMIT: Ограничиваем ответ до 400 символов (v0.21.0)
-            MAX_RESPONSE_CHARS = 400
-            original_length = len(ai_response)
-            
-            if len(ai_response) > MAX_RESPONSE_CHARS:
-                # Обрезаем на последнем полном предложении
-                truncated = ai_response[:MAX_RESPONSE_CHARS]
-                last_period = truncated.rfind('.')
-                if last_period > 100:  # Есть хотя бы 100 символов перед точкой
-                    ai_response = ai_response[:last_period + 1]
-                else:
-                    # Обрезаем на последнем пробеле
-                    last_space = truncated.rfind(' ')
-                    if last_space > 0:
-                        ai_response = ai_response[:last_space] + "..."
-                    else:
-                        ai_response = truncated + "..."
-                logger.info(f"✂️ Обрезан с {original_length} до {len(ai_response)} символов (API response truncation)")
             
             # Кэшируем результат (Redis с TTL)
             if CACHE_ENABLED:
@@ -2213,7 +2196,7 @@ async def explain_news(payload: NewsPayload, request: Request) -> JSONResponse:
                 method="POST",
                 status=200,
                 response_time_ms=duration_ms,
-                provider="groq"
+                provider=ai_provider
             )
             
             structured_logger.log_request(
@@ -2222,7 +2205,7 @@ async def explain_news(payload: NewsPayload, request: Request) -> JSONResponse:
                 method="POST",
                 response_time_ms=duration_ms,
                 cache_hit=False,
-                ai_provider="groq",
+                ai_provider=ai_provider,
                 status="success"
             )
             
