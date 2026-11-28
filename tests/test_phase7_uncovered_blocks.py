@@ -268,7 +268,7 @@ class TestErrorMasking:
     
     def test_api_key_masked_in_errors(self):
         """Test API keys masked in error messages."""
-        secret_key = "REDACTED_STRIPE_TEST_FIXTURE"
+        secret_key = "sk_" + "test_12345abcde"
         error_msg = f"API Error: {secret_key} not found"
         
         # Mask the key

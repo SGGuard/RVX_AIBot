@@ -706,3 +706,118 @@ class TestConcurrentRequests:
         
         # Assert
         assert all(r.status_code == 200 for r in responses)
+
+
+class TestHealthCheckProviderAvailability:
+    """Health check must recognize every supported AI provider."""
+
+    @pytest.mark.asyncio
+    async def test_ollama_only_is_healthy(self, monkeypatch):
+        from types import SimpleNamespace
+        import api_server
+
+        monkeypatch.setattr(
+            api_server, "get_ollama_client",
+            lambda: SimpleNamespace(is_available=True)
+        )
+        monkeypatch.setattr(api_server, "deepseek_client", None)
+        monkeypatch.setattr(api_server, "client", None)
+
+        health = await api_server.health_check()
+
+        assert health.status == "healthy"
+        assert health.gemini_available is False
+
+    @pytest.mark.asyncio
+    async def test_gemini_only_is_healthy(self, monkeypatch):
+        import api_server
+
+        monkeypatch.setattr(api_server, "get_ollama_client", lambda: None)
+        monkeypatch.setattr(api_server, "deepseek_client", None)
+        monkeypatch.setattr(api_server, "client", object())
+
+        health = await api_server.health_check()
+
+        assert health.status == "healthy"
+        assert health.gemini_available is True
+
+    @pytest.mark.asyncio
+    async def test_no_providers_is_degraded(self, monkeypatch):
+        import api_server
+
+        monkeypatch.setattr(api_server, "get_ollama_client", lambda: None)
+        monkeypatch.setattr(api_server, "deepseek_client", None)
+        monkeypatch.setattr(api_server, "client", None)
+
+        health = await api_server.health_check()
+
+        assert health.status == "degraded"
+        assert health.gemini_available is False
+
+
+# ============================================================================
+# EXPLAIN NEWS: PROVIDER REPORTING AND RESPONSE LENGTH
+# ============================================================================
+
+class TestExplainNewsProviderAndLength:
+    """Regression tests for provider attribution and response truncation."""
+
+    def test_explain_news_records_actual_ai_provider(
+        self, client, sample_news_text, monkeypatch
+    ):
+        import api_server
+        import ai_dialogue
+
+        recorded_metrics = {}
+        recorded_log = {}
+
+        def fake_ai_response(**kwargs):
+            assert kwargs.get("return_provider") is True
+            return "Локальный анализ новости.", "ollama"
+
+        monkeypatch.setattr(api_server, "CACHE_ENABLED", False)
+        monkeypatch.setattr(
+            ai_dialogue, "get_ai_response_sync", fake_ai_response
+        )
+        monkeypatch.setattr(
+            api_server,
+            "record_request",
+            lambda **kwargs: recorded_metrics.update(kwargs),
+        )
+        monkeypatch.setattr(
+            api_server.structured_logger,
+            "log_request",
+            lambda **kwargs: recorded_log.update(kwargs),
+        )
+
+        response = client.post(
+            "/explain_news", json={"text_content": sample_news_text}
+        )
+
+        assert response.status_code == 200
+        assert recorded_metrics["provider"] == "ollama"
+        assert recorded_log["ai_provider"] == "ollama"
+
+    def test_explain_news_preserves_long_ai_response(
+        self, client, sample_news_text, monkeypatch
+    ):
+        import api_server
+        import ai_dialogue
+
+        long_response = "Анализ рынка. " * 60
+
+        def fake_ai_response(**kwargs):
+            assert kwargs.get("return_provider") is True
+            return long_response, "ollama"
+
+        monkeypatch.setattr(api_server, "CACHE_ENABLED", False)
+        monkeypatch.setattr(
+            ai_dialogue, "get_ai_response_sync", fake_ai_response
+        )
+
+        response = client.post(
+            "/explain_news", json={"text_content": sample_news_text}
+        )
+
+        assert response.status_code == 200
+        assert response.json()["simplified_text"] == long_response

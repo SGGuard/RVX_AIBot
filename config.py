@@ -41,14 +41,16 @@ def resolve_api_base_url(raw_url: str | None = None) -> str:
 
 def build_api_headers(user_id: int | None = None) -> dict[str, str]:
     """Create authenticated headers for bot-to-backend requests."""
-    if not BOT_API_KEY.strip():
-        raise ValueError("BOT_API_KEY is required for authenticated backend requests")
+    if not _is_configured_secret(BOT_API_KEY):
+        raise ValueError("BOT_API_KEY is missing or contains an example placeholder")
 
     headers = {"Authorization": f"Bearer {BOT_API_KEY.strip()}"}
     if user_id is not None:
         if isinstance(user_id, bool) or not isinstance(user_id, int) or user_id < 1:
             raise ValueError("user_id must be a positive integer")
     if user_id is not None and USER_ID_SIGNING_SECRET:
+        if not _is_configured_secret(USER_ID_SIGNING_SECRET):
+            raise ValueError("USER_ID_SIGNING_SECRET contains an example placeholder")
         user_id_value = str(user_id)
         signature = hmac.new(
             USER_ID_SIGNING_SECRET.encode("utf-8"),
@@ -89,15 +91,34 @@ API_TIMEOUT_SECONDS = int(float(os.getenv("API_TIMEOUT", "10")))
 
 BOT_API_KEY = os.getenv("BOT_API_KEY", "")
 USER_ID_SIGNING_SECRET = os.getenv("USER_ID_SIGNING_SECRET", "").strip()
-_ADMIN_TOKEN_PLACEHOLDERS = {
+_CONFIG_SECRET_PLACEHOLDERS = {
+    "replace_with_your_telegram_bot_token",
+    "replace_with_your_gemini_api_key",
     "replace_with_a_long_random_admin_token",
+    "replace_with_a_long_random_bot_api_key",
+    "replace_with_at_least_32_random_characters",
+    "replace_with_your_coingecko_api_key",
     "admin_token_change_this_to_secure_random_token_in_production",
+    "your_telegram_bot_token_here",
+    "your_gemini_api_key_here",
+    "your_api_key_here",
+    "your_new_key_here",
+    "your_api_key",
+    "your_coingecko_pro_api_key_here",
 }
+
+
+def _is_configured_secret(value: str | None) -> bool:
+    """Return False for empty values and documented example placeholders."""
+    normalized = (value or "").strip().casefold()
+    return bool(normalized) and normalized not in _CONFIG_SECRET_PLACEHOLDERS
+
 
 # ============================================================================
 # AI MODEL CONFIGURATION
 # ============================================================================
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+OLLAMA_ENABLED = os.getenv("OLLAMA_ENABLED", "true").strip().lower() == "true"
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 GEMINI_TIMEOUT = int(os.getenv("GEMINI_TIMEOUT", "30"))
 
@@ -271,24 +292,29 @@ def validate_config(require_bot: bool = True):
     
     # CRITICAL CHECKS
     if require_bot:
-        if not TELEGRAM_BOT_TOKEN or not TELEGRAM_BOT_TOKEN.strip():
-            errors.append("❌ TELEGRAM_BOT_TOKEN не установлен или пустой")
-        if not BOT_API_KEY.strip():
-            errors.append("❌ BOT_API_KEY не установлен или пустой")
-    if USER_ID_SIGNING_SECRET and len(USER_ID_SIGNING_SECRET) < 32:
-        errors.append("❌ USER_ID_SIGNING_SECRET должен содержать не менее 32 символов")
-    elif not USER_ID_SIGNING_SECRET:
+        if not _is_configured_secret(TELEGRAM_BOT_TOKEN):
+            errors.append("❌ TELEGRAM_BOT_TOKEN не установлен или содержит placeholder")
+        if not _is_configured_secret(BOT_API_KEY):
+            errors.append("❌ BOT_API_KEY не установлен или содержит placeholder")
+
+    if USER_ID_SIGNING_SECRET:
+        if not _is_configured_secret(USER_ID_SIGNING_SECRET):
+            errors.append("❌ USER_ID_SIGNING_SECRET содержит placeholder")
+        elif len(USER_ID_SIGNING_SECRET) < 32:
+            errors.append("❌ USER_ID_SIGNING_SECRET должен содержать не менее 32 символов")
+    else:
         warnings.append("⚠️ USER_ID_SIGNING_SECRET не установлен: атрибуция X-User-ID отключена")
     
     # Check at least one AI provider is configured
     providers_configured = sum([
-        bool(AI_PROVIDERS["groq"].get("api_key", "").strip()),
-        bool(AI_PROVIDERS["mistral"].get("api_key", "").strip()),
-        bool(GEMINI_API_KEY.strip()),
+        _is_configured_secret(AI_PROVIDERS["groq"].get("api_key", "")),
+        _is_configured_secret(AI_PROVIDERS["mistral"].get("api_key", "")),
+        _is_configured_secret(GEMINI_API_KEY),
+        OLLAMA_ENABLED,
     ])
     
     if providers_configured == 0:
-        errors.append("❌ Ни один AI провайдер не настроен (требуется GROQ_API_KEY, MISTRAL_API_KEY или GEMINI_API_KEY)")
+        errors.append("❌ Ни один AI провайдер не настроен (требуется Ollama или GROQ_API_KEY, MISTRAL_API_KEY, GEMINI_API_KEY)")
     
     # HTTPS CHECK for remote APIs
     if require_bot:
@@ -307,12 +333,12 @@ def validate_config(require_bot: bool = True):
         admin_token = os.getenv("ADMIN_TOKEN", "").strip()
         if not admin_token:
             errors.append("❌ ADMIN_TOKEN не установлен для рабочего окружения")
-        elif admin_token.casefold() in _ADMIN_TOKEN_PLACEHOLDERS:
+        elif not _is_configured_secret(admin_token):
             errors.append("❌ ADMIN_TOKEN содержит стандартное значение; замените его случайным секретом")
 
     # PRODUCTION CHECKS
     if ENVIRONMENT == "production":
-        if not GEMINI_API_KEY or not GEMINI_API_KEY.strip():
+        if not _is_configured_secret(GEMINI_API_KEY):
             warnings.append("⚠️ PRODUCTION: GEMINI_API_KEY не установлен (fallback использует другие провайдеры)")
         
         if DEBUG_MODE:

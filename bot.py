@@ -19,6 +19,7 @@ from functools import wraps
 from dotenv import load_dotenv
 from pydantic import BaseModel, field_validator, ValidationInfo, ValidationError, Field
 
+from ollama_client import initialize_ollama
 # Импорт i18n для мультиязычной поддержки
 try:
     from i18n import get_text, set_user_language, get_user_language as get_user_lang
@@ -122,7 +123,8 @@ from config import (
     API_URL_NEWS,
     build_api_headers,
     CACHE_ENABLED, BOT_ADMIN_IDS, BOT_OWNER_ID,
-    FEATURE_ANALYTICS_ENABLED
+    FEATURE_ANALYTICS_ENABLED,
+    OLLAMA_ENABLED, AI_PROVIDERS, _is_configured_secret,
 )
 from messages import (
     split_message, MSG_HELP_EXTENDED, MSG_FEEDBACK_HELPFUL, MSG_FEEDBACK_UNHELPFUL,
@@ -592,21 +594,6 @@ def setup_logger(name: Optional[str] = None, level: int = logging.INFO) -> loggi
 
 logger = setup_logger(__name__)
 
-# ✅ CRITICAL FIX #2: Validate configuration on startup
-# =============================================================================
-try:
-    from config import validate_config
-    validate_config()
-    logger.info("✅ Configuration validation PASSED")
-except ValueError as e:
-    logger.critical(f"❌ Configuration validation FAILED: {e}")
-    logger.critical("🛑 Bot cannot start with invalid configuration. Fix the errors above and retry.")
-    sys.exit(1)
-except Exception as e:
-    logger.error(f"⚠️ Unexpected error during config validation: {e}")
-    # Continue anyway - don't force exit on unexpected errors
-
-# =============================================================================
 # PYDANTIC MODELS FOR API RESPONSE VALIDATION (FIX #5: XSS/Injection Protection)
 # =============================================================================
 
@@ -12808,7 +12795,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             dialogue_context = None
             # ✅ v0.44: Получаем язык пользователя и передаём в AI
             user_language = get_user_lang(user_id) if user_id else "ru"
-            exploration_response = get_ai_response_sync(
+            exploration_response = await asyncio.to_thread(
+                get_ai_response_sync,
                 exploration_question,
                 dialogue_context,
                 user_id=user_id,
@@ -13907,7 +13895,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             # ✅ Получаем ИИ ответ с rate limiting (передаем user_id для проверки лимитов)
             # ✅ v0.44: Получаем язык пользователя и передаём в AI
             user_language = get_user_lang(user.id) if user.id else "ru"
-            ai_response = get_ai_response_sync(
+            ai_response = await asyncio.to_thread(
+                get_ai_response_sync,
                 user_text,
                 dialogue_context,
                 user_id=user.id,
@@ -14619,7 +14608,7 @@ def main() -> None:
         logger.info("✅ Конфигурация валидна")
     except Exception as e:
         logger.critical(f"❌ Ошибка валидации конфигурации: {e}")
-        return
+        raise SystemExit(1)
     
     # ✅ CRITICAL: Ensure we're running in worker dyno on Railway
     # Prevent double-polling that causes "Conflict: terminated by other getUpdates"
@@ -14999,8 +14988,61 @@ def main() -> None:
     time.sleep(2)
     print("✅ Pre-application cleanup completed\n")
     
-    # Создание приложения
-    application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    # Startup/shutdown lifecycle callbacks for PTB 21.x
+    async def on_application_init(application: Application) -> None:
+        """Initialize AI providers and background services before polling."""
+        if OLLAMA_ENABLED:
+            ollama_client = await initialize_ollama(
+                base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+                model=os.getenv("OLLAMA_MODEL", "qwen2.5"),
+                timeout=int(os.getenv("OLLAMA_TIMEOUT", "60")),
+            )
+
+            if ollama_client.is_available:
+                logger.info("Ollama initialized: %s", ollama_client.model)
+            else:
+                cloud_available = any(
+                    _is_configured_secret(provider.get("api_key"))
+                    for provider in AI_PROVIDERS.values()
+                )
+                if not cloud_available:
+                    raise RuntimeError(
+                        "Ollama недоступна, облачные AI-провайдеры не настроены"
+                    )
+                logger.warning(
+                    "Ollama недоступна; продолжаем работу с облачными провайдерами"
+                )
+        else:
+            logger.info("Ollama отключена; используются облачные провайдеры")
+
+        try:
+            await initialize_digest_scheduler()
+            logger.info("Daily digest scheduler started")
+        except Exception:
+            logger.exception("Failed to initialize daily digest scheduler")
+
+        try:
+            await application.bot.delete_webhook(drop_pending_updates=True)
+            logger.info("Webhook deleted; polling mode is ready")
+        except Exception:
+            logger.exception("Webhook deletion failed")
+
+    async def on_application_stop(application: Application) -> None:
+        """Stop background services during graceful application shutdown."""
+        try:
+            await stop_digest_scheduler()
+            logger.info("Daily digest scheduler stopped")
+        except Exception:
+            logger.exception("Failed to stop daily digest scheduler")
+
+    # Создание приложения с управляемым жизненным циклом PTB 21.x
+    application = (
+        Application.builder()
+        .token(TELEGRAM_BOT_TOKEN)
+        .post_init(on_application_init)
+        .post_stop(on_application_stop)
+        .build()
+    )
     
     # Установка списка команд (показывается при вводе / в Telegram) - v0.11.0
     async def set_commands_on_start(context: ContextTypes.DEFAULT_TYPE):
@@ -15285,48 +15327,20 @@ def main() -> None:
         
         time.sleep(1)  # Wait for kill signal to propagate
         
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
         try:
-            # ✅ v0.28.0: Initialize daily digest scheduler BEFORE polling
-            try:
-                async def init_scheduler():
-                    print("🚀 Initializing daily digest scheduler...")
-                    await initialize_digest_scheduler()
-                    print("✅ Daily digest scheduler started")
-                
-                loop.run_until_complete(init_scheduler())
-            except Exception as e:
-                logger.error(f"⚠️ Failed to initialize digest scheduler: {e}")
-                # Don't fail if digest scheduler fails - bot should still work
-            
-            # CRITICAL: Delete any webhook to ensure polling mode works
-            print("🔧 Ensuring polling mode (removing webhook if any)...")
-            try:
-                async def delete_webhook():
-                    await application.bot.delete_webhook(drop_pending_updates=True)
-                loop.run_until_complete(delete_webhook())
-                print("✅ Webhook deleted successfully")
-            except Exception as e:
-                print(f"⚠️ Webhook deletion warning: {e}")
-            
-            # Run polling without closing loop (prevents "Event loop is closed" crash)
             print("🚀 Starting polling...")
-            loop.run_until_complete(application.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True))
+            application.run_polling(
+                allowed_updates=Update.ALL_TYPES,
+                drop_pending_updates=True,
+                close_loop=False,
+            )
         except Conflict as e:
-            # Another bot instance is running - graceful exit
             logger.error(f"💥 CONFLICT: {e}")
             logger.error("⚠️ Another bot instance is running. Killing this process to restart...")
-            try:
-                loop.run_until_complete(application.stop())
-            except Exception as stop_error:
-                logger.warning(f"Error during graceful stop: {stop_error}")
-            # Kill current process to restart fresh (Railway will restart)
             print("💥 Terminating process...")
             os.kill(os.getpid(), 9)
         except RuntimeError as e:
             if "Event loop" in str(e):
-                # Event loop crashed - restart needed
                 logger.error(f"Event loop crashed: {e}")
                 logger.error("💥 Restarting process...")
                 os.kill(os.getpid(), 9)
@@ -15335,29 +15349,6 @@ def main() -> None:
         except Exception as e:
             logger.error(f"Polling error: {e}", exc_info=True)
             raise
-        finally:
-            # ✅ v0.28.0: Stop daily digest scheduler
-            try:
-                if not loop.is_closed():
-                    async def shutdown_scheduler():
-                        await stop_digest_scheduler()
-                    loop.run_until_complete(shutdown_scheduler())
-                    logger.info(f"Daily digest scheduler stopped")
-            except Exception as e:
-                logger.debug(f"Error stopping digest scheduler: {e}")
-            
-            # Clean shutdown - don't close loop to prevent "Event loop is closed" error
-            try:
-                if not loop.is_closed():
-                    # Cancel all pending tasks
-                    pending = asyncio.all_tasks(loop)
-                    for task in pending:
-                        task.cancel()
-                    # Give time for cancellation
-                    loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-            except Exception as e:
-                logger.debug(f"Error during task cleanup: {e}")
-            # Don't close the loop - let Python handle it
     except KeyboardInterrupt:
         logger.info("👋 Бот остановлен пользователем")
     except Exception as e:

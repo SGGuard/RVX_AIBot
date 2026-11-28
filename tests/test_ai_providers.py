@@ -397,3 +397,234 @@ class TestPerformance:
         # Assert
         assert len(responses) == 5
         assert elapsed < 10.0  # Should handle 5 requests quickly
+
+
+def test_ollama_sync_adapter_inside_running_event_loop():
+    """Sync AI adapter must work when called from an active event loop."""
+    mock_client = Mock()
+    mock_client.is_available = True
+    mock_client.generate = AsyncMock(return_value="Ollama test response")
+
+    with patch("ai_dialogue.OLLAMA_ENABLED", True), \
+         patch("ai_dialogue.GROQ_API_KEY", ""), \
+         patch("ai_dialogue.MISTRAL_API_KEY", ""), \
+         patch("ai_dialogue.GEMINI_API_KEY", ""), \
+         patch("ai_dialogue.get_ollama_client", return_value=mock_client), \
+         patch("ai_dialogue.update_metrics"), \
+         patch("ai_dialogue.clean_hallucinations", side_effect=lambda text: text), \
+         patch("ai_dialogue.trim_response_to_limit", side_effect=lambda text, mode: text), \
+         patch("ai_dialogue.add_scam_warning_if_needed", side_effect=lambda message, text: text):
+
+        async def scenario():
+            return get_ai_response_sync("Explain blockchain")
+
+        response = asyncio.run(scenario())
+
+    assert response == "Ollama test response"
+    mock_client.generate.assert_awaited_once()
+
+
+def test_ollama_sync_adapter_without_running_event_loop():
+    """Sync AI adapter must work when no event loop is running."""
+    mock_client = Mock()
+    mock_client.is_available = True
+    mock_client.generate = AsyncMock(return_value="Ollama sync response")
+
+    with patch("ai_dialogue.OLLAMA_ENABLED", True), \
+         patch("ai_dialogue.GROQ_API_KEY", ""), \
+         patch("ai_dialogue.MISTRAL_API_KEY", ""), \
+         patch("ai_dialogue.GEMINI_API_KEY", ""), \
+         patch("ai_dialogue.get_ollama_client", return_value=mock_client), \
+         patch("ai_dialogue.update_metrics"), \
+         patch("ai_dialogue.clean_hallucinations", side_effect=lambda text: text), \
+         patch("ai_dialogue.trim_response_to_limit", side_effect=lambda text, mode: text), \
+         patch("ai_dialogue.add_scam_warning_if_needed", side_effect=lambda message, text: text):
+
+        response = get_ai_response_sync("Explain blockchain")
+
+    assert response == "Ollama sync response"
+    mock_client.generate.assert_awaited_once()
+
+
+# ============================================================================
+# TEST PROVIDER RETURN VALUES
+# ============================================================================
+
+def _prepare_cloud_provider_test(monkeypatch, provider, response_data):
+    """Prepare an isolated mocked cloud provider."""
+    import ai_dialogue
+
+    monkeypatch.setattr(ai_dialogue, "OLLAMA_ENABLED", False)
+    monkeypatch.setattr(ai_dialogue, "GROQ_API_KEY", "test-groq" if provider == "groq" else "")
+    monkeypatch.setattr(ai_dialogue, "MISTRAL_API_KEY", "test-mistral" if provider == "mistral" else "")
+    monkeypatch.setattr(ai_dialogue, "GEMINI_API_KEY", "test-gemini" if provider == "gemini" else "")
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = response_data
+
+    mock_client = MagicMock()
+    mock_client.__enter__.return_value = mock_client
+    mock_client.post.return_value = mock_response
+
+    monkeypatch.setattr(
+        ai_dialogue.httpx,
+        "Client",
+        lambda **kwargs: mock_client,
+    )
+
+    monkeypatch.setattr(ai_dialogue, "update_metrics", Mock())
+    monkeypatch.setattr(ai_dialogue, "clean_hallucinations", lambda text: text)
+    monkeypatch.setattr(ai_dialogue, "trim_response_to_limit", lambda text, mode: text)
+    monkeypatch.setattr(
+        ai_dialogue,
+        "add_scam_warning_if_needed",
+        lambda message, text: text,
+    )
+
+
+def test_groq_returns_provider_name(monkeypatch, mock_groq_response):
+    _prepare_cloud_provider_test(monkeypatch, "groq", mock_groq_response)
+
+    response, provider = get_ai_response_sync(
+        "Explain blockchain",
+        return_provider=True,
+    )
+
+    assert response == "Groq response about blockchain"
+    assert provider == "groq"
+
+
+def test_mistral_returns_provider_name(monkeypatch, mock_mistral_response):
+    _prepare_cloud_provider_test(monkeypatch, "mistral", mock_mistral_response)
+
+    response, provider = get_ai_response_sync(
+        "Explain blockchain",
+        return_provider=True,
+    )
+
+    assert response == "Mistral response about blockchain"
+    assert provider == "mistral"
+
+
+def test_gemini_returns_provider_name(monkeypatch, mock_gemini_response):
+    _prepare_cloud_provider_test(monkeypatch, "gemini", mock_gemini_response)
+
+    response, provider = get_ai_response_sync(
+        "Explain blockchain",
+        return_provider=True,
+    )
+
+    assert response == "Gemini response about blockchain"
+    assert provider == "gemini"
+
+
+def test_ollama_returns_provider_name(monkeypatch):
+    import ai_dialogue
+
+    mock_client = Mock()
+    mock_client.is_available = True
+    mock_client.generate = AsyncMock(return_value="Ollama test response")
+
+    monkeypatch.setattr(ai_dialogue, "OLLAMA_ENABLED", True)
+    monkeypatch.setattr(ai_dialogue, "GROQ_API_KEY", "")
+    monkeypatch.setattr(ai_dialogue, "MISTRAL_API_KEY", "")
+    monkeypatch.setattr(ai_dialogue, "GEMINI_API_KEY", "")
+    monkeypatch.setattr(ai_dialogue, "get_ollama_client", lambda: mock_client)
+    monkeypatch.setattr(ai_dialogue, "update_metrics", Mock())
+    monkeypatch.setattr(ai_dialogue, "clean_hallucinations", lambda text: text)
+    monkeypatch.setattr(ai_dialogue, "trim_response_to_limit", lambda text, mode: text)
+    monkeypatch.setattr(
+        ai_dialogue,
+        "add_scam_warning_if_needed",
+        lambda message, text: text,
+    )
+
+    response, provider = get_ai_response_sync(
+        "Explain blockchain",
+        return_provider=True,
+    )
+
+    assert response == "Ollama test response"
+    assert provider == "ollama"
+
+
+def test_returns_none_when_all_providers_unavailable(monkeypatch):
+    import ai_dialogue
+
+    monkeypatch.setattr(ai_dialogue, "OLLAMA_ENABLED", False)
+    monkeypatch.setattr(ai_dialogue, "GROQ_API_KEY", "")
+    monkeypatch.setattr(ai_dialogue, "MISTRAL_API_KEY", "")
+    monkeypatch.setattr(ai_dialogue, "GEMINI_API_KEY", "")
+
+    response = get_ai_response_sync(
+        "Explain blockchain",
+        return_provider=True,
+    )
+
+    assert response == (None, None)
+
+
+def test_ollama_works_inside_running_event_loop(monkeypatch):
+    import ai_dialogue
+
+    mock_client = Mock()
+    mock_client.is_available = True
+    mock_client.generate = AsyncMock(return_value="Ollama async response")
+
+    monkeypatch.setattr(ai_dialogue, "OLLAMA_ENABLED", True)
+    monkeypatch.setattr(ai_dialogue, "GROQ_API_KEY", "")
+    monkeypatch.setattr(ai_dialogue, "MISTRAL_API_KEY", "")
+    monkeypatch.setattr(ai_dialogue, "GEMINI_API_KEY", "")
+    monkeypatch.setattr(ai_dialogue, "get_ollama_client", lambda: mock_client)
+    monkeypatch.setattr(ai_dialogue, "update_metrics", Mock())
+    monkeypatch.setattr(ai_dialogue, "clean_hallucinations", lambda text: text)
+    monkeypatch.setattr(ai_dialogue, "trim_response_to_limit", lambda text, mode: text)
+    monkeypatch.setattr(
+        ai_dialogue,
+        "add_scam_warning_if_needed",
+        lambda message, text: text,
+    )
+
+    async def call_from_running_loop():
+        return get_ai_response_sync(
+            "Explain blockchain",
+            return_provider=True,
+        )
+
+    response, provider = asyncio.run(call_from_running_loop())
+
+    assert response == "Ollama async response"
+    assert provider == "ollama"
+
+
+def test_ollama_error_falls_back_to_groq(monkeypatch, mock_groq_response):
+    import ai_dialogue
+
+    _prepare_cloud_provider_test(
+        monkeypatch,
+        "groq",
+        mock_groq_response,
+    )
+
+    mock_ollama = Mock()
+    mock_ollama.is_available = True
+    mock_ollama.generate = AsyncMock(
+        side_effect=RuntimeError("Ollama connection failed")
+    )
+
+    monkeypatch.setattr(ai_dialogue, "OLLAMA_ENABLED", True)
+    monkeypatch.setattr(
+        ai_dialogue,
+        "get_ollama_client",
+        lambda: mock_ollama,
+    )
+
+    response, provider = get_ai_response_sync(
+        "Explain blockchain",
+        return_provider=True,
+    )
+
+    assert response == "Groq response about blockchain"
+    assert provider == "groq"
+    mock_ollama.generate.assert_awaited_once()

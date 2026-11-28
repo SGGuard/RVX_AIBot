@@ -14,7 +14,7 @@ v0.25 - Локальная Ollama + облачные провайдеры:
 
 import httpx
 import logging
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict, Tuple, Union
 import os
 from dotenv import load_dotenv
 import time
@@ -22,6 +22,7 @@ from datetime import datetime
 from collections import defaultdict
 from threading import Lock
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 # 🎯 OLLAMA LOCAL LLM
 try:
@@ -1205,8 +1206,9 @@ def get_ai_response_sync(
     timeout: float = TIMEOUT,
     user_id: Optional[int] = None,  # ✅ НОВОЕ: для rate limiting
     message_context: dict = None,  # ✅ НОВОЕ v0.27: классификация сообщения (from analyze_message_context)
-    language: str = "ru"  # ✅ НОВОЕ v0.44: поддержка локализации (язык: "ru" или "uk")
-) -> Optional[str]:
+    language: str = "ru",
+    return_provider: bool = False,
+) -> Union[Optional[str], Tuple[Optional[str], Optional[str]]]:
     """
     Получает ответ от ИИ с multi-provider fallback системой.
     
@@ -1292,7 +1294,7 @@ def get_ai_response_sync(
         is_allowed, remaining, limit_message = check_ai_rate_limit(user_id)
         if not is_allowed:
             logger.warning(f"⛔ Rate limit exceeded for user {user_id}")
-            return limit_message  # Возвращаем сообщение об ограничении
+            return (limit_message, "rate_limit") if return_provider else limit_message
     
     # Формируем промпт - ИСПОЛЬЗУЕТ ПРАВИЛЬНЫЙ промпт с полным контекстом
     context_str = build_context_for_prompt(context_history)
@@ -1356,23 +1358,25 @@ def get_ai_response_sync(
             ollama_client = get_ollama_client()
             
             if ollama_client and ollama_client.is_available:
-                # Создаём event loop для async функции если его нет
-                try:
-                    loop = asyncio.get_event_loop()
-                except RuntimeError:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                
-                # Вызываем async generate
-                ai_response = loop.run_until_complete(
-                    ollama_client.generate(
-                        prompt=f"{context_str}Пользователь: {user_message}",
-                        system_prompt=system_prompt,
-                        temperature=temperature,
-                        max_tokens=max_tokens,
-                        stream=False
+                # Безопасный запуск async Ollama из синхронной функции.
+                def run_ollama():
+                    return asyncio.run(
+                        ollama_client.generate(
+                            prompt=f"{context_str}Пользователь: {user_message}",
+                            system_prompt=system_prompt,
+                            temperature=temperature,
+                            max_tokens=max_tokens,
+                            stream=False
+                        )
                     )
-                )
+
+                try:
+                    asyncio.get_running_loop()
+                except RuntimeError:
+                    ai_response = run_ollama()
+                else:
+                    with ThreadPoolExecutor(max_workers=1) as executor:
+                        ai_response = executor.submit(run_ollama).result()
                 
                 provider_time = time.time() - provider_start
                 
@@ -1389,7 +1393,7 @@ def get_ai_response_sync(
                     update_metrics("ollama", True, provider_time)
                     logger.info(f"✅ Ollama OK ({len(ai_response)} символов, {provider_time:.2f}s)")
                     logger.info(f"   ⚡ БЕЗ интернета! Работает локально на qwen2.5")
-                    return ai_response
+                    return (ai_response, "ollama") if return_provider else ai_response
                 else:
                     logger.warning(f"⚠️  Ollama: пустой ответ")
                     update_metrics("ollama", False, provider_time)
@@ -1448,7 +1452,7 @@ def get_ai_response_sync(
                             
                             update_metrics("groq", True, provider_time)
                             logger.info(f"✅ Groq OK ({len(ai_response)} символов, {provider_time:.2f}s)")
-                            return ai_response
+                            return (ai_response, "groq") if return_provider else ai_response
                         else:
                             logger.warning(f"⚠️  Groq: пустой ответ")
                             update_metrics("groq", False, provider_time)
@@ -1514,7 +1518,7 @@ def get_ai_response_sync(
                             
                             update_metrics("mistral", True, provider_time)
                             logger.info(f"✅ Mistral OK ({len(ai_response)} символов, {provider_time:.2f}s)")
-                            return ai_response
+                            return (ai_response, "mistral") if return_provider else ai_response
                         else:
                             logger.warning(f"⚠️  Mistral: пустой ответ")
                             update_metrics("mistral", False, provider_time)
@@ -1578,7 +1582,7 @@ def get_ai_response_sync(
                             
                             update_metrics("gemini", True, provider_time)
                             logger.info(f"✅ Gemini OK ({len(ai_response)} символов, {provider_time:.2f}s)")
-                            return ai_response
+                            return (ai_response, "gemini") if return_provider else ai_response
                         else:
                             logger.warning(f"⚠️  Gemini: пустой ответ")
                             update_metrics("gemini", False, provider_time)
@@ -1602,7 +1606,7 @@ def get_ai_response_sync(
     logger.error(f"   Groq: {'✅' if GROQ_API_KEY else '❌'}")
     logger.error(f"   Mistral: {'✅' if MISTRAL_API_KEY and MISTRAL_API_KEY != 'ЗАМЕНИ_НА_КЛЮЧ_ИЗ_MISTRAL' else '❌'}")
     logger.error(f"   Gemini: {'✅' if GEMINI_API_KEY else '❌'}")
-    return None
+    return (None, None) if return_provider else None
 
 
 # ==================== ТЕСТИРОВАНИЕ ====================

@@ -2,10 +2,16 @@
 # RVX Bot - Git Ignore Rules
 # ============================================
 
-# Environment variables (КРИТИЧНО!)
+# Environment variables and local secrets
 .env
-.env.local
-.env.*.local
+.env.*
+*.env
+*.env.*
+!.env.example
+secrets/
+**/secrets/
+credentials/
+**/credentials/
 
 # Python
 __pycache__/
@@ -33,7 +39,7 @@ wheels/
 venv/
 ENV/
 env/
-.venv
+.venv/
 
 # IDEs
 .vscode/
@@ -43,11 +49,17 @@ env/
 *~
 .DS_Store
 
-# Logs
+# Logs and diagnostic output
 *.log
+*.log.*
 logs/
+**/logs/
 api_server.log
 bot.log
+current_logs.txt
+railway_logs.txt
+*_logs.txt
+*.out
 
 # Testing
 .pytest_cache/
@@ -57,7 +69,7 @@ htmlcov/
 .hypothesis/
 
 # Jupyter Notebooks
-.ipynb_checkpoints
+.ipynb_checkpoints/
 
 # Database (если используете)
 *.db
@@ -81,6 +93,7 @@ Desktop.ini
 # Backup files
 *.bak
 *.backup
+*.old
 
 # Local configuration overrides
 config.local.py

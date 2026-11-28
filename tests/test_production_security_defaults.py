@@ -91,3 +91,116 @@ for path in ("/docs", "/redoc", "/openapi.json"):
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize(
+    "placeholder",
+    [
+        "replace_with_your_telegram_bot_token",
+        "replace_with_your_gemini_api_key",
+        "replace_with_a_long_random_admin_token",
+        "replace_with_a_long_random_bot_api_key",
+        "replace_with_at_least_32_random_characters",
+        "replace_with_your_coingecko_api_key",
+        "admin_token_change_this_to_secure_random_token_in_production",
+        "your_telegram_bot_token_here",
+        "your_gemini_api_key_here",
+        "your_api_key_here",
+        "your_new_key_here",
+        "your_api_key",
+        "your_coingecko_pro_api_key_here",
+    ],
+)
+def test_config_secret_placeholder_is_not_configured(placeholder):
+    assert config._is_configured_secret(placeholder) is False
+    assert config._is_configured_secret(f"  {placeholder.upper()}  ") is False
+
+
+def test_build_api_headers_rejects_placeholder_bot_key(monkeypatch):
+    monkeypatch.setattr(
+        config, "BOT_API_KEY", "replace_with_a_long_random_bot_api_key"
+    )
+
+    with pytest.raises(ValueError, match="placeholder"):
+        config.build_api_headers()
+
+
+def test_build_api_headers_rejects_placeholder_signing_secret(monkeypatch):
+    monkeypatch.setattr(config, "BOT_API_KEY", "test-api-key")
+    monkeypatch.setattr(
+        config, "USER_ID_SIGNING_SECRET",
+        "replace_with_at_least_32_random_characters",
+    )
+
+    with pytest.raises(ValueError, match="placeholder"):
+        config.build_api_headers(user_id=123)
+
+
+def test_config_accepts_ollama_without_cloud_providers(monkeypatch):
+    monkeypatch.setattr(config, "ENVIRONMENT", "development")
+    monkeypatch.setattr(config, "OLLAMA_ENABLED", True)
+    monkeypatch.setattr(config, "GEMINI_API_KEY", "")
+    monkeypatch.setattr(
+        config,
+        "AI_PROVIDERS",
+        {
+            "groq": {"api_key": ""},
+            "mistral": {"api_key": ""},
+            "gemini": {"api_key": ""},
+        },
+    )
+
+    assert config.validate_config(require_bot=False) is True
+
+
+def test_config_rejects_missing_providers_when_ollama_disabled(monkeypatch):
+    monkeypatch.setattr(config, "ENVIRONMENT", "development")
+    monkeypatch.setattr(config, "OLLAMA_ENABLED", False)
+    monkeypatch.setattr(config, "GEMINI_API_KEY", "")
+    monkeypatch.setattr(
+        config,
+        "AI_PROVIDERS",
+        {
+            "groq": {"api_key": ""},
+            "mistral": {"api_key": ""},
+            "gemini": {"api_key": ""},
+        },
+    )
+
+    with pytest.raises(ValueError, match="Конфигурация невалидна"):
+        config.validate_config(require_bot=False)
+
+
+def test_config_rejects_ai_provider_placeholders(monkeypatch, caplog):
+    monkeypatch.setattr(config, "OLLAMA_ENABLED", False)
+    monkeypatch.setattr(config, "ENVIRONMENT", "production")
+    monkeypatch.setattr(config, "DEBUG_MODE", False)
+    monkeypatch.setattr(config, "GEMINI_API_KEY", "your_gemini_api_key_here")
+    monkeypatch.setattr(
+        config, "AI_PROVIDERS",
+        {
+            "groq": {"api_key": ""},
+            "mistral": {"api_key": ""},
+            "gemini": {"api_key": "your_gemini_api_key_here"},
+        },
+    )
+    monkeypatch.setenv("ADMIN_TOKEN", "test-production-admin-token")
+
+    with pytest.raises(ValueError):
+        config.validate_config(require_bot=False)
+    assert "Ни один AI провайдер не настроен" in caplog.text
+
+
+def test_config_rejects_placeholder_signing_secret(monkeypatch, caplog):
+    monkeypatch.setattr(config, "ENVIRONMENT", "production")
+    monkeypatch.setattr(config, "DEBUG_MODE", False)
+    monkeypatch.setattr(config, "GEMINI_API_KEY", "test-gemini-key")
+    monkeypatch.setattr(
+        config, "USER_ID_SIGNING_SECRET",
+        "replace_with_at_least_32_random_characters",
+    )
+    monkeypatch.setenv("ADMIN_TOKEN", "test-production-admin-token")
+
+    with pytest.raises(ValueError):
+        config.validate_config(require_bot=False)
+    assert "USER_ID_SIGNING_SECRET содержит placeholder" in caplog.text

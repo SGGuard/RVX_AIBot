@@ -15,6 +15,7 @@ from typing import Optional, Any, Dict, List, AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urljoin
+from config import ENVIRONMENT, OLLAMA_ENABLED
 
 # ============================================================================
 # CRITICAL: Prevent API server from running in Railway
@@ -92,23 +93,11 @@ logging.basicConfig(
 logger = logging.getLogger("RVX_API")
 
 load_dotenv()
+
 USER_ID_SIGNING_SECRET = os.getenv("USER_ID_SIGNING_SECRET", "").strip()
 
-# ✅ CRITICAL FIX #3: Validate configuration on API startup
 # =============================================================================
-try:
-    from config import validate_config, ENVIRONMENT
-    validate_config(require_bot=False)
-    logger.info("✅ API Configuration validation PASSED")
-except ValueError as e:
-    logger.critical(f"❌ Configuration validation FAILED: {e}")
-    logger.critical("🛑 API cannot start with invalid configuration. Fix the errors above and retry.")
-    sys.exit(1)
-except Exception as e:
-    logger.error(f"⚠️ Unexpected error during config validation: {e}")
-    # Continue anyway - don't force exit on unexpected errors
 
-# =============================================================================
 # SECURITY UTILITIES (Critical Fix #2: Mask secrets in logs)
 # =============================================================================
 
@@ -130,7 +119,6 @@ DEEPSEEK_TEMPERATURE = float(os.getenv("DEEPSEEK_TEMPERATURE", "0.3"))
 DEEPSEEK_MAX_TOKENS = int(os.getenv("DEEPSEEK_MAX_TOKENS", "1500"))
 
 # 🎯 OLLAMA конфигурация (локальная LLM без интернета - ПРИОРИТЕТ 1!)
-OLLAMA_ENABLED = os.getenv("OLLAMA_ENABLED", "true").lower() == "true"
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5")
 OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "60"))
@@ -1406,8 +1394,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         from config import validate_config
         validate_config(require_bot=False)
         logger.info("✅ Конфигурация валидна")
-    except Exception as e:
-        logger.warning(f"⚠️ Предупреждение валидации конфигурации: {e}")
+    except ValueError as e:
+        logger.critical(f"❌ Конфигурация API недействительна: {e}")
+        raise
+    except Exception:
+        logger.exception("❌ Непредвиденная ошибка проверки конфигурации API")
+        raise
     
     # Startup
     logger.info("=" * 70)
@@ -1419,14 +1411,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # ====================================================================
     if OLLAMA_ENABLED:
         try:
-            await initialize_ollama(
+            ollama_client = await initialize_ollama(
                 base_url=OLLAMA_BASE_URL,
                 model=OLLAMA_MODEL,
                 timeout=OLLAMA_TIMEOUT
             )
-            logger.info(f"✅ Ollama клиент инициализирован (модель: {OLLAMA_MODEL})")
-            logger.info(f"   URL: {OLLAMA_BASE_URL}")
-            logger.info(f"   ⚡ Ollama будет использоваться в ПРИОРИТЕТЕ перед облачными сервисами!")
+
+            if ollama_client.is_available:
+                logger.info(f"✅ Ollama доступна (модель: {OLLAMA_MODEL})")
+                logger.info(f"   URL: {OLLAMA_BASE_URL}")
+                logger.info("   ⚡ Ollama будет использоваться в приоритете перед облачными сервисами")
+            else:
+                logger.warning(
+                    "⚠️ Клиент Ollama создан, но сервер недоступен: %s",
+                    OLLAMA_BASE_URL
+                )
+                logger.warning("   Проверьте, запущен ли Ollama и доступна ли модель %s", OLLAMA_MODEL)
         except Exception as e:
             logger.warning(f"⚠️ Ошибка инициализации Ollama: {e}")
             logger.warning(f"   Система переключится на облачные провайдеры (Groq/Mistral/Gemini)")
@@ -1904,8 +1904,17 @@ async def health_check() -> HealthResponse:
         logger.debug(f"Could not retrieve cache stats: {e}")
         cache_stats = {}
     
+    ollama = get_ollama_client()
+    ollama_available = ollama is not None and ollama.is_available
+
+    ai_available = (
+        ollama_available
+        or deepseek_client is not None
+        or client is not None
+    )
+
     health_response = HealthResponse(
-        status="healthy" if client else "degraded",
+        status="healthy" if ai_available else "degraded",
         gemini_available=client is not None,
         requests_total=request_counter["total"],
         requests_success=request_counter["success"],
@@ -2178,33 +2187,16 @@ async def explain_news(payload: NewsPayload, request: Request) -> JSONResponse:
         logger.info(f"🔄 Вызываем ai_dialogue для анализа...")
         
         # Получаем ответ через Groq → Mistral → Gemini
-        ai_response = get_ai_response_sync(
+        ai_response, ai_provider = await run_in_threadpool(
+            get_ai_response_sync,
             user_message=analysis_prompt,
             context_history=[],  # Анализ новостей - не нужен контекст
-            timeout=15.0
+            timeout=15.0,
+            return_provider=True,
         )
         
         if ai_response:
             logger.info(f"✅ Анализ получен: {len(ai_response)} символов ({(datetime.now(timezone.utc) - start_time_request).total_seconds():.2f}s)")
-            
-            # ⚡ HARD LIMIT: Ограничиваем ответ до 400 символов (v0.21.0)
-            MAX_RESPONSE_CHARS = 400
-            original_length = len(ai_response)
-            
-            if len(ai_response) > MAX_RESPONSE_CHARS:
-                # Обрезаем на последнем полном предложении
-                truncated = ai_response[:MAX_RESPONSE_CHARS]
-                last_period = truncated.rfind('.')
-                if last_period > 100:  # Есть хотя бы 100 символов перед точкой
-                    ai_response = ai_response[:last_period + 1]
-                else:
-                    # Обрезаем на последнем пробеле
-                    last_space = truncated.rfind(' ')
-                    if last_space > 0:
-                        ai_response = ai_response[:last_space] + "..."
-                    else:
-                        ai_response = truncated + "..."
-                logger.info(f"✂️ Обрезан с {original_length} до {len(ai_response)} символов (API response truncation)")
             
             # Кэшируем результат (Redis с TTL)
             if CACHE_ENABLED:
@@ -2220,7 +2212,7 @@ async def explain_news(payload: NewsPayload, request: Request) -> JSONResponse:
                 method="POST",
                 status=200,
                 response_time_ms=duration_ms,
-                provider="groq"
+                provider=ai_provider
             )
             
             structured_logger.log_request(
@@ -2229,7 +2221,7 @@ async def explain_news(payload: NewsPayload, request: Request) -> JSONResponse:
                 method="POST",
                 response_time_ms=duration_ms,
                 cache_hit=False,
-                ai_provider="groq",
+                ai_provider=ai_provider,
                 status="success"
             )
             
